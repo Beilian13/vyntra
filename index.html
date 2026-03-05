@@ -53,14 +53,63 @@ input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255
 .pulse{width:8px;height:8px;border-radius:50%;background:#39d353;margin-right:8px}
 .center-note{display:flex;align-items:center;justify-content:center;color:var(--muted);height:100%}
 
-/* emoji picker circular */
-#emoji-picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1200;align-items:center;justify-content:center}
-#emoji-picker{width:min(640px,92vw);height:min(640px,92vh);border-radius:50%;background:linear-gradient(180deg,#ffffff,#f4f6ff);position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;padding:18px}
-#emoji-search{width:85%;padding:8px;border-radius:8px;border:1px solid #ddd;margin-bottom:10px;font-size:14px}
-#emoji-grid{flex:1;width:100%;display:grid;grid-template-columns:repeat(auto-fill,44px);gap:8px;align-content:start;overflow:auto;padding:12px;border-radius:999px}
-.emoji-btn-grid{width:44px;height:44px;border-radius:8px;background:transparent;border:none;font-size:20px;cursor:pointer}
-#emoji-close{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#ff4d4f;color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.2);cursor:pointer}
+/* Emoji picker overlay stays the same */
+#emoji-picker-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 1200;
+    align-items: center;
+    justify-content: center;
+}
 
+/* Picker container now rectangular instead of circular */
+#emoji-picker {
+    width: min(640px, 92vw);
+    height: min(480px, 70vh);
+    border-radius: 16px; /* slightly rounded corners */
+    background: linear-gradient(180deg, #ffffff, #f4f6ff);
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px;
+}
+
+/* Grid stays scrollable and fills container */
+#emoji-grid {
+    flex: 1;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 44px);
+    gap: 8px;
+    align-content: start;
+    overflow: auto;
+    padding: 12px;
+    border-radius: 12px;
+}
+
+/* Close button stays circular in the center */
+#emoji-close {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: #ff4d4f;
+    color: #fff;
+    border: none;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
 /* responsive */
 @media(max-width:900px){
   .sideRooms{display:none}
