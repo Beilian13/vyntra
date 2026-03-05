@@ -116,6 +116,36 @@ input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255
   .usersPanel{display:none}
   .roomHeader .meta{display:none}
 }
+/* Mobile rooms panel */
+#mobileRoomsPanel {
+  display: none;
+  position: fixed;
+  top: 64px;
+  left: 0;
+  width: 220px;
+  max-width: 70%;
+  height: calc(100% - 64px);
+  background: #0d0f1a;
+  border-right: 1px solid rgba(255,255,255,0.02);
+  overflow:auto;
+  padding:12px;
+  z-index: 1000;
+  box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+  transition: transform 0.25s ease;
+  transform: translateX(-100%);
+}
+#mobileRoomsPanel.show {
+  display: block;
+  transform: translateX(0);
+}
+
+/* Show toggle only on mobile and hide desktop rooms */
+@media(max-width:900px){
+  .sideRooms{display:none;}
+  .usersPanel{display:none;}
+  .roomHeader .meta{display:none;}
+  #mobileRoomsBtn{display:flex;}
+}
 </style>
 </head>
 <body>
@@ -135,7 +165,15 @@ input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255
   </div>
 </header>
 
+  <!-- Mobile rooms toggle button -->
+<button id="mobileRoomsBtn" class="icon-btn" style="display:none; position:absolute; left:8px; top:12px;">☰</button>
+
 <main>
+  <!-- MOBILE ROOMS TOGGLE BUTTON -->
+<button id="mobileRoomsBtn" class="icon-btn" style="display:none; position:absolute; left:8px; top:12px;">☰</button>
+
+<!-- MOBILE ROOMS PANEL -->
+<div id="mobileRoomsPanel"></div>
   <aside class="sideRooms" id="roomsList">
     <!-- rooms populated from server -->
   </aside>
