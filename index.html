@@ -4,110 +4,25 @@
 <meta charset="UTF-8">
 <title>Vyntra Chat</title>
 <style>
-  body {
-    font-family: "Segoe UI", sans-serif;
-    margin: 0;
-    background: #1e1e2f;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-
-  header {
-    background: #27293d;
-    padding: 10px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  header h2 { margin: 0; }
-
-  #roomSelect {
-    margin-left: 10px;
-    padding: 4px;
-    border-radius: 4px;
-    border: none;
-  }
-
-  main {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-
-  #chat-container {
-    flex: 3;
-    display: flex;
-    flex-direction: column;
-    border-right: 2px solid #333;
-    padding: 10px;
-    overflow-y: auto;
-    background: #1e1e2f;
-  }
-
-  #users-container {
-    flex: 1;
-    background: #2b2b42;
-    padding: 10px;
-    overflow-y: auto;
-  }
-
-  #chat {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  #chat li {
-    margin-bottom: 8px;
-    max-width: 70%;
-    padding: 6px 10px;
-    border-radius: 8px;
-    word-wrap: break-word;
-  }
-
-  .chat-msg {
-    background: #3a3a5a;
-  }
-
-  .chat-user {
-    font-weight: bold;
-    color: #ffd700;
-  }
-
-  .system-msg {
-    color: #aaa;
-    font-style: italic;
-  }
-
-  footer {
-    display: flex;
-    padding: 10px;
-    background: #27293d;
-  }
-
-  footer input, footer button {
-    padding: 8px;
-    margin-right: 5px;
-    border: none;
-    border-radius: 4px;
-  }
-
-  footer input {
-    flex: 1;
-  }
-
-  footer button {
-    background: #5c6bc0;
-    color: #fff;
-    cursor: pointer;
-  }
-
-  footer button:hover {
-    background: #7986cb;
-  }
+  body { font-family:"Segoe UI",sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#1e1e2f; color:#fff; }
+  header { background:#27293d; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+  header h2 { margin:0; }
+  header input, header button, header select { margin:2px; padding:5px 8px; border-radius:4px; border:none; }
+  main { flex:1; display:flex; overflow:hidden; }
+  #chat-container { flex:3; display:flex; flex-direction:column; padding:10px; overflow-y:auto; background:#1e1e2f; }
+  #users-container { flex:1; background:#2b2b42; padding:10px; overflow-y:auto; }
+  #chat { list-style:none; padding:0; margin:0; }
+  #chat li { margin-bottom:8px; max-width:70%; padding:6px 10px; border-radius:8px; word-wrap:break-word; position:relative; }
+  .chat-msg { background:#3a3a5a; }
+  .chat-user { font-weight:bold; color:#ffd700; margin-right:5px; }
+  .system-msg { color:#aaa; font-style:italic; }
+  .emoji-btn { cursor:pointer; margin-left:5px; font-size:0.9em; }
+  footer { display:flex; padding:10px; background:#27293d; flex-wrap:wrap; }
+  footer input, footer button { padding:8px; margin:2px; border-radius:4px; border:none; }
+  footer input { flex:1; min-width:150px; }
+  footer button { background:#5c6bc0; color:#fff; cursor:pointer; }
+  footer button:hover { background:#7986cb; }
+  @media(max-width:700px){ main{flex-direction:column;} #users-container{flex:unset;height:120px;} }
 </style>
 </head>
 <body>
@@ -115,14 +30,13 @@
 <header>
   <h2>Vyntra Chat</h2>
   <div>
-    <input id="name" placeholder="Username" style="padding:4px; border-radius:4px; border:none;">
+    <input id="name" placeholder="Username">
     <button onclick="setName()">Set</button>
 
-    <select id="room" id="roomSelect">
-      <option value="general">General</option>
-      <option value="memes">Memes</option>
-      <option value="dev">Dev</option>
-    </select>
+    <input id="new-room" placeholder="New room">
+    <button onclick="createRoom()">Create</button>
+
+    <select id="room"></select>
     <button onclick="join()">Join</button>
   </div>
 </header>
@@ -146,6 +60,7 @@
 let ws
 let connected = false
 let currentRoom = null
+let rooms = new Set()
 
 function connect() {
   const protocol = location.protocol === "https:" ? "wss://" : "ws://"
@@ -154,6 +69,7 @@ function connect() {
   ws.onopen = () => {
     connected = true
     console.log("Connected to Vyntra")
+    populateRoomList()
   }
 
   ws.onclose = () => {
@@ -176,7 +92,7 @@ function connect() {
     else if(parsed.type === "chat"){
       const li = document.createElement("li")
       li.className = "chat-msg"
-      li.innerHTML = `<span class="chat-user">${parsed.user}</span>: ${parsed.text}`
+      li.innerHTML = `<span class="chat-user">${parsed.user}</span>: ${parsed.text} <span class="emoji-btn" onclick="react(this,'👍')">👍</span><span class="emoji-btn" onclick="react(this,'❤️')">❤️</span><span class="emoji-btn" onclick="react(this,'😂')">😂</span>`
       chat.appendChild(li)
     }
     else if(parsed.type === "users"){
@@ -188,7 +104,6 @@ function connect() {
         usersList.appendChild(li)
       })
     }
-
     chat.scrollTop = chat.scrollHeight
   }
 }
@@ -199,6 +114,26 @@ function setName(){
   if(!connected) return
   const name = document.getElementById("name").value
   ws.send(JSON.stringify({ type:"setname", name }))
+}
+
+function createRoom(){
+  const roomInput = document.getElementById("new-room")
+  const room = roomInput.value.trim()
+  if(!room || rooms.has(room)) return
+  rooms.add(room)
+  populateRoomList()
+  roomInput.value = ""
+}
+
+function populateRoomList(){
+  const sel = document.getElementById("room")
+  sel.innerHTML = ""
+  rooms.forEach(r => {
+    const opt = document.createElement("option")
+    opt.value = r
+    opt.textContent = r
+    sel.appendChild(opt)
+  })
 }
 
 function join(){
@@ -215,6 +150,11 @@ function send(){
   if(input.value.trim() === "") return
   ws.send(JSON.stringify({ type:"message", text: input.value }))
   input.value = ""
+}
+
+function react(el,emoji){
+  const user = document.getElementById("name").value || "anonymous"
+  ws.send(JSON.stringify({ type:"message", text:`${emoji} (by ${user})` }))
 }
 </script>
 
