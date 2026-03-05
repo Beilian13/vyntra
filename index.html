@@ -1,112 +1,221 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <title>Vyntra Chat</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    margin: 0;
+    background: #1e1e2f;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    background: #27293d;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  header h2 { margin: 0; }
+
+  #roomSelect {
+    margin-left: 10px;
+    padding: 4px;
+    border-radius: 4px;
+    border: none;
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  #chat-container {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    border-right: 2px solid #333;
+    padding: 10px;
+    overflow-y: auto;
+    background: #1e1e2f;
+  }
+
+  #users-container {
+    flex: 1;
+    background: #2b2b42;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  #chat {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  #chat li {
+    margin-bottom: 8px;
+    max-width: 70%;
+    padding: 6px 10px;
+    border-radius: 8px;
+    word-wrap: break-word;
+  }
+
+  .chat-msg {
+    background: #3a3a5a;
+  }
+
+  .chat-user {
+    font-weight: bold;
+    color: #ffd700;
+  }
+
+  .system-msg {
+    color: #aaa;
+    font-style: italic;
+  }
+
+  footer {
+    display: flex;
+    padding: 10px;
+    background: #27293d;
+  }
+
+  footer input, footer button {
+    padding: 8px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 4px;
+  }
+
+  footer input {
+    flex: 1;
+  }
+
+  footer button {
+    background: #5c6bc0;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  footer button:hover {
+    background: #7986cb;
+  }
+</style>
 </head>
 <body>
 
-<h2>Vyntra Chat</h2>
+<header>
+  <h2>Vyntra Chat</h2>
+  <div>
+    <input id="name" placeholder="Username" style="padding:4px; border-radius:4px; border:none;">
+    <button onclick="setName()">Set</button>
 
-<input id="name" placeholder="username">
-<button onclick="setName()">set username</button>
+    <select id="room" id="roomSelect">
+      <option value="general">General</option>
+      <option value="memes">Memes</option>
+      <option value="dev">Dev</option>
+    </select>
+    <button onclick="join()">Join</button>
+  </div>
+</header>
 
-<br><br>
+<main>
+  <div id="chat-container">
+    <ul id="chat"></ul>
+  </div>
+  <div id="users-container">
+    <h4>Users in Room</h4>
+    <ul id="users"></ul>
+  </div>
+</main>
 
-<select id="room">
-<option value="general">general</option>
-<option value="memes">memes</option>
-<option value="dev">dev</option>
-</select>
-
-<button onclick="join()">join room</button>
-
-<br><br>
-
-<input id="msg" placeholder="message">
-<button onclick="send()">send</button>
-
-<ul id="chat"></ul>
+<footer>
+  <input id="msg" placeholder="Type your message...">
+  <button onclick="send()">Send</button>
+</footer>
 
 <script>
-
 let ws
 let connected = false
+let currentRoom = null
 
-function connect(){
+function connect() {
+  const protocol = location.protocol === "https:" ? "wss://" : "ws://"
+  ws = new WebSocket(protocol + location.host)
 
-    const protocol = location.protocol === "https:" ? "wss://" : "ws://"
-    const url = protocol + location.host
+  ws.onopen = () => {
+    connected = true
+    console.log("Connected to Vyntra")
+  }
 
-    ws = new WebSocket(url)
+  ws.onclose = () => {
+    connected = false
+    console.log("Disconnected, retrying...")
+    setTimeout(connect, 2000)
+  }
 
-    ws.onopen = ()=>{
-        connected = true
-        console.log("Connected to Vyntra")
+  ws.onmessage = ({ data }) => {
+    const parsed = JSON.parse(data)
+    const chat = document.getElementById("chat")
+    const usersList = document.getElementById("users")
+
+    if(parsed.type === "system"){
+      const li = document.createElement("li")
+      li.textContent = parsed.text
+      li.className = "system-msg"
+      chat.appendChild(li)
     }
-
-    ws.onclose = ()=>{
-        connected = false
-        console.log("Disconnected")
-        setTimeout(connect,2000)
+    else if(parsed.type === "chat"){
+      const li = document.createElement("li")
+      li.className = "chat-msg"
+      li.innerHTML = `<span class="chat-user">${parsed.user}</span>: ${parsed.text}`
+      chat.appendChild(li)
     }
-
-    ws.onmessage = (event)=>{
-
-        const data = JSON.parse(event.data)
+    else if(parsed.type === "users"){
+      if(parsed.room !== currentRoom) return
+      usersList.innerHTML = ""
+      parsed.users.forEach(u => {
         const li = document.createElement("li")
-
-        if(data.type === "system"){
-            li.textContent = data.text
-            li.style.color = "gray"
-        }
-        else if(data.type === "chat"){
-            li.textContent = "[" + data.room + "] " + data.user + ": " + data.text
-        }
-
-        document.getElementById("chat").appendChild(li)
+        li.textContent = u
+        usersList.appendChild(li)
+      })
     }
+
+    chat.scrollTop = chat.scrollHeight
+  }
 }
 
 connect()
 
 function setName(){
-
-    if(!connected) return
-
-    const name = document.getElementById("name").value
-
-    ws.send(JSON.stringify({
-        type:"setname",
-        name:name
-    }))
+  if(!connected) return
+  const name = document.getElementById("name").value
+  ws.send(JSON.stringify({ type:"setname", name }))
 }
 
 function join(){
-
-    if(!connected) return
-
-    const room = document.getElementById("room").value
-
-    ws.send(JSON.stringify({
-        type:"join",
-        room:room
-    }))
+  if(!connected) return
+  const room = document.getElementById("room").value
+  currentRoom = room
+  document.getElementById("chat").innerHTML = ""
+  ws.send(JSON.stringify({ type:"join", room }))
 }
 
 function send(){
-
-    if(!connected) return
-
-    const input = document.getElementById("msg")
-
-    ws.send(JSON.stringify({
-        type:"message",
-        text:input.value
-    }))
-
-    input.value = ""
+  if(!connected) return
+  const input = document.getElementById("msg")
+  if(input.value.trim() === "") return
+  ws.send(JSON.stringify({ type:"message", text: input.value }))
+  input.value = ""
 }
-
 </script>
 
 </body>
