@@ -45,7 +45,7 @@ main{display:flex;flex:1;overflow:hidden;height:calc(100% - 64px)}
 .system{font-style:italic;color:var(--system);font-size:13px;text-align:center;padding:6px}
 .compose{display:flex;padding:12px;border-top:1px solid rgba(255,255,255,0.03);gap:8px;background:#0e1020}
 input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:#0b0d16;color:var(--white)}
-.icon-btn{width:44px;height:44px;border-radius:10px;background:#0b0d16;border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-btn{width:44px;height:44px;border-radius:50%;background:#0b0d16;border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px}
 .small{font-size:12px;padding:6px 8px}
 .usersPanel{width:220px;border-left:1px solid rgba(255,255,255,0.02);background:#0b0e18;padding:12px;overflow:auto}
 .usersPanel h4{margin:0 0 8px 0;color:var(--muted)}
@@ -134,27 +134,24 @@ let connected = false;
 let currentRoom = null;
 let myName = "";
 const rooms = new Set();
-const messagesCache = {}; // messagesCache[room] = [{...}, ...] (server provides)
+const messagesCache = {};
 const userSet = new Set();
 const myUsernameLocal = () => myName || "anonymous";
 
-/* helper: safe JSON parse */
 function safeParse(s){ try{return JSON.parse(s)}catch(e){return null} }
 
-/* connect / reconnect */
 function connect(){
   if(ws) ws.close();
   const protocol = location.protocol === "https:" ? "wss://" : "ws://";
   ws = new WebSocket(protocol + location.host);
 
-  ws.addEventListener("open",()=>{ connected=true; console.info("connected"); sendLocalName(); });
-  ws.addEventListener("close",()=>{ connected=false; console.warn("disconnected, retrying in 2s"); setTimeout(connect,2000); });
+  ws.addEventListener("open",()=>{ connected=true; sendLocalName(); });
+  ws.addEventListener("close",()=>{ connected=false; setTimeout(connect,2000); });
   ws.addEventListener("message",(ev)=> handleWsMsg(ev.data));
   ws.addEventListener("error",(e)=> console.error("ws error",e));
 }
 connect();
 
-/* UI bindings */
 document.getElementById('setNameBtn').addEventListener('click',()=>{
   const v = document.getElementById('name').value.trim();
   if(!v) return;
@@ -166,328 +163,100 @@ document.getElementById('msgInput').addEventListener('keypress',(e)=>{ if(e.key=
 document.getElementById('reconnectBtn').addEventListener('click', ()=>connect());
 document.getElementById('openPickerBtn').addEventListener('click', ()=> openEmojiPickerForComposer());
 
-/* ---------- WebSocket message handling ---------- */
-function handleWsMsg(raw){
-  const data = safeParse(raw);
-  if(!data) return;
-
-  if(data.type === "rooms"){
-    // server sends pre-defined rooms
-    populateRooms(data.rooms || []);
-  } else if(data.type === "users" && data.room === currentRoom){
-    populateUsers(data.users || []);
-  } else if(data.type === "system"){
-    pushSystemMessage(data.text);
-  } else if(data.type === "chat"){
-    // server sends chat message object (id, room, user, text, reactions)
-    cacheAndRenderMessage(data);
-  }
-}
-
-/* ---------- Rooms UI ---------- */
-function populateRooms(list){
-  const container = document.getElementById('roomsList');
-  container.innerHTML = "";
-  list.forEach(r => {
-    rooms.add(r);
-    const btn = document.createElement('div');
-    btn.className = 'room';
-    btn.id = `room-${r}`;
-    btn.innerHTML = `<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
-    btn.addEventListener('click', ()=> joinRoom(r));
-    container.appendChild(btn);
-  });
-}
-
-/* Join a room: request server to join, clear messages, show last 50 on server emit */
-function joinRoom(room){
-  if(!connected) return alert("Not connected");
-  currentRoom = room;
-  // clear UI
-  document.getElementById('messages').innerHTML = '';
-  document.getElementById('roomTitle').textContent = room;
-  document.getElementById('roomMeta').textContent = "Loading recent messages...";
-  document.getElementById('roomUsersCount').textContent = "0 users";
-  // highlight
-  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
-  const el = document.getElementById('room-'+room);
-  if(el) el.classList.add('active');
-  // tell server to join -> server will send last 50 messages
-  ws.send(JSON.stringify({ type: "join", room }));
-}
-
-/* ---------- Users UI ---------- */
-function populateUsers(list){
-  const cont = document.getElementById('usersList');
-  cont.innerHTML = "";
-  (list||[]).forEach(u=>{
-    const div = document.createElement('div');
-    div.className = 'user';
-    div.innerHTML = `<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`;
-    cont.appendChild(div);
-  });
-  document.getElementById('roomUsersCount').textContent = `${list.length} users`;
-}
-
-/* ---------- Messages caching + rendering ---------- */
-function cacheAndRenderMessage(msg){
-  if(!msg || !msg.room) return;
-  // store
-  if(!messagesCache[msg.room]) messagesCache[msg.room] = [];
-  // replace or push
-  const idx = messagesCache[msg.room].findIndex(m=>m.id===msg.id);
-  if(idx>=0) messagesCache[msg.room][idx] = msg;
-  else messagesCache[msg.room].push(msg);
-
-  // only render if in current room
-  if(msg.room === currentRoom){
-    renderMessage(msg);
-  }
-}
-
-/* push system message */
-function pushSystemMessage(text){
-  const messages = document.getElementById('messages');
-  const el = document.createElement('div');
-  el.className = 'system';
-  el.textContent = text;
-  messages.appendChild(el);
-  messages.scrollTop = messages.scrollHeight;
-}
-
-/* render message (create or update) */
-function renderMessage(msg){
-  const container = document.getElementById('messages');
-  const existing = document.getElementById('msg-' + msg.id);
-  if(existing){
-    // update reactions area only
-    const reactionsDiv = existing.querySelector('.reactions');
-    populateReactions(reactionsDiv, msg);
-    return;
-  }
-
-  // new message element
-  const wrapper = document.createElement('div');
-  wrapper.className = 'msg' + (msg.user === myUsernameLocal() ? ' me' : '');
-  wrapper.id = 'msg-' + msg.id;
-
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  meta.textContent = `${msg.user} • ${new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString()}`;
-
-  const text = document.createElement('div');
-  text.className = 'text';
-  text.textContent = msg.text;
-
-  wrapper.appendChild(meta);
-  wrapper.appendChild(text);
-
-  // reactions container (and quick emojis placeholder)
-  const reactionsDiv = document.createElement('div');
-  reactionsDiv.className = 'reactions';
-  // store quick emojis in data attribute (initially default three)
-  reactionsDiv.dataset.quick = JSON.stringify(["👍","❤️","😂"]);
-  // populate initial quick emojis & reaction badges
-  populateReactions(reactionsDiv, msg);
-
-  // custom picker button appended inside reactionsDiv as last child placeholder
-  const pickerBtn = document.createElement('button');
-  pickerBtn.className = 'reaction';
-  pickerBtn.textContent = '✦';
-  pickerBtn.title = 'Open emoji picker (circle)';
-  pickerBtn.addEventListener('click', ()=> openEmojiPicker(msg.id));
-  pickerBtn.style.background = 'transparent';
-  reactionsDiv.appendChild(pickerBtn);
-
-  wrapper.appendChild(reactionsDiv);
-  container.appendChild(wrapper);
-  container.scrollTop = container.scrollHeight;
-}
-
-/* populateReactions: shows reaction badges based on msg.reactions and quick emojis */
-function populateReactions(reactionsDiv, msg){
-  // clear existing reaction badges except the picker button if present
-  const picker = reactionsDiv.querySelector('button[title]');
-  reactionsDiv.innerHTML = '';
-  // determine quick emojis array: if reactionsDiv.dataset.quick exists, use it
-  let quick = [];
-  try { quick = JSON.parse(reactionsDiv.dataset.quick || '["👍","❤️","😂"]'); } catch(e){ quick = ["👍","❤️","😂"]; }
-
-  // render quick emojis first (as clickable)
-  quick.forEach(e=>{
-    const span = document.createElement('button');
-    span.className = 'reaction';
-    const count = (msg.reactions && msg.reactions[e]) ? msg.reactions[e].length : 0;
-    span.innerHTML = `<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${count>0?count:''}</span>`;
-    // highlight if current user reacted (server tracks usernames)
-    if(msg.reactions && msg.reactions[e] && msg.reactions[e].includes(myUsernameLocal())) span.classList.add('you');
-    span.onclick = ()=> reactMessage(msg.id, e);
-    reactionsDiv.appendChild(span);
-  });
-
-  // then render any other reaction keys (in server data) that are not in quick
-  if(msg.reactions){
-    Object.keys(msg.reactions).forEach(key=>{
-      if(quick.includes(key)) return;
-      const span = document.createElement('button');
-      span.className = 'reaction';
-      const count = msg.reactions[key].length;
-      span.innerHTML = `<span style="font-size:16px">${key}</span><span class="count" style="margin-left:6px">${count}</span>`;
-      if(msg.reactions[key].includes(myUsernameLocal())) span.classList.add('you');
-      span.onclick = ()=> reactMessage(msg.id, key);
-      reactionsDiv.appendChild(span);
-    });
-  }
-
-  // finally add the picker button
-  const pickerBtn = document.createElement('button');
-  pickerBtn.className = 'reaction';
-  pickerBtn.textContent = '✦';
-  pickerBtn.title = 'Open emoji picker (circle)';
-  pickerBtn.onclick = ()=> openEmojiPicker(msg.id);
-  pickerBtn.style.background = 'transparent';
-  reactionsDiv.appendChild(pickerBtn);
-
-  // keep quick array persisted
-  reactionsDiv.dataset.quick = JSON.stringify(quick);
-}
-
-/* ---------- Sending a message ---------- */
-function sendLocalName(){
-  if(!connected) return;
-  if(!myName) return;
-  ws.send(JSON.stringify({ type: "setname", name: myName }));
-}
-function sendMessage(){
-  if(!connected) return alert('Not connected');
-  if(!currentRoom) return alert('Join a room first');
-  const input = document.getElementById('msgInput');
-  const text = input.value.trim();
-  if(!text) return;
-  ws.send(JSON.stringify({ type: "message", text }));
-  input.value = '';
-}
-
-/* ---------- Reactions ---------- */
-function reactMessage(messageId, emoji){
-  if(!connected || !currentRoom) return;
-  ws.send(JSON.stringify({ type: "reaction", messageId, emoji }));
-}
-
-/* ---------- Emoji picker (circular) ---------- */
+/* ---------- Emoji picker ---------- */
 let allEmojis = [];
 let pickerOpenFor = null;
 
-/* load emoji dataset (large list) */
 (async function loadEmojiSet(){
   try{
     const res = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
     const json = await res.json();
     allEmojis = json.map(e=>e.char).filter(Boolean);
-  }catch(e){
-    // fallback small set
-    allEmojis = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😍","😘","😎","🤩","👍","❤️","🔥","🎉","😢","🙏"];
-  }
+  }catch(e){ allEmojis = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😍","😘","😎","🤩","👍","❤️","🔥","🎉","😢","🙏"]; }
 })();
 
-/* open circular picker for a specific message (or for composer when msgId === '__composer') */
 function openEmojiPicker(msgId){
   pickerOpenFor = msgId;
   document.getElementById('emoji-picker-overlay').style.display = 'flex';
   populateEmojiGrid('');
-  // focus search
   setTimeout(()=>document.getElementById('emoji-search').focus(),80);
 }
+function openEmojiPickerForComposer(){ openEmojiPicker('__composer'); }
+document.getElementById('emoji-close').addEventListener('click',()=>{ pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; document.getElementById('emoji-search').value=''; });
 
-/* composer variant */
-function openEmojiPickerForComposer(){
-  // open picker with special id so clicks add emoji to composer text
-  openEmojiPicker('__composer');
-}
+document.getElementById('emoji-search').addEventListener('input',(e)=> populateEmojiGrid(e.target.value.trim()));
 
-/* close picker */
-document.getElementById('emoji-close').addEventListener('click', closeEmojiPicker);
-function closeEmojiPicker(){
-  pickerOpenFor = null;
-  document.getElementById('emoji-picker-overlay').style.display = 'none';
-  document.getElementById('emoji-search').value = '';
-}
+document.getElementById('emoji-picker-overlay').addEventListener('click',(ev)=>{ if(ev.target === document.getElementById('emoji-picker-overlay')) pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; });
 
-/* populate emoji grid with optional filter */
 function populateEmojiGrid(filter){
-  const grid = document.getElementById('emoji-grid');
-  grid.innerHTML = '';
+  const grid = document.getElementById('emoji-grid'); grid.innerHTML='';
   const f = (filter||'').toLowerCase();
-  // choose source list (allEmojis)
-  const list = allEmojis;
-  // limit to first N matches for performance, but allow scrolling
-  let count = 0;
-  for(let i=0;i<list.length;i++){
-    const ch = list[i];
-    if(f && !ch.includes(f) && !emojiNameMatches(ch, f)) continue; // basic char + name search
+  let count=0;
+  for(let i=0;i<allEmojis.length;i++){
+    const ch = allEmojis[i];
+    if(f && !ch.includes(f)) continue;
     const btn = document.createElement('button');
-    btn.className = 'emoji-btn-grid';
-    btn.textContent = ch;
-    btn.onclick = ()=> {
-      if(pickerOpenFor === '__composer'){
-        // insert into composer input
-        const input = document.getElementById('msgInput');
-        input.value = input.value + ch;
-        input.focus();
-        return;
-      }
-      // user picked emoji for a message
-      reactMessage(pickerOpenFor, ch);
-      // update quick emojis for this message element:
-      const el = document.getElementById('msg-' + pickerOpenFor);
-      if(el){
-        const rdiv = el.querySelector('.reactions');
-        // replace starter quick emojis (first three quick items) with picked emoji:
-        let quick = [];
-        try{ quick = JSON.parse(rdiv.dataset.quick||'["👍","❤️","😂"]'); }catch(e){ quick = ["👍","❤️","😂"]; }
-        // remove starter three (we treat starter as first 3 entries; but if quick already customized, remove all and keep added ones)
-        // We'll replace entire quick with [ch] (per requirement: delete the 3 starter quick emojis and add the picked ones)
-        quick = [ch];
-        rdiv.dataset.quick = JSON.stringify(quick);
-        // re-render reactions: server will emit updated message; but update UI now to show quick
-        // fetch cached message and re-render reactions (preserve counts)
-        const cached = (messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor);
-        if(cached) populateReactions(rdiv, cached);
-      }
-      // KEEP picker open so user can pick additional emojis
+    btn.className='emoji-btn-grid'; btn.textContent=ch;
+    btn.onclick=()=>{
+      if(pickerOpenFor==='__composer'){ document.getElementById('msgInput').value += ch; return; }
+      reactMessage(pickerOpenFor,ch);
+      const el=document.getElementById('msg-'+pickerOpenFor);
+      if(el){ const rdiv=el.querySelector('.reactions'); rdiv.dataset.quick=JSON.stringify([ch]); const cached=(messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor); if(cached) populateReactions(rdiv,cached); }
     };
-    grid.appendChild(btn);
-    count++;
-    if(count > 3000) break; // safety cap
+    grid.appendChild(btn); count++; if(count>3000) break;
   }
 }
 
-/* very naive "name" match for emoji char - fallback, returns false mostly */
-function emojiNameMatches(char, q){
-  // can't reliably map char -> name without full dataset; keep simple char includes
-  return false;
+/* ---------- WebSocket + chat logic ---------- */
+function handleWsMsg(raw){ const data=safeParse(raw); if(!data) return;
+  if(data.type==="rooms") populateRooms(data.rooms||[]);
+  else if(data.type==="users"&&data.room===currentRoom) populateUsers(data.users||[]);
+  else if(data.type==="system") pushSystemMessage(data.text);
+  else if(data.type==="chat") cacheAndRenderMessage(data);
 }
 
-/* filter as user types */
-document.getElementById('emoji-search').addEventListener('input',(e)=>{
-  populateEmojiGrid(e.target.value.trim());
-});
+function populateRooms(list){
+  const container=document.getElementById('roomsList'); container.innerHTML='';
+  list.forEach(r=>{ rooms.add(r); const btn=document.createElement('div'); btn.className='room'; btn.id=`room-${r}`; btn.innerHTML=`<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`; btn.addEventListener('click',()=>joinRoom(r)); container.appendChild(btn); });
+}
 
-/* click outside picker closes */
-document.getElementById('emoji-picker-overlay').addEventListener('click',(ev)=>{
-  if(ev.target === document.getElementById('emoji-picker-overlay')) closeEmojiPicker();
-});
+function joinRoom(room){
+  if(!connected) return alert("Not connected"); currentRoom=room;
+  document.getElementById('messages').innerHTML=''; document.getElementById('roomTitle').textContent=room;
+  document.getElementById('roomMeta').textContent="Loading recent messages..."; document.getElementById('roomUsersCount').textContent="0 users";
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active')); const el=document.getElementById('room-'+room); if(el) el.classList.add('active');
+  ws.send(JSON.stringify({type:"join",room}));
+}
 
-/* ---------- Initialization: request initial rooms list after connect ready ---------- */
-setInterval(()=>{
-  if(ws && ws.readyState === WebSocket.OPEN && !connected){ connected=true; sendLocalName(); }
-},2000);
+function populateUsers(list){ const cont=document.getElementById('usersList'); cont.innerHTML=''; (list||[]).forEach(u=>{ const div=document.createElement('div'); div.className='user'; div.innerHTML=`<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`; cont.appendChild(div); }); document.getElementById('roomUsersCount').textContent=`${list.length} users`; }
 
-/* ---------- Safety: show a message if no room selected ---------- */
-(function uiBoot(){
-  // nothing else needed - server should emit rooms on connect
-})();
+function cacheAndRenderMessage(msg){ if(!msg||!msg.room) return; if(!messagesCache[msg.room]) messagesCache[msg.room]=[]; const idx=messagesCache[msg.room].findIndex(m=>m.id===msg.id); if(idx>=0) messagesCache[msg.room][idx]=msg; else messagesCache[msg.room].push(msg); if(msg.room===currentRoom) renderMessage(msg); }
 
+function pushSystemMessage(text){ const messages=document.getElementById('messages'); const el=document.createElement('div'); el.className='system'; el.textContent=text; messages.appendChild(el); messages.scrollTop=messages.scrollHeight; }
+
+function renderMessage(msg){
+  const container=document.getElementById('messages'); const existing=document.getElementById('msg-'+msg.id); if(existing){ const reactionsDiv=existing.querySelector('.reactions'); populateReactions(reactionsDiv,msg); return; }
+  const wrapper=document.createElement('div'); wrapper.className='msg'+(msg.user===myUsernameLocal()?' me':''); wrapper.id='msg-'+msg.id;
+  const meta=document.createElement('div'); meta.className='meta'; meta.textContent=`${msg.user} • ${new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString()}`;
+  const text=document.createElement('div'); text.className='text'; text.textContent=msg.text;
+  wrapper.appendChild(meta); wrapper.appendChild(text);
+  const reactionsDiv=document.createElement('div'); reactionsDiv.className='reactions'; reactionsDiv.dataset.quick=JSON.stringify(["👍","❤️","😂"]); populateReactions(reactionsDiv,msg);
+  const pickerBtn=document.createElement('button'); pickerBtn.className='reaction'; pickerBtn.textContent='✦'; pickerBtn.title='Open emoji picker (circle)'; pickerBtn.addEventListener('click',()=>openEmojiPicker(msg.id)); pickerBtn.style.background='transparent'; reactionsDiv.appendChild(pickerBtn);
+  wrapper.appendChild(reactionsDiv); container.appendChild(wrapper); container.scrollTop=container.scrollHeight;
+}
+
+function populateReactions(reactionsDiv,msg){
+  const picker=reactionsDiv.querySelector('button[title]'); reactionsDiv.innerHTML='';
+  let quick=[]; try{ quick=JSON.parse(reactionsDiv.dataset.quick||'["👍","❤️","😂"]'); }catch(e){ quick=["👍","❤️","😂"]; }
+  quick.forEach(e=>{ const span=document.createElement('button'); span.className='reaction'; const count=(msg.reactions&&msg.reactions[e])?msg.reactions[e].length:0; span.innerHTML=`<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${count>0?count:''}</span>`; if(msg.reactions&&msg.reactions[e]&&msg.reactions[e].includes(myUsernameLocal())) span.classList.add('you'); span.onclick=()=>reactMessage(msg.id,e); reactionsDiv.appendChild(span); });
+  if(msg.reactions){ Object.keys(msg.reactions).forEach(key=>{ if(quick.includes(key)) return; const span=document.createElement('button'); span.className='reaction'; const count=msg.reactions[key].length; span.innerHTML=`<span style="font-size:16px">${key}</span><span class="count" style="margin-left:6px">${count}</span>`; if(msg.reactions[key].includes(myUsernameLocal())) span.classList.add('you'); span.onclick=()=>reactMessage(msg.id,key); reactionsDiv.appendChild(span); }); }
+  const pickerBtn=document.createElement('button'); pickerBtn.className='reaction'; pickerBtn.textContent='✦'; pickerBtn.title='Open emoji picker (circle)'; pickerBtn.onclick=()=>openEmojiPicker(msg.id); pickerBtn.style.background='transparent'; reactionsDiv.appendChild(pickerBtn);
+  reactionsDiv.dataset.quick=JSON.stringify(quick);
+}
+
+function sendLocalName(){ if(!connected||!myName) return; ws.send(JSON.stringify({type:"setname",name:myName})); }
+function sendMessage(){ if(!connected) return alert('Not connected'); if(!currentRoom) return alert('Join a room first'); const input=document.getElementById('msgInput'); const text=input.value.trim(); if(!text) return; ws.send(JSON.stringify({type:"message",text})); input.value=''; }
+function reactMessage(messageId,emoji){ if(!connected||!currentRoom) return; ws.send(JSON.stringify({type:"reaction",messageId,emoji})); }
 </script>
 </body>
 </html>
