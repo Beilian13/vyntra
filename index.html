@@ -237,24 +237,57 @@ document.getElementById('emoji-search').addEventListener('input',(e)=> populateE
 
 document.getElementById('emoji-picker-overlay').addEventListener('click',(ev)=>{ if(ev.target === document.getElementById('emoji-picker-overlay')) pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; });
 
+<script>
+let allEmojis = []; // array of {char, name}
+(async function loadEmojiSet(){
+  try {
+    const res = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
+    const json = await res.json();
+    allEmojis = json.filter(e => e.char && e.name)
+                    .map(e => ({char: e.char, name: e.name}));
+  } catch(e) {
+    allEmojis = [
+      {char:"😀", name:"grinning face"},
+      {char:"😂", name:"face with tears of joy"},
+      {char:"❤️", name:"red heart"}
+    ];
+  }
+})();
+
 function populateEmojiGrid(filter){
-  const grid = document.getElementById('emoji-grid'); grid.innerHTML='';
+  const grid = document.getElementById('emoji-grid'); 
+  grid.innerHTML = '';
   const f = (filter||'').toLowerCase();
   let count=0;
   for(let i=0;i<allEmojis.length;i++){
-    const ch = allEmojis[i];
-    if(f && !ch.includes(f)) continue;
+    const {char, name} = allEmojis[i];
+    if(f && !char.includes(f) && !name.toLowerCase().includes(f)) continue;
     const btn = document.createElement('button');
-    btn.className='emoji-btn-grid'; btn.textContent=ch;
-    btn.onclick=()=>{
-      if(pickerOpenFor==='__composer'){ document.getElementById('msgInput').value += ch; return; }
-      reactMessage(pickerOpenFor,ch);
-      const el=document.getElementById('msg-'+pickerOpenFor);
-      if(el){ const rdiv=el.querySelector('.reactions'); rdiv.dataset.quick=JSON.stringify([ch]); const cached=(messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor); if(cached) populateReactions(rdiv,cached); }
+    btn.className='emoji-btn-grid'; 
+    btn.textContent=char;
+    btn.onclick = () => {
+      if(pickerOpenFor==='__composer'){ 
+        document.getElementById('msgInput').value += char; 
+        return; 
+      }
+      reactMessage(pickerOpenFor,char);
+      const el = document.getElementById('msg-'+pickerOpenFor);
+      if(el){
+        const rdiv = el.querySelector('.reactions');
+        // only preserve reactions that have votes
+        const cached = (messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor);
+        if(cached){
+          rdiv.dataset.quick = JSON.stringify(Object.keys(cached.reactions||{}));
+          populateReactions(rdiv,cached);
+        }
+      }
     };
-    grid.appendChild(btn); count++; if(count>3000) break;
+    grid.appendChild(btn); 
+    count++; 
+    if(count>3000) break;
   }
 }
+</script>
 
 /* ---------- WebSocket + chat logic ---------- */
 function handleWsMsg(raw){ const data=safeParse(raw); if(!data) return;
