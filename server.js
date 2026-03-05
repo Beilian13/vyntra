@@ -134,6 +134,42 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type:"rooms", rooms: PREDEFINED_ROOMS }));
 });
 
+// MOBILE ROOMS TOGGLE
+const mobileRoomsBtn = document.getElementById('mobileRoomsBtn');
+const mobileRoomsPanel = document.getElementById('mobileRoomsPanel');
+
+mobileRoomsBtn.addEventListener('click', () => {
+  mobileRoomsPanel.classList.toggle('show');
+});
+
+// POPULATE ROOMS (DESKTOP + MOBILE)
+function populateRooms(list) {
+  const desktopContainer = document.getElementById('roomsList');
+  const mobileContainer  = document.getElementById('mobileRoomsPanel');
+
+  desktopContainer.innerHTML = '';
+  mobileContainer.innerHTML  = '';
+
+  list.forEach(r => {
+    rooms.add(r);
+
+    const makeRoomBtn = () => {
+      const btn = document.createElement('div');
+      btn.className = 'room';
+      btn.id = `room-${r}`;
+      btn.innerHTML = `<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+      btn.addEventListener('click', () => {
+        joinRoom(r);
+        mobileRoomsPanel.classList.remove('show');
+      });
+      return btn;
+    };
+
+    desktopContainer.appendChild(makeRoomBtn());
+    mobileContainer.appendChild(makeRoomBtn());
+  });
+}
+
 /* ---------- HTTP routes ---------- */
 app.get("/", (req,res)=>{
   res.sendFile(__dirname + "/index.html");
