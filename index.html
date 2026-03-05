@@ -158,17 +158,29 @@ function appendMessage(text, cls, data=null){
     li.appendChild(msgText)
 
     if(data && data.type==="chat"){
-        const reactionsDiv = document.createElement("div")
-        reactionsDiv.className = "reactions"
-        for(const e of ["👍","❤️","😂"]){
-            const span = document.createElement("span")
-            span.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
-            span.className = "emoji-btn"
-            span.onclick = ()=> react(data.id, e)
-            reactionsDiv.appendChild(span)
-        }
-        li.appendChild(reactionsDiv)
-    }
+    const reactionsDiv = document.createElement("div")
+    reactionsDiv.className = "reactions"
+
+    // Use quickEmojis array or default 3 emojis
+    const quickEmojis = data.quickEmojis || ["👍","❤️","😂"]
+
+    quickEmojis.forEach(e=>{
+        const span = document.createElement("span")
+        span.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
+        span.className = "emoji-btn"
+        span.onclick = ()=> react(data.id, e)
+        reactionsDiv.appendChild(span)
+    })
+
+    // Custom emoji picker button
+    const customBtn = document.createElement("button")
+    customBtn.textContent = "✦"
+    customBtn.onclick = ()=> openEmojiPicker(data.id)
+    customBtn.style.marginLeft = "5px"
+    reactionsDiv.appendChild(customBtn)
+
+    li.appendChild(reactionsDiv)
+}
 
     document.getElementById("chat").appendChild(li)
     li.scrollIntoView({behavior:"smooth"})
@@ -178,7 +190,82 @@ function react(messageId, emoji){
   if(!connected || !currentRoom) return
   ws.send(JSON.stringify({ type:"reaction", messageId, emoji }))
 }
+
+  let currentPickerMessage = null
+let allEmojis = []
+
+// Load all emojis from JSON (hosted)
+fetch("https://unpkg.com/emoji.json/emoji.json")
+  .then(res => res.json())
+  .then(data => {
+      allEmojis = data.map(e => e.char).filter(Boolean)
+  })
+
+function openEmojiPicker(messageId){
+    currentPickerMessage = messageId
+    const grid = document.getElementById("emoji-grid")
+    grid.innerHTML = ""
+
+    allEmojis.forEach(e=>{
+        const btn = document.createElement("button")
+        btn.textContent = e
+        btn.style.fontSize = "24px"
+        btn.style.border = "none"
+        btn.style.background = "none"
+        btn.style.cursor = "pointer"
+        btn.onclick = ()=>{
+            react(messageId, e)
+
+            // Replace quick emojis with selected custom emoji
+            const msgEl = document.getElementById("msg-" + messageId)
+            if(msgEl){
+                const reactionsDiv = msgEl.querySelector(".reactions")
+                // Remove all starter quick emojis
+                reactionsDiv.querySelectorAll(".emoji-btn").forEach(span=>{
+                    if(span.textContent[0] !== e){ span.remove() }
+                })
+                // Add picked emoji if not already present
+                if(!Array.from(reactionsDiv.children).some(c=>c.textContent[0]===e)){
+                    const span = document.createElement("span")
+                    span.textContent = e
+                    span.className = "emoji-btn"
+                    span.onclick = ()=> react(messageId, e)
+                    reactionsDiv.insertBefore(span, reactionsDiv.lastChild) // before ✦ button
+                }
+            }
+
+            closeEmojiPicker()
+        }
+        grid.appendChild(btn)
+    })
+
+    document.getElementById("emoji-picker-overlay").style.display = "flex"
+}
+
+function closeEmojiPicker(){
+    document.getElementById("emoji-picker-overlay").style.display = "none"
+    currentPickerMessage = null
+}
+
+document.getElementById("emoji-search").addEventListener("input",(e)=>{
+    const val = e.target.value
+    const buttons = document.getElementById("emoji-grid").querySelectorAll("button")
+    buttons.forEach(b=>{
+        b.style.display = b.textContent.includes(val) ? "" : "none"
+    })
+})
 </script>
 
+<!-- Emoji Picker Overlay -->
+<div id="emoji-picker-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+  <div id="emoji-picker" style="background:#fff;color:#000;border-radius:12px;width:90%;max-width:500px;height:70%;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;background:#eee;">
+      <input id="emoji-search" placeholder="Search emoji..." style="flex:1;padding:5px;border-radius:4px;border:1px solid #ccc;">
+      <button onclick="closeEmojiPicker()" style="margin-left:5px;">✕</button>
+    </div>
+    <div id="emoji-grid" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,40px);gap:5px;padding:10px;"></div>
+  </div>
+</div>
+  
 </body>
 </html>
