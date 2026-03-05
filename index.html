@@ -353,6 +353,41 @@ function populateReactions(reactionsDiv,msg){
   const picker=document.createElement('button'); picker.className='reaction'; picker.textContent='✦'; picker.title='Open emoji picker'; picker.onclick=()=>openEmojiPicker(msg.id); picker.style.background='transparent';
   reactionsDiv.appendChild(picker);
 }
+
+  const mobileRoomsBtn = document.getElementById('mobileRoomsBtn');
+const mobileRoomsPanel = document.getElementById('mobileRoomsPanel');
+
+mobileRoomsBtn.addEventListener('click', () => {
+  mobileRoomsPanel.classList.toggle('show');
+});
+
+// update populateRooms in client
+function populateRooms(list) {
+  const desktopContainer = document.getElementById('roomsList');
+  const mobileContainer  = document.getElementById('mobileRoomsPanel');
+
+  desktopContainer.innerHTML = '';
+  mobileContainer.innerHTML  = '';
+
+  list.forEach(r => {
+    rooms.add(r);
+
+    const makeRoomBtn = () => {
+      const btn = document.createElement('div');
+      btn.className = 'room';
+      btn.id = `room-${r}`;
+      btn.innerHTML = `<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+      btn.addEventListener('click', () => {
+        joinRoom(r);
+        mobileRoomsPanel.classList.remove('show');
+      });
+      return btn;
+    };
+
+    desktopContainer.appendChild(makeRoomBtn());
+    mobileContainer.appendChild(makeRoomBtn());
+  });
+}
 </script>
 </body>
 </html>
