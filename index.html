@@ -1,267 +1,493 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Vyntra Chat</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Vyntra — Chat</title>
 <style>
-body { font-family:"Segoe UI",sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#1e1e2f; color:#fff; }
-header { background:#27293d; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
-header h2 { margin:0; }
-header input, header button, header select { margin:2px; padding:5px 8px; border-radius:4px; border:none; }
-main { flex:1; display:flex; overflow:hidden; }
-#chat-container { flex:3; display:flex; flex-direction:column; padding:10px; overflow-y:auto; background:#1e1e2f; }
-#users-container { flex:1; background:#2b2b42; padding:10px; overflow-y:auto; }
-#chat { list-style:none; padding:0; margin:0; }
-#chat li { margin-bottom:8px; max-width:70%; padding:6px 10px; border-radius:8px; word-wrap:break-word; position:relative; }
-.chat-msg { background:#3a3a5a; }
-.chat-user { font-weight:bold; color:#ffd700; margin-right:5px; }
-.system-msg { color:#aaa; font-style:italic; }
-.emoji-btn { cursor:pointer; margin-left:5px; font-size:0.9em; }
-footer { display:flex; padding:10px; background:#27293d; flex-wrap:wrap; }
-footer input, footer button { padding:8px; margin:2px; border-radius:4px; border:none; }
-footer input { flex:1; min-width:150px; }
-footer button { background:#5c6bc0; color:#fff; cursor:pointer; }
-footer button:hover { background:#7986cb; }
-@media(max-width:700px){ main{flex-direction:column;} #users-container{flex:unset;height:120px;} }
+:root{
+  --bg:#0f1220;
+  --panel:#161827;
+  --muted:#9aa0b4;
+  --accent:#6c7cff;
+  --bubble:#20233a;
+  --system:#8b8f9f;
+  --white:#eef2ff;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,Segoe UI,system-ui,Arial; background:var(--bg); color:var(--white); -webkit-font-smoothing:antialiased}
+header{height:64px;background:linear-gradient(90deg,#11121b, #15172b);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,0.03)}
+.header-left{display:flex;gap:12px;align-items:center}
+h1{font-size:16px;margin:0;font-weight:600;color:var(--white)}
+.controls{display:flex;gap:8px;align-items:center}
+input,select,button{font-size:14px}
+input[type="text"], select{background:#0b0d16;border:1px solid rgba(255,255,255,0.04);color:var(--white);padding:8px;border-radius:6px}
+button{background:var(--accent);color:white;border:0;padding:8px 10px;border-radius:8px;cursor:pointer}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--white)}
+main{display:flex;flex:1;overflow:hidden;height:calc(100% - 64px)}
+.sideRooms{width:220px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,0.02);padding:12px;overflow:auto}
+.room{padding:8px 10px;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.room.active{background:linear-gradient(90deg,#1b1d33,#151629);box-shadow:inset 0 0 0 1px rgba(108,124,255,0.06)}
+.room .emoji{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#0f111a}
+.room h4{margin:0;font-size:13px}
+.chatArea{flex:1;display:flex;flex-direction:column;min-width:0}
+.roomHeader{padding:12px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,rgba(0,0,0,0.04),transparent)}
+.roomHeader .meta{color:var(--muted);font-size:13px}
+.messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+.msg{max-width:80%;padding:10px 12px;border-radius:10px;background:var(--bubble);position:relative;word-break:break-word;align-self:flex-start}
+.msg.me{background:linear-gradient(90deg,#5f6bff,#7d86ff);color:white;align-self:flex-end}
+.msg .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.msg .text{font-size:14px;line-height:1.25}
+.msg .reactions{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.reaction{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:13px;cursor:pointer}
+.reaction .count{opacity:0.9}
+.reaction.you{box-shadow:0 0 0 2px rgba(108,124,255,0.12)}
+.system{font-style:italic;color:var(--system);font-size:13px;text-align:center;padding:6px}
+.compose{display:flex;padding:12px;border-top:1px solid rgba(255,255,255,0.03);gap:8px;background:#0e1020}
+input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:#0b0d16;color:var(--white)}
+.icon-btn{width:44px;height:44px;border-radius:10px;background:#0b0d16;border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.small{font-size:12px;padding:6px 8px}
+.usersPanel{width:220px;border-left:1px solid rgba(255,255,255,0.02);background:#0b0e18;padding:12px;overflow:auto}
+.usersPanel h4{margin:0 0 8px 0;color:var(--muted)}
+.user{padding:6px 8px;border-radius:6px;background:transparent;margin-bottom:6px;color:var(--white);display:flex;justify-content:space-between;align-items:center}
+.pulse{width:8px;height:8px;border-radius:50%;background:#39d353;margin-right:8px}
+.center-note{display:flex;align-items:center;justify-content:center;color:var(--muted);height:100%}
+
+/* emoji picker circular */
+#emoji-picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1200;align-items:center;justify-content:center}
+#emoji-picker{width:min(640px,92vw);height:min(640px,92vh);border-radius:50%;background:linear-gradient(180deg,#ffffff,#f4f6ff);position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;padding:18px}
+#emoji-search{width:85%;padding:8px;border-radius:8px;border:1px solid #ddd;margin-bottom:10px;font-size:14px}
+#emoji-grid{flex:1;width:100%;display:grid;grid-template-columns:repeat(auto-fill,44px);gap:8px;align-content:start;overflow:auto;padding:12px;border-radius:999px}
+.emoji-btn-grid{width:44px;height:44px;border-radius:8px;background:transparent;border:none;font-size:20px;cursor:pointer}
+#emoji-close{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#ff4d4f;color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.2);cursor:pointer}
+
+/* responsive */
+@media(max-width:900px){
+  .sideRooms{display:none}
+  .usersPanel{display:none}
+  .roomHeader .meta{display:none}
+}
 </style>
 </head>
 <body>
 
 <header>
-  <h2>Vyntra Chat</h2>
-  <div>
-    <input id="name" placeholder="Username">
-    <button onclick="setName()">Set</button>
+  <div class="header-left">
+    <h1>Vyntra</h1>
+    <div class="controls">
+      <input id="name" type="text" placeholder="username" style="width:150px" />
+      <button id="setNameBtn" class="small">Set</button>
+    </div>
+  </div>
 
-    <select id="room"></select>
-    <button onclick="join()">Join</button>
+  <div class="controls">
+    <div style="color:var(--muted);font-size:13px;margin-right:8px">Predefined rooms</div>
+    <button class="ghost small" id="reconnectBtn">Reconnect</button>
   </div>
 </header>
 
 <main>
-  <div id="chat-container">
-    <ul id="chat"></ul>
-  </div>
-  <div id="users-container">
-    <h4>Users in Room</h4>
-    <ul id="users"></ul>
-  </div>
+  <aside class="sideRooms" id="roomsList">
+    <!-- rooms populated from server -->
+  </aside>
+
+  <section class="chatArea">
+    <div class="roomHeader">
+      <div>
+        <div id="roomTitle" style="font-weight:600">Select a room</div>
+        <div class="meta" id="roomMeta">Join a room to start chatting</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="roomUsersCount" class="meta">0 users</div>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="center-note">Join a room to see messages</div>
+    </div>
+    <div class="compose">
+      <button id="openPickerBtn" class="icon-btn" title="Open emoji picker">✦</button>
+      <input id="msgInput" class="msg-input" type="text" placeholder="Type a message (press Enter to send)" />
+      <button id="sendBtn" class="small">Send</button>
+    </div>
+  </section>
+
+  <aside class="usersPanel" id="usersPanel">
+    <h4>Users in room</h4>
+    <div id="usersList"></div>
+  </aside>
 </main>
 
-<footer>
-  <input id="msg" placeholder="Type your message..." onkeypress="if(event.key==='Enter'){send()}">
-  <button onclick="send()">Send</button>
-</footer>
-
-<script>
-let ws
-let connected = false
-let currentRoom = null
-let rooms = new Set()
-
-function connect() {
-  const protocol = location.protocol === "https:" ? "wss://" : "ws://"
-  ws = new WebSocket(protocol + location.host)
-
-  ws.onopen = () => {
-    connected = true
-    console.log("Connected to Vyntra")
-  }
-
-  ws.onmessage = ({ data }) => {
-    const parsed = JSON.parse(data)
-
-    if(parsed.type === "rooms"){
-      rooms = new Set(parsed.rooms)
-      populateRoomList()
-    }
-    else if(parsed.type === "users" && parsed.room === currentRoom){
-      const usersList = document.getElementById("users")
-      usersList.innerHTML = ""
-      parsed.users.forEach(u => {
-        const li = document.createElement("li")
-        li.textContent = u
-        usersList.appendChild(li)
-      })
-    }
-    else if(parsed.type === "system"){
-      appendMessage(parsed.text, "system-msg")
-    }
-    else if(parsed.type === "chat"){
-      appendMessage(`[${parsed.room}] ${parsed.user}: ${parsed.text}`, "chat-msg", parsed)
-    }
-  }
-}
-
-connect()
-
-function setName(){
-  if(!connected) return
-  const name = document.getElementById("name").value.trim()
-  if(!name) return
-  ws.send(JSON.stringify({ type:"setname", name }))
-}
-
-function populateRoomList(){
-  const sel = document.getElementById("room")
-  sel.innerHTML = ""
-  rooms.forEach(r => {
-    const opt = document.createElement("option")
-    opt.value = r
-    opt.textContent = r
-    sel.appendChild(opt)
-  })
-}
-
-function join(){
-  if(!connected) return
-  const room = document.getElementById("room").value
-  if(!room) return
-  currentRoom = room
-  document.getElementById("chat").innerHTML = ""
-  ws.send(JSON.stringify({ type:"join", room }))
-}
-
-function send(){
-  if(!connected || !currentRoom) return
-  const input = document.getElementById("msg")
-  const text = input.value.trim()
-  if(!text) return
-  ws.send(JSON.stringify({ type:"message", text }))
-  input.value = ""
-}
-
-function appendMessage(text, cls, data=null){
-    let msgEl = document.getElementById("msg-" + (data?.id || ""))
-    
-    if(msgEl && data){ 
-        // Message already exists: update reactions
-        const reactionsDiv = msgEl.querySelector(".reactions")
-        reactionsDiv.innerHTML = ""
-        for(const e in data.reactions){
-            const span = document.createElement("span")
-            span.textContent = `${e} ${data.reactions[e].length}`
-            span.className = "emoji-btn"
-            span.onclick = ()=> react(data.id, e)
-            reactionsDiv.appendChild(span)
-        }
-        return
-    }
-
-    // New message
-    const li = document.createElement("li")
-    li.id = data?.id ? "msg-" + data.id : ""
-    li.className = cls
-    
-    const msgText = document.createElement("div")
-    msgText.textContent = text
-    li.appendChild(msgText)
-
-    if(data && data.type==="chat"){
-    const reactionsDiv = document.createElement("div")
-    reactionsDiv.className = "reactions"
-
-    // Use quickEmojis array or default 3 emojis
-    const quickEmojis = data.quickEmojis || ["👍","❤️","😂"]
-
-    quickEmojis.forEach(e=>{
-        const span = document.createElement("span")
-        span.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
-        span.className = "emoji-btn"
-        span.onclick = ()=> react(data.id, e)
-        reactionsDiv.appendChild(span)
-    })
-
-    // Custom emoji picker button
-    const customBtn = document.createElement("button")
-    customBtn.textContent = "✦"
-    customBtn.onclick = ()=> openEmojiPicker(data.id)
-    customBtn.style.marginLeft = "5px"
-    reactionsDiv.appendChild(customBtn)
-
-    li.appendChild(reactionsDiv)
-}
-
-    document.getElementById("chat").appendChild(li)
-    li.scrollIntoView({behavior:"smooth"})
-}
-
-function react(messageId, emoji){
-  if(!connected || !currentRoom) return
-  ws.send(JSON.stringify({ type:"reaction", messageId, emoji }))
-}
-
-  let currentPickerMessage = null
-let allEmojis = []
-
-// Load all emojis from JSON (hosted)
-fetch("https://unpkg.com/emoji.json/emoji.json")
-  .then(res => res.json())
-  .then(data => {
-      allEmojis = data.map(e => e.char).filter(Boolean)
-  })
-
-function openEmojiPicker(messageId){
-    currentPickerMessage = messageId
-    const grid = document.getElementById("emoji-grid")
-    grid.innerHTML = ""
-
-    allEmojis.forEach(e=>{
-        const btn = document.createElement("button")
-        btn.textContent = e
-        btn.style.fontSize = "24px"
-        btn.style.border = "none"
-        btn.style.background = "none"
-        btn.style.cursor = "pointer"
-        btn.onclick = ()=>{
-            react(messageId, e)
-
-            // Replace quick emojis with selected custom emoji
-            const msgEl = document.getElementById("msg-" + messageId)
-            if(msgEl){
-                const reactionsDiv = msgEl.querySelector(".reactions")
-                // Remove all starter quick emojis
-                reactionsDiv.querySelectorAll(".emoji-btn").forEach(span=>{
-                    if(span.textContent[0] !== e){ span.remove() }
-                })
-                // Add picked emoji if not already present
-                if(!Array.from(reactionsDiv.children).some(c=>c.textContent[0]===e)){
-                    const span = document.createElement("span")
-                    span.textContent = e
-                    span.className = "emoji-btn"
-                    span.onclick = ()=> react(messageId, e)
-                    reactionsDiv.insertBefore(span, reactionsDiv.lastChild) // before ✦ button
-                }
-            }
-
-            closeEmojiPicker()
-        }
-        grid.appendChild(btn)
-    })
-
-    document.getElementById("emoji-picker-overlay").style.display = "flex"
-}
-
-function closeEmojiPicker(){
-    document.getElementById("emoji-picker-overlay").style.display = "none"
-    currentPickerMessage = null
-}
-
-document.getElementById("emoji-search").addEventListener("input",(e)=>{
-    const val = e.target.value
-    const buttons = document.getElementById("emoji-grid").querySelectorAll("button")
-    buttons.forEach(b=>{
-        b.style.display = b.textContent.includes(val) ? "" : "none"
-    })
-})
-</script>
-
-<!-- Circular Emoji Picker -->
-<div id="emoji-picker-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1000;justify-content:center;align-items:center;">
-  <div id="emoji-picker" style="position:relative;width:400px;height:400px;border-radius:50%;background:#fff;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;overflow-y:auto;padding:20px;box-shadow:0 0 20px rgba(0,0,0,0.5);">
-    <button onclick="closeEmojiPicker()" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border:none;background:#f00;color:#fff;font-size:24px;border-radius:50%;width:50px;height:50px;cursor:pointer;">✕</button>
+<!-- Circular Emoji Picker Overlay -->
+<div id="emoji-picker-overlay" aria-hidden="true">
+  <div id="emoji-picker" role="dialog" aria-modal="true">
+    <input id="emoji-search" placeholder="Search emoji (name or char)..." autocomplete="off" />
+    <div id="emoji-grid" role="list"></div>
+    <button id="emoji-close" aria-label="Close picker">✕</button>
   </div>
 </div>
-  
+
+<script>
+/* ---------- WebSocket + App state ---------- */
+let ws = null;
+let connected = false;
+let currentRoom = null;
+let myName = "";
+const rooms = new Set();
+const messagesCache = {}; // messagesCache[room] = [{...}, ...] (server provides)
+const userSet = new Set();
+const myUsernameLocal = () => myName || "anonymous";
+
+/* helper: safe JSON parse */
+function safeParse(s){ try{return JSON.parse(s)}catch(e){return null} }
+
+/* connect / reconnect */
+function connect(){
+  if(ws) ws.close();
+  const protocol = location.protocol === "https:" ? "wss://" : "ws://";
+  ws = new WebSocket(protocol + location.host);
+
+  ws.addEventListener("open",()=>{ connected=true; console.info("connected"); sendLocalName(); });
+  ws.addEventListener("close",()=>{ connected=false; console.warn("disconnected, retrying in 2s"); setTimeout(connect,2000); });
+  ws.addEventListener("message",(ev)=> handleWsMsg(ev.data));
+  ws.addEventListener("error",(e)=> console.error("ws error",e));
+}
+connect();
+
+/* UI bindings */
+document.getElementById('setNameBtn').addEventListener('click',()=>{
+  const v = document.getElementById('name').value.trim();
+  if(!v) return;
+  myName = v;
+  sendLocalName();
+});
+document.getElementById('sendBtn').addEventListener('click', sendMessage);
+document.getElementById('msgInput').addEventListener('keypress',(e)=>{ if(e.key==='Enter') sendMessage() });
+document.getElementById('reconnectBtn').addEventListener('click', ()=>connect());
+document.getElementById('openPickerBtn').addEventListener('click', ()=> openEmojiPickerForComposer());
+
+/* ---------- WebSocket message handling ---------- */
+function handleWsMsg(raw){
+  const data = safeParse(raw);
+  if(!data) return;
+
+  if(data.type === "rooms"){
+    // server sends pre-defined rooms
+    populateRooms(data.rooms || []);
+  } else if(data.type === "users" && data.room === currentRoom){
+    populateUsers(data.users || []);
+  } else if(data.type === "system"){
+    pushSystemMessage(data.text);
+  } else if(data.type === "chat"){
+    // server sends chat message object (id, room, user, text, reactions)
+    cacheAndRenderMessage(data);
+  }
+}
+
+/* ---------- Rooms UI ---------- */
+function populateRooms(list){
+  const container = document.getElementById('roomsList');
+  container.innerHTML = "";
+  list.forEach(r => {
+    rooms.add(r);
+    const btn = document.createElement('div');
+    btn.className = 'room';
+    btn.id = `room-${r}`;
+    btn.innerHTML = `<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+    btn.addEventListener('click', ()=> joinRoom(r));
+    container.appendChild(btn);
+  });
+}
+
+/* Join a room: request server to join, clear messages, show last 50 on server emit */
+function joinRoom(room){
+  if(!connected) return alert("Not connected");
+  currentRoom = room;
+  // clear UI
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('roomTitle').textContent = room;
+  document.getElementById('roomMeta').textContent = "Loading recent messages...";
+  document.getElementById('roomUsersCount').textContent = "0 users";
+  // highlight
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  const el = document.getElementById('room-'+room);
+  if(el) el.classList.add('active');
+  // tell server to join -> server will send last 50 messages
+  ws.send(JSON.stringify({ type: "join", room }));
+}
+
+/* ---------- Users UI ---------- */
+function populateUsers(list){
+  const cont = document.getElementById('usersList');
+  cont.innerHTML = "";
+  (list||[]).forEach(u=>{
+    const div = document.createElement('div');
+    div.className = 'user';
+    div.innerHTML = `<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`;
+    cont.appendChild(div);
+  });
+  document.getElementById('roomUsersCount').textContent = `${list.length} users`;
+}
+
+/* ---------- Messages caching + rendering ---------- */
+function cacheAndRenderMessage(msg){
+  if(!msg || !msg.room) return;
+  // store
+  if(!messagesCache[msg.room]) messagesCache[msg.room] = [];
+  // replace or push
+  const idx = messagesCache[msg.room].findIndex(m=>m.id===msg.id);
+  if(idx>=0) messagesCache[msg.room][idx] = msg;
+  else messagesCache[msg.room].push(msg);
+
+  // only render if in current room
+  if(msg.room === currentRoom){
+    renderMessage(msg);
+  }
+}
+
+/* push system message */
+function pushSystemMessage(text){
+  const messages = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'system';
+  el.textContent = text;
+  messages.appendChild(el);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+/* render message (create or update) */
+function renderMessage(msg){
+  const container = document.getElementById('messages');
+  const existing = document.getElementById('msg-' + msg.id);
+  if(existing){
+    // update reactions area only
+    const reactionsDiv = existing.querySelector('.reactions');
+    populateReactions(reactionsDiv, msg);
+    return;
+  }
+
+  // new message element
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg' + (msg.user === myUsernameLocal() ? ' me' : '');
+  wrapper.id = 'msg-' + msg.id;
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = `${msg.user} • ${new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString()}`;
+
+  const text = document.createElement('div');
+  text.className = 'text';
+  text.textContent = msg.text;
+
+  wrapper.appendChild(meta);
+  wrapper.appendChild(text);
+
+  // reactions container (and quick emojis placeholder)
+  const reactionsDiv = document.createElement('div');
+  reactionsDiv.className = 'reactions';
+  // store quick emojis in data attribute (initially default three)
+  reactionsDiv.dataset.quick = JSON.stringify(["👍","❤️","😂"]);
+  // populate initial quick emojis & reaction badges
+  populateReactions(reactionsDiv, msg);
+
+  // custom picker button appended inside reactionsDiv as last child placeholder
+  const pickerBtn = document.createElement('button');
+  pickerBtn.className = 'reaction';
+  pickerBtn.textContent = '✦';
+  pickerBtn.title = 'Open emoji picker (circle)';
+  pickerBtn.addEventListener('click', ()=> openEmojiPicker(msg.id));
+  pickerBtn.style.background = 'transparent';
+  reactionsDiv.appendChild(pickerBtn);
+
+  wrapper.appendChild(reactionsDiv);
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+}
+
+/* populateReactions: shows reaction badges based on msg.reactions and quick emojis */
+function populateReactions(reactionsDiv, msg){
+  // clear existing reaction badges except the picker button if present
+  const picker = reactionsDiv.querySelector('button[title]');
+  reactionsDiv.innerHTML = '';
+  // determine quick emojis array: if reactionsDiv.dataset.quick exists, use it
+  let quick = [];
+  try { quick = JSON.parse(reactionsDiv.dataset.quick || '["👍","❤️","😂"]'); } catch(e){ quick = ["👍","❤️","😂"]; }
+
+  // render quick emojis first (as clickable)
+  quick.forEach(e=>{
+    const span = document.createElement('button');
+    span.className = 'reaction';
+    const count = (msg.reactions && msg.reactions[e]) ? msg.reactions[e].length : 0;
+    span.innerHTML = `<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${count>0?count:''}</span>`;
+    // highlight if current user reacted (server tracks usernames)
+    if(msg.reactions && msg.reactions[e] && msg.reactions[e].includes(myUsernameLocal())) span.classList.add('you');
+    span.onclick = ()=> reactMessage(msg.id, e);
+    reactionsDiv.appendChild(span);
+  });
+
+  // then render any other reaction keys (in server data) that are not in quick
+  if(msg.reactions){
+    Object.keys(msg.reactions).forEach(key=>{
+      if(quick.includes(key)) return;
+      const span = document.createElement('button');
+      span.className = 'reaction';
+      const count = msg.reactions[key].length;
+      span.innerHTML = `<span style="font-size:16px">${key}</span><span class="count" style="margin-left:6px">${count}</span>`;
+      if(msg.reactions[key].includes(myUsernameLocal())) span.classList.add('you');
+      span.onclick = ()=> reactMessage(msg.id, key);
+      reactionsDiv.appendChild(span);
+    });
+  }
+
+  // finally add the picker button
+  const pickerBtn = document.createElement('button');
+  pickerBtn.className = 'reaction';
+  pickerBtn.textContent = '✦';
+  pickerBtn.title = 'Open emoji picker (circle)';
+  pickerBtn.onclick = ()=> openEmojiPicker(msg.id);
+  pickerBtn.style.background = 'transparent';
+  reactionsDiv.appendChild(pickerBtn);
+
+  // keep quick array persisted
+  reactionsDiv.dataset.quick = JSON.stringify(quick);
+}
+
+/* ---------- Sending a message ---------- */
+function sendLocalName(){
+  if(!connected) return;
+  if(!myName) return;
+  ws.send(JSON.stringify({ type: "setname", name: myName }));
+}
+function sendMessage(){
+  if(!connected) return alert('Not connected');
+  if(!currentRoom) return alert('Join a room first');
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if(!text) return;
+  ws.send(JSON.stringify({ type: "message", text }));
+  input.value = '';
+}
+
+/* ---------- Reactions ---------- */
+function reactMessage(messageId, emoji){
+  if(!connected || !currentRoom) return;
+  ws.send(JSON.stringify({ type: "reaction", messageId, emoji }));
+}
+
+/* ---------- Emoji picker (circular) ---------- */
+let allEmojis = [];
+let pickerOpenFor = null;
+
+/* load emoji dataset (large list) */
+(async function loadEmojiSet(){
+  try{
+    const res = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
+    const json = await res.json();
+    allEmojis = json.map(e=>e.char).filter(Boolean);
+  }catch(e){
+    // fallback small set
+    allEmojis = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😍","😘","😎","🤩","👍","❤️","🔥","🎉","😢","🙏"];
+  }
+})();
+
+/* open circular picker for a specific message (or for composer when msgId === '__composer') */
+function openEmojiPicker(msgId){
+  pickerOpenFor = msgId;
+  document.getElementById('emoji-picker-overlay').style.display = 'flex';
+  populateEmojiGrid('');
+  // focus search
+  setTimeout(()=>document.getElementById('emoji-search').focus(),80);
+}
+
+/* composer variant */
+function openEmojiPickerForComposer(){
+  // open picker with special id so clicks add emoji to composer text
+  openEmojiPicker('__composer');
+}
+
+/* close picker */
+document.getElementById('emoji-close').addEventListener('click', closeEmojiPicker);
+function closeEmojiPicker(){
+  pickerOpenFor = null;
+  document.getElementById('emoji-picker-overlay').style.display = 'none';
+  document.getElementById('emoji-search').value = '';
+}
+
+/* populate emoji grid with optional filter */
+function populateEmojiGrid(filter){
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  const f = (filter||'').toLowerCase();
+  // choose source list (allEmojis)
+  const list = allEmojis;
+  // limit to first N matches for performance, but allow scrolling
+  let count = 0;
+  for(let i=0;i<list.length;i++){
+    const ch = list[i];
+    if(f && !ch.includes(f) && !emojiNameMatches(ch, f)) continue; // basic char + name search
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn-grid';
+    btn.textContent = ch;
+    btn.onclick = ()=> {
+      if(pickerOpenFor === '__composer'){
+        // insert into composer input
+        const input = document.getElementById('msgInput');
+        input.value = input.value + ch;
+        input.focus();
+        return;
+      }
+      // user picked emoji for a message
+      reactMessage(pickerOpenFor, ch);
+      // update quick emojis for this message element:
+      const el = document.getElementById('msg-' + pickerOpenFor);
+      if(el){
+        const rdiv = el.querySelector('.reactions');
+        // replace starter quick emojis (first three quick items) with picked emoji:
+        let quick = [];
+        try{ quick = JSON.parse(rdiv.dataset.quick||'["👍","❤️","😂"]'); }catch(e){ quick = ["👍","❤️","😂"]; }
+        // remove starter three (we treat starter as first 3 entries; but if quick already customized, remove all and keep added ones)
+        // We'll replace entire quick with [ch] (per requirement: delete the 3 starter quick emojis and add the picked ones)
+        quick = [ch];
+        rdiv.dataset.quick = JSON.stringify(quick);
+        // re-render reactions: server will emit updated message; but update UI now to show quick
+        // fetch cached message and re-render reactions (preserve counts)
+        const cached = (messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor);
+        if(cached) populateReactions(rdiv, cached);
+      }
+      // KEEP picker open so user can pick additional emojis
+    };
+    grid.appendChild(btn);
+    count++;
+    if(count > 3000) break; // safety cap
+  }
+}
+
+/* very naive "name" match for emoji char - fallback, returns false mostly */
+function emojiNameMatches(char, q){
+  // can't reliably map char -> name without full dataset; keep simple char includes
+  return false;
+}
+
+/* filter as user types */
+document.getElementById('emoji-search').addEventListener('input',(e)=>{
+  populateEmojiGrid(e.target.value.trim());
+});
+
+/* click outside picker closes */
+document.getElementById('emoji-picker-overlay').addEventListener('click',(ev)=>{
+  if(ev.target === document.getElementById('emoji-picker-overlay')) closeEmojiPicker();
+});
+
+/* ---------- Initialization: request initial rooms list after connect ready ---------- */
+setInterval(()=>{
+  if(ws && ws.readyState === WebSocket.OPEN && !connected){ connected=true; sendLocalName(); }
+},2000);
+
+/* ---------- Safety: show a message if no room selected ---------- */
+(function uiBoot(){
+  // nothing else needed - server should emit rooms on connect
+})();
+
+</script>
 </body>
 </html>
