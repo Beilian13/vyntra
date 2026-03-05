@@ -11,7 +11,7 @@ app.use(express.static(__dirname));
 
 /* ---------- Predefined rooms ---------- */
 const PREDEFINED_ROOMS = [
-  "general","memes","dev","music","games","anime","art","tech","random","nsfw",
+  "general","memes","dev","music","games","anime","art","tech","random",
   "news","sports","study","finance","travel","food","pets","movies","tv","fun"
 ];
 
