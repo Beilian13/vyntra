@@ -73,18 +73,28 @@ wss.on("connection",(ws)=>{
             return
         }
 
-        if(data.type === "message" && ws.room){
-            const msgObj = {
-                type:"chat",
-                id:Date.now()+"_"+Math.floor(Math.random()*1000),
-                room: ws.room,
-                user: ws.username,
-                text: data.text,
-                reactions: {}
-            }
-            rooms[ws.room].messages.push(msgObj)
-            broadcastMessage(ws.room, msgObj)
-        }
+        if(data.type === "message"){
+    if(!ws.room){
+        console.warn("Message received but ws.room is undefined. Ignoring.", data)
+        return
+    }
+    if(!rooms[ws.room]){
+        console.warn("Message received for non-existent room:", ws.room)
+        return
+    }
+
+    const msgObj = {
+        type:"chat",
+        id:Date.now()+"_"+Math.floor(Math.random()*1000),
+        room: ws.room,
+        user: ws.username,
+        text: data.text,
+        reactions: {}
+    }
+
+    rooms[ws.room].messages.push(msgObj)
+    broadcastMessage(ws.room, msgObj)
+}
 
         if(data.type === "reaction" && ws.room){
             const roomData = rooms[ws.room]
