@@ -177,168 +177,144 @@ input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255
 </div>
 
 <script>
-/* ---------- WebSocket + App state ---------- */
-let ws = null;
-let connected = false;
-let currentRoom = null;
-let myName = "";
-const rooms = new Set();
-const messagesCache = {};
-const userSet = new Set();
-const myUsernameLocal = () => myName || "anonymous";
+let ws=null, connected=false, currentRoom=null, myName="";
+const rooms=new Set(), messagesCache={}, userSet=new Set();
 
 function safeParse(s){ try{return JSON.parse(s)}catch(e){return null} }
 
 function connect(){
   if(ws) ws.close();
-  const protocol = location.protocol === "https:" ? "wss://" : "ws://";
-  ws = new WebSocket(protocol + location.host);
-
-  ws.addEventListener("open",()=>{ connected=true; sendLocalName(); });
-  ws.addEventListener("close",()=>{ connected=false; setTimeout(connect,2000); });
-  ws.addEventListener("message",(ev)=> handleWsMsg(ev.data));
-  ws.addEventListener("error",(e)=> console.error("ws error",e));
+  const protocol = location.protocol==='https:' ? 'wss://' : 'ws://';
+  ws=new WebSocket(protocol+location.host);
+  ws.addEventListener('open',()=>{ connected=true; sendLocalName(); });
+  ws.addEventListener('close',()=>{ connected=false; setTimeout(connect,2000); });
+  ws.addEventListener('message', ev=>handleWsMsg(ev.data));
+  ws.addEventListener('error', e=>console.error('ws error',e));
 }
 connect();
 
 document.getElementById('setNameBtn').addEventListener('click',()=>{
-  const v = document.getElementById('name').value.trim();
-  if(!v) return;
-  myName = v;
-  sendLocalName();
+  const v=document.getElementById('name').value.trim();
+  if(v){ myName=v; sendLocalName(); }
 });
+
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
-document.getElementById('msgInput').addEventListener('keypress',(e)=>{ if(e.key==='Enter') sendMessage() });
+document.getElementById('msgInput').addEventListener('keypress', e=>{ if(e.key==='Enter') sendMessage(); });
 document.getElementById('reconnectBtn').addEventListener('click', ()=>connect());
-document.getElementById('openPickerBtn').addEventListener('click', ()=> openEmojiPickerForComposer());
+document.getElementById('openPickerBtn').addEventListener('click', ()=>openEmojiPicker('__composer'));
 
 /* ---------- Emoji picker ---------- */
-let allEmojis = [];
-let pickerOpenFor = null;
-
+let allEmojis=[], pickerOpenFor=null;
 (async function loadEmojiSet(){
   try{
-    const res = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
-    const json = await res.json();
-    allEmojis = json.map(e=>e.char).filter(Boolean);
-  }catch(e){ allEmojis = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😍","😘","😎","🤩","👍","❤️","🔥","🎉","😢","🙏"]; }
+    const res=await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
+    const json=await res.json();
+    allEmojis=json.filter(e=>e.char&&e.name).map(e=>({char:e.char,name:e.name}));
+  } catch(e){ allEmojis=[{char:"😀",name:"grinning face"},{char:"😂",name:"face with tears of joy"},{char:"❤️",name:"red heart"}]; }
 })();
 
 function openEmojiPicker(msgId){
-  pickerOpenFor = msgId;
-  document.getElementById('emoji-picker-overlay').style.display = 'flex';
+  pickerOpenFor=msgId;
+  document.getElementById('emoji-picker-overlay').style.display='flex';
   populateEmojiGrid('');
   setTimeout(()=>document.getElementById('emoji-search').focus(),80);
 }
-function openEmojiPickerForComposer(){ openEmojiPicker('__composer'); }
-document.getElementById('emoji-close').addEventListener('click',()=>{ pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; document.getElementById('emoji-search').value=''; });
-
-document.getElementById('emoji-search').addEventListener('input',(e)=> populateEmojiGrid(e.target.value.trim()));
-
-document.getElementById('emoji-picker-overlay').addEventListener('click',(ev)=>{ if(ev.target === document.getElementById('emoji-picker-overlay')) pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; });
-
-<script>
-let allEmojis = []; // array of {char, name}
-(async function loadEmojiSet(){
-  try {
-    const res = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
-    const json = await res.json();
-    allEmojis = json.filter(e => e.char && e.name)
-                    .map(e => ({char: e.char, name: e.name}));
-  } catch(e) {
-    allEmojis = [
-      {char:"😀", name:"grinning face"},
-      {char:"😂", name:"face with tears of joy"},
-      {char:"❤️", name:"red heart"}
-    ];
-  }
-})();
+document.getElementById('emoji-close').addEventListener('click',()=>{
+  pickerOpenFor=null;
+  document.getElementById('emoji-picker-overlay').style.display='none';
+  document.getElementById('emoji-search').value='';
+});
+document.getElementById('emoji-search').addEventListener('input', e=>populateEmojiGrid(e.target.value.trim()));
+document.getElementById('emoji-picker-overlay').addEventListener('click', ev=>{ if(ev.target===document.getElementById('emoji-picker-overlay')) pickerOpenFor=null; document.getElementById('emoji-picker-overlay').style.display='none'; });
 
 function populateEmojiGrid(filter){
-  const grid = document.getElementById('emoji-grid'); 
-  grid.innerHTML = '';
-  const f = (filter||'').toLowerCase();
+  const grid=document.getElementById('emoji-grid'); grid.innerHTML='';
+  const f=(filter||'').toLowerCase();
   let count=0;
-  for(let i=0;i<allEmojis.length;i++){
-    const {char, name} = allEmojis[i];
+  for(const {char,name} of allEmojis){
     if(f && !char.includes(f) && !name.toLowerCase().includes(f)) continue;
-    const btn = document.createElement('button');
-    btn.className='emoji-btn-grid'; 
-    btn.textContent=char;
-    btn.onclick = () => {
-      if(pickerOpenFor==='__composer'){ 
-        document.getElementById('msgInput').value += char; 
-        return; 
-      }
+    const btn=document.createElement('button'); btn.className='emoji-btn-grid'; btn.textContent=char;
+    btn.onclick=()=>{
+      if(pickerOpenFor==='__composer'){ document.getElementById('msgInput').value+=char; return; }
       reactMessage(pickerOpenFor,char);
-      const el = document.getElementById('msg-'+pickerOpenFor);
-      if(el){
-        const rdiv = el.querySelector('.reactions');
-        // only preserve reactions that have votes
-        const cached = (messagesCache[currentRoom]||[]).find(m=>m.id===pickerOpenFor);
-        if(cached){
-          rdiv.dataset.quick = JSON.stringify(Object.keys(cached.reactions||{}));
-          populateReactions(rdiv,cached);
-        }
-      }
     };
-    grid.appendChild(btn); 
-    count++; 
-    if(count>3000) break;
+    grid.appendChild(btn);
+    if(++count>3000) break;
   }
 }
-</script>
 
-/* ---------- WebSocket + chat logic ---------- */
+/* ---------- Chat logic ---------- */
 function handleWsMsg(raw){ const data=safeParse(raw); if(!data) return;
   if(data.type==="rooms") populateRooms(data.rooms||[]);
-  else if(data.type==="users"&&data.room===currentRoom) populateUsers(data.users||[]);
+  else if(data.type==="users" && data.room===currentRoom) populateUsers(data.users||[]);
   else if(data.type==="system") pushSystemMessage(data.text);
   else if(data.type==="chat") cacheAndRenderMessage(data);
 }
 
+function sendLocalName(){ if(!connected||!myName) return; ws.send(JSON.stringify({type:"setname",name:myName})); }
+function sendMessage(){ if(!connected) return alert('Not connected'); if(!currentRoom) return alert('Join a room first'); const input=document.getElementById('msgInput'); const text=input.value.trim(); if(!text) return; ws.send(JSON.stringify({type:"message",text})); input.value=''; }
+function reactMessage(messageId,emoji){ if(!connected||!currentRoom) return; ws.send(JSON.stringify({type:"reaction",messageId,emoji})); }
+
+/* ---------- Rooms and users ---------- */
 function populateRooms(list){
   const container=document.getElementById('roomsList'); container.innerHTML='';
-  list.forEach(r=>{ rooms.add(r); const btn=document.createElement('div'); btn.className='room'; btn.id=`room-${r}`; btn.innerHTML=`<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`; btn.addEventListener('click',()=>joinRoom(r)); container.appendChild(btn); });
+  list.forEach(r=>{
+    rooms.add(r);
+    const btn=document.createElement('div'); btn.className='room'; btn.id=`room-${r}`;
+    btn.innerHTML=`<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+    btn.addEventListener('click', ()=>joinRoom(r));
+    container.appendChild(btn);
+  });
 }
 
 function joinRoom(room){
-  if(!connected) return alert("Not connected"); currentRoom=room;
+  if(!connected) return alert('Not connected'); currentRoom=room;
   document.getElementById('messages').innerHTML=''; document.getElementById('roomTitle').textContent=room;
   document.getElementById('roomMeta').textContent="Loading recent messages..."; document.getElementById('roomUsersCount').textContent="0 users";
-  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active')); const el=document.getElementById('room-'+room); if(el) el.classList.add('active');
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  const el=document.getElementById('room-'+room); if(el) el.classList.add('active');
   ws.send(JSON.stringify({type:"join",room}));
 }
 
-function populateUsers(list){ const cont=document.getElementById('usersList'); cont.innerHTML=''; (list||[]).forEach(u=>{ const div=document.createElement('div'); div.className='user'; div.innerHTML=`<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`; cont.appendChild(div); }); document.getElementById('roomUsersCount').textContent=`${list.length} users`; }
+function populateUsers(list){
+  const cont=document.getElementById('usersList'); cont.innerHTML='';
+  (list||[]).forEach(u=>{
+    const div=document.createElement('div'); div.className='user';
+    div.innerHTML=`<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`;
+    cont.appendChild(div);
+  });
+  document.getElementById('roomUsersCount').textContent=`${list.length} users`;
+}
 
 function cacheAndRenderMessage(msg){ if(!msg||!msg.room) return; if(!messagesCache[msg.room]) messagesCache[msg.room]=[]; const idx=messagesCache[msg.room].findIndex(m=>m.id===msg.id); if(idx>=0) messagesCache[msg.room][idx]=msg; else messagesCache[msg.room].push(msg); if(msg.room===currentRoom) renderMessage(msg); }
 
 function pushSystemMessage(text){ const messages=document.getElementById('messages'); const el=document.createElement('div'); el.className='system'; el.textContent=text; messages.appendChild(el); messages.scrollTop=messages.scrollHeight; }
 
 function renderMessage(msg){
-  const container=document.getElementById('messages'); const existing=document.getElementById('msg-'+msg.id); if(existing){ const reactionsDiv=existing.querySelector('.reactions'); populateReactions(reactionsDiv,msg); return; }
-  const wrapper=document.createElement('div'); wrapper.className='msg'+(msg.user===myUsernameLocal()?' me':''); wrapper.id='msg-'+msg.id;
+  const container=document.getElementById('messages'); const existing=document.getElementById('msg-'+msg.id);
+  if(existing){ populateReactions(existing.querySelector('.reactions'),msg); return; }
+  const wrapper=document.createElement('div'); wrapper.className='msg'+(msg.user===myName?' me':''); wrapper.id='msg-'+msg.id;
   const meta=document.createElement('div'); meta.className='meta'; meta.textContent=`${msg.user} • ${new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString()}`;
   const text=document.createElement('div'); text.className='text'; text.textContent=msg.text;
   wrapper.appendChild(meta); wrapper.appendChild(text);
-  const reactionsDiv=document.createElement('div'); reactionsDiv.className='reactions'; reactionsDiv.dataset.quick=JSON.stringify(["👍","❤️","😂"]); populateReactions(reactionsDiv,msg);
-  const pickerBtn=document.createElement('button'); pickerBtn.className='reaction'; pickerBtn.textContent='✦'; pickerBtn.title='Open emoji picker (circle)'; pickerBtn.addEventListener('click',()=>openEmojiPicker(msg.id)); pickerBtn.style.background='transparent'; reactionsDiv.appendChild(pickerBtn);
-  wrapper.appendChild(reactionsDiv); container.appendChild(wrapper); container.scrollTop=container.scrollHeight;
+  const reactionsDiv=document.createElement('div'); reactionsDiv.className='reactions'; reactionsDiv.dataset.quick=JSON.stringify(["👍","❤️","😂"]);
+  populateReactions(reactionsDiv,msg); wrapper.appendChild(reactionsDiv);
+  container.appendChild(wrapper); container.scrollTop=container.scrollHeight;
 }
 
 function populateReactions(reactionsDiv,msg){
-  const picker=reactionsDiv.querySelector('button[title]'); reactionsDiv.innerHTML='';
-  let quick=[]; try{ quick=JSON.parse(reactionsDiv.dataset.quick||'["👍","❤️","😂"]'); }catch(e){ quick=["👍","❤️","😂"]; }
-  quick.forEach(e=>{ const span=document.createElement('button'); span.className='reaction'; const count=(msg.reactions&&msg.reactions[e])?msg.reactions[e].length:0; span.innerHTML=`<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${count>0?count:''}</span>`; if(msg.reactions&&msg.reactions[e]&&msg.reactions[e].includes(myUsernameLocal())) span.classList.add('you'); span.onclick=()=>reactMessage(msg.id,e); reactionsDiv.appendChild(span); });
-  if(msg.reactions){ Object.keys(msg.reactions).forEach(key=>{ if(quick.includes(key)) return; const span=document.createElement('button'); span.className='reaction'; const count=msg.reactions[key].length; span.innerHTML=`<span style="font-size:16px">${key}</span><span class="count" style="margin-left:6px">${count}</span>`; if(msg.reactions[key].includes(myUsernameLocal())) span.classList.add('you'); span.onclick=()=>reactMessage(msg.id,key); reactionsDiv.appendChild(span); }); }
-  const pickerBtn=document.createElement('button'); pickerBtn.className='reaction'; pickerBtn.textContent='✦'; pickerBtn.title='Open emoji picker (circle)'; pickerBtn.onclick=()=>openEmojiPicker(msg.id); pickerBtn.style.background='transparent'; reactionsDiv.appendChild(pickerBtn);
-  reactionsDiv.dataset.quick=JSON.stringify(quick);
+  const votedEmojis=msg.reactions ? Object.keys(msg.reactions).filter(k=>msg.reactions[k].length>0) : [];
+  reactionsDiv.innerHTML='';
+  votedEmojis.forEach(e=>{
+    const span=document.createElement('button'); span.className='reaction';
+    span.innerHTML=`<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${msg.reactions[e].length}</span>`;
+    if(msg.reactions[e].includes(myName)) span.classList.add('you');
+    span.onclick=()=>reactMessage(msg.id,e);
+    reactionsDiv.appendChild(span);
+  });
+  const picker=document.createElement('button'); picker.className='reaction'; picker.textContent='✦'; picker.title='Open emoji picker'; picker.onclick=()=>openEmojiPicker(msg.id); picker.style.background='transparent';
+  reactionsDiv.appendChild(picker);
 }
-
-function sendLocalName(){ if(!connected||!myName) return; ws.send(JSON.stringify({type:"setname",name:myName})); }
-function sendMessage(){ if(!connected) return alert('Not connected'); if(!currentRoom) return alert('Join a room first'); const input=document.getElementById('msgInput'); const text=input.value.trim(); if(!text) return; ws.send(JSON.stringify({type:"message",text})); input.value=''; }
-function reactMessage(messageId,emoji){ if(!connected||!currentRoom) return; ws.send(JSON.stringify({type:"reaction",messageId,emoji})); }
 </script>
 </body>
 </html>
