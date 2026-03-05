@@ -8,33 +8,44 @@ const wss = new WebSocket.Server({ server })
 
 app.use(express.static(__dirname))
 
+// Predefined expressive rooms
+const predefinedRooms = [
+  "general","memes","dev","music","gaming","movies","anime","tech",
+  "art","sports","fun","food","travel","books","coding","pets",
+  "life","science","random","chat-lounge"
+]
+
 // rooms: { roomName: { clients: Set(ws), messages: [] } }
 const rooms = {}
+predefinedRooms.forEach(r => rooms[r] = { clients: new Set(), messages: [] })
+
+const allClients = new Set()
 
 function broadcastUsers(room){
     if(!rooms[room]) return
-    const users = []
-    for(const client of rooms[room].clients){
-        if(client.username) users.push(client.username)
-    }
+    const users = Array.from(rooms[room].clients).map(c => c.username)
     const payload = JSON.stringify({ type:"users", room, users })
-    for(const client of rooms[room].clients){
-        if(client.readyState === WebSocket.OPEN) client.send(payload)
-    }
+    rooms[room].clients.forEach(c => { if(c.readyState === WebSocket.OPEN) c.send(payload) })
 }
 
 function broadcastMessage(room, msgObj){
     if(!rooms[room]) return
-    for(const client of rooms[room].clients){
-        if(client.readyState === WebSocket.OPEN){
-            client.send(JSON.stringify(msgObj))
-        }
-    }
+    rooms[room].clients.forEach(c => { if(c.readyState === WebSocket.OPEN) c.send(JSON.stringify(msgObj)) })
+}
+
+// Broadcast predefined room list to all clients
+function broadcastRooms(){
+    const payload = JSON.stringify({ type:"rooms", rooms:predefinedRooms })
+    allClients.forEach(c => { if(c.readyState === WebSocket.OPEN) c.send(payload) })
 }
 
 wss.on("connection",(ws)=>{
     ws.username = "anonymous"
     ws.room = null
+    allClients.add(ws)
+
+    // Send predefined room list immediately
+    ws.send(JSON.stringify({ type:"rooms", rooms:predefinedRooms }))
 
     ws.on("message",(raw)=>{
         let data
@@ -46,39 +57,36 @@ wss.on("connection",(ws)=>{
         }
 
         if(data.type === "join"){
-            ws.room = data.room
-            if(!rooms[ws.room]){
-                rooms[ws.room] = { clients: new Set(), messages: [] }
-            }
-            rooms[ws.room].clients.add(ws)
+            const room = data.room
+            ws.room = room
+            if(!rooms[room]) return  // ignore invalid rooms
 
-            const joinMsg = { type:"system", text: ws.username + " joined " + ws.room }
-            broadcastMessage(ws.room, joinMsg)
-            broadcastUsers(ws.room)
+            rooms[room].clients.add(ws)
 
-            // Send existing messages in the room to the new user
-            rooms[ws.room].messages.forEach(m => {
-                if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m))
-            })
+            const joinMsg = { type:"system", text: ws.username + " joined " + room }
+            broadcastMessage(room, joinMsg)
+            broadcastUsers(room)
+
+            // Send last 50 messages
+            const recent = rooms[room].messages.slice(-50)
+            recent.forEach(m => { if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)) })
             return
         }
 
         if(data.type === "message" && ws.room){
-            // Normal chat message
             const msgObj = {
                 type:"chat",
                 id:Date.now()+"_"+Math.floor(Math.random()*1000),
                 room: ws.room,
                 user: ws.username,
                 text: data.text,
-                reactions: {} // emoji: [usernames]
+                reactions: {}
             }
             rooms[ws.room].messages.push(msgObj)
             broadcastMessage(ws.room, msgObj)
         }
 
         if(data.type === "reaction" && ws.room){
-            // { messageId, emoji }
             const roomData = rooms[ws.room]
             if(!roomData) return
             const msg = roomData.messages.find(m => m.id === data.messageId)
@@ -90,6 +98,7 @@ wss.on("connection",(ws)=>{
     })
 
     ws.on("close",()=>{
+        allClients.delete(ws)
         if(ws.room && rooms[ws.room]){
             rooms[ws.room].clients.delete(ws)
             const leaveMsg = { type:"system", text: ws.username + " left " + ws.room }
