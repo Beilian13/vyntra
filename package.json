@@ -1,0 +1,14 @@
+{
+  "name": "vyntra",
+  "version": "1.0.0",
+  "description": "Vyntra chat server",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.19.0"
+  }
+}

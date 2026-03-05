@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Vyntra Chat</title>
+</head>
+<body>
+
+<h2>Vyntra Chat</h2>
+
+<input id="name" placeholder="username">
+<button onclick="setName()">set username</button>
+
+<br><br>
+
+<select id="room">
+<option value="general">general</option>
+<option value="memes">memes</option>
+<option value="dev">dev</option>
+</select>
+
+<button onclick="join()">join room</button>
+
+<br><br>
+
+<input id="msg" placeholder="message">
+<button onclick="send()">send</button>
+
+<ul id="chat"></ul>
+
+<script>
+
+let ws
+let connected = false
+
+function connect(){
+
+    const protocol = location.protocol === "https:" ? "wss://" : "ws://"
+    const url = protocol + location.host
+
+    ws = new WebSocket(url)
+
+    ws.onopen = ()=>{
+        connected = true
+        console.log("Connected to Vyntra")
+    }
+
+    ws.onclose = ()=>{
+        connected = false
+        console.log("Disconnected")
+        setTimeout(connect,2000)
+    }
+
+    ws.onmessage = (event)=>{
+
+        const data = JSON.parse(event.data)
+        const li = document.createElement("li")
+
+        if(data.type === "system"){
+            li.textContent = data.text
+            li.style.color = "gray"
+        }
+        else if(data.type === "chat"){
+            li.textContent = "[" + data.room + "] " + data.user + ": " + data.text
+        }
+
+        document.getElementById("chat").appendChild(li)
+    }
+}
+
+connect()
+
+function setName(){
+
+    if(!connected) return
+
+    const name = document.getElementById("name").value
+
+    ws.send(JSON.stringify({
+        type:"setname",
+        name:name
+    }))
+}
+
+function join(){
+
+    if(!connected) return
+
+    const room = document.getElementById("room").value
+
+    ws.send(JSON.stringify({
+        type:"join",
+        room:room
+    }))
+}
+
+function send(){
+
+    if(!connected) return
+
+    const input = document.getElementById("msg")
+
+    ws.send(JSON.stringify({
+        type:"message",
+        text:input.value
+    }))
+
+    input.value = ""
+}
+
+</script>
+
+</body>
+</html>
