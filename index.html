@@ -139,13 +139,14 @@ input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255
   transform: translateX(0);
 }
 
-/* Show toggle only on mobile and hide desktop rooms */
-@media(max-width:900px){
-  .sideRooms{display:none;}
-  .usersPanel{display:none;}
-  .roomHeader .meta{display:none;}
-  #mobileRoomsBtn{display:flex;}
+/* Show mobile rooms toggle on any mobile device */
+@media(max-width:900px), (orientation: portrait) {
+  #mobileRoomsBtn { display:flex; }
+  .sideRooms { display:none; }
+  .usersPanel { display:none; }
+  .roomHeader .meta { display:none; }
 }
+
 </style>
 </head>
 <body>
