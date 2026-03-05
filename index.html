@@ -132,21 +132,46 @@ function send(){
 }
 
 function appendMessage(text, cls, data=null){
-  const li = document.createElement("li")
-  li.textContent = text
-  li.className = cls
-  if(data && data.type==="chat"){
-    // add emoji buttons
-    ["👍","❤️","😂"].forEach(e=>{
-      const btn = document.createElement("span")
-      btn.className = "emoji-btn"
-      btn.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
-      btn.onclick = ()=>{ react(data.id, e) }
-      li.appendChild(btn)
-    })
-  }
-  document.getElementById("chat").appendChild(li)
-  li.scrollIntoView({behavior:"smooth"})
+    let msgEl = document.getElementById("msg-" + (data?.id || ""))
+    
+    if(msgEl && data){ 
+        // Message already exists: update reactions
+        const reactionsDiv = msgEl.querySelector(".reactions")
+        reactionsDiv.innerHTML = ""
+        for(const e in data.reactions){
+            const span = document.createElement("span")
+            span.textContent = `${e} ${data.reactions[e].length}`
+            span.className = "emoji-btn"
+            span.onclick = ()=> react(data.id, e)
+            reactionsDiv.appendChild(span)
+        }
+        return
+    }
+
+    // New message
+    const li = document.createElement("li")
+    li.id = data?.id ? "msg-" + data.id : ""
+    li.className = cls
+    
+    const msgText = document.createElement("div")
+    msgText.textContent = text
+    li.appendChild(msgText)
+
+    if(data && data.type==="chat"){
+        const reactionsDiv = document.createElement("div")
+        reactionsDiv.className = "reactions"
+        for(const e of ["👍","❤️","😂"]){
+            const span = document.createElement("span")
+            span.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
+            span.className = "emoji-btn"
+            span.onclick = ()=> react(data.id, e)
+            reactionsDiv.appendChild(span)
+        }
+        li.appendChild(reactionsDiv)
+    }
+
+    document.getElementById("chat").appendChild(li)
+    li.scrollIntoView({behavior:"smooth"})
 }
 
 function react(messageId, emoji){
