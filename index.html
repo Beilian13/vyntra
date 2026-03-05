@@ -78,8 +78,14 @@ function connect() {
     setTimeout(connect, 2000)
   }
 
-  ws.onmessage = ({ data }) => {
+ let rooms = new Set()  // updated dynamically from server
+
+ws.onmessage = ({ data }) => {
     const parsed = JSON.parse(data)
+    if(parsed.type === "rooms"){
+        rooms = new Set(parsed.rooms)
+        populateRoomList()
+    }
     const chat = document.getElementById("chat")
     const usersList = document.getElementById("users")
 
