@@ -4,25 +4,25 @@
 <meta charset="UTF-8">
 <title>Vyntra Chat</title>
 <style>
-  body { font-family:"Segoe UI",sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#1e1e2f; color:#fff; }
-  header { background:#27293d; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
-  header h2 { margin:0; }
-  header input, header button, header select { margin:2px; padding:5px 8px; border-radius:4px; border:none; }
-  main { flex:1; display:flex; overflow:hidden; }
-  #chat-container { flex:3; display:flex; flex-direction:column; padding:10px; overflow-y:auto; background:#1e1e2f; }
-  #users-container { flex:1; background:#2b2b42; padding:10px; overflow-y:auto; }
-  #chat { list-style:none; padding:0; margin:0; }
-  #chat li { margin-bottom:8px; max-width:70%; padding:6px 10px; border-radius:8px; word-wrap:break-word; position:relative; }
-  .chat-msg { background:#3a3a5a; }
-  .chat-user { font-weight:bold; color:#ffd700; margin-right:5px; }
-  .system-msg { color:#aaa; font-style:italic; }
-  .emoji-btn { cursor:pointer; margin-left:5px; font-size:0.9em; }
-  footer { display:flex; padding:10px; background:#27293d; flex-wrap:wrap; }
-  footer input, footer button { padding:8px; margin:2px; border-radius:4px; border:none; }
-  footer input { flex:1; min-width:150px; }
-  footer button { background:#5c6bc0; color:#fff; cursor:pointer; }
-  footer button:hover { background:#7986cb; }
-  @media(max-width:700px){ main{flex-direction:column;} #users-container{flex:unset;height:120px;} }
+body { font-family:"Segoe UI",sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#1e1e2f; color:#fff; }
+header { background:#27293d; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+header h2 { margin:0; }
+header input, header button, header select { margin:2px; padding:5px 8px; border-radius:4px; border:none; }
+main { flex:1; display:flex; overflow:hidden; }
+#chat-container { flex:3; display:flex; flex-direction:column; padding:10px; overflow-y:auto; background:#1e1e2f; }
+#users-container { flex:1; background:#2b2b42; padding:10px; overflow-y:auto; }
+#chat { list-style:none; padding:0; margin:0; }
+#chat li { margin-bottom:8px; max-width:70%; padding:6px 10px; border-radius:8px; word-wrap:break-word; position:relative; }
+.chat-msg { background:#3a3a5a; }
+.chat-user { font-weight:bold; color:#ffd700; margin-right:5px; }
+.system-msg { color:#aaa; font-style:italic; }
+.emoji-btn { cursor:pointer; margin-left:5px; font-size:0.9em; }
+footer { display:flex; padding:10px; background:#27293d; flex-wrap:wrap; }
+footer input, footer button { padding:8px; margin:2px; border-radius:4px; border:none; }
+footer input { flex:1; min-width:150px; }
+footer button { background:#5c6bc0; color:#fff; cursor:pointer; }
+footer button:hover { background:#7986cb; }
+@media(max-width:700px){ main{flex-direction:column;} #users-container{flex:unset;height:120px;} }
 </style>
 </head>
 <body>
@@ -32,9 +32,6 @@
   <div>
     <input id="name" placeholder="Username">
     <button onclick="setName()">Set</button>
-
-    <input id="new-room" placeholder="New room">
-    <button onclick="createRoom()">Create</button>
 
     <select id="room"></select>
     <button onclick="join()">Join</button>
@@ -52,7 +49,7 @@
 </main>
 
 <footer>
-  <input id="msg" placeholder="Type your message...">
+  <input id="msg" placeholder="Type your message..." onkeypress="if(event.key==='Enter'){send()}">
   <button onclick="send()">Send</button>
 </footer>
 
@@ -69,40 +66,17 @@ function connect() {
   ws.onopen = () => {
     connected = true
     console.log("Connected to Vyntra")
-    populateRoomList()
   }
 
-  ws.onclose = () => {
-    connected = false
-    console.log("Disconnected, retrying...")
-    setTimeout(connect, 2000)
-  }
-
- let rooms = new Set()  // updated dynamically from server
-
-ws.onmessage = ({ data }) => {
+  ws.onmessage = ({ data }) => {
     const parsed = JSON.parse(data)
-    if(parsed.type === "rooms"){
-        rooms = new Set(parsed.rooms)
-        populateRoomList()
-    }
-    const chat = document.getElementById("chat")
-    const usersList = document.getElementById("users")
 
-    if(parsed.type === "system"){
-      const li = document.createElement("li")
-      li.textContent = parsed.text
-      li.className = "system-msg"
-      chat.appendChild(li)
+    if(parsed.type === "rooms"){
+      rooms = new Set(parsed.rooms)
+      populateRoomList()
     }
-    else if(parsed.type === "chat"){
-      const li = document.createElement("li")
-      li.className = "chat-msg"
-      li.innerHTML = `<span class="chat-user">${parsed.user}</span>: ${parsed.text} <span class="emoji-btn" onclick="react(this,'👍')">👍</span><span class="emoji-btn" onclick="react(this,'❤️')">❤️</span><span class="emoji-btn" onclick="react(this,'😂')">😂</span>`
-      chat.appendChild(li)
-    }
-    else if(parsed.type === "users"){
-      if(parsed.room !== currentRoom) return
+    else if(parsed.type === "users" && parsed.room === currentRoom){
+      const usersList = document.getElementById("users")
       usersList.innerHTML = ""
       parsed.users.forEach(u => {
         const li = document.createElement("li")
@@ -110,7 +84,12 @@ ws.onmessage = ({ data }) => {
         usersList.appendChild(li)
       })
     }
-    chat.scrollTop = chat.scrollHeight
+    else if(parsed.type === "system"){
+      appendMessage(parsed.text, "system-msg")
+    }
+    else if(parsed.type === "chat"){
+      appendMessage(`[${parsed.room}] ${parsed.user}: ${parsed.text}`, "chat-msg", parsed)
+    }
   }
 }
 
@@ -118,17 +97,9 @@ connect()
 
 function setName(){
   if(!connected) return
-  const name = document.getElementById("name").value
+  const name = document.getElementById("name").value.trim()
+  if(!name) return
   ws.send(JSON.stringify({ type:"setname", name }))
-}
-
-function createRoom(){
-  const roomInput = document.getElementById("new-room")
-  const room = roomInput.value.trim()
-  if(!room || rooms.has(room)) return
-  rooms.add(room)
-  populateRoomList()
-  roomInput.value = ""
 }
 
 function populateRoomList(){
@@ -145,22 +116,42 @@ function populateRoomList(){
 function join(){
   if(!connected) return
   const room = document.getElementById("room").value
+  if(!room) return
   currentRoom = room
   document.getElementById("chat").innerHTML = ""
   ws.send(JSON.stringify({ type:"join", room }))
 }
 
 function send(){
-  if(!connected) return
+  if(!connected || !currentRoom) return
   const input = document.getElementById("msg")
-  if(input.value.trim() === "") return
-  ws.send(JSON.stringify({ type:"message", text: input.value }))
+  const text = input.value.trim()
+  if(!text) return
+  ws.send(JSON.stringify({ type:"message", text }))
   input.value = ""
 }
 
-function react(el,emoji){
-  const user = document.getElementById("name").value || "anonymous"
-  ws.send(JSON.stringify({ type:"message", text:`${emoji} (by ${user})` }))
+function appendMessage(text, cls, data=null){
+  const li = document.createElement("li")
+  li.textContent = text
+  li.className = cls
+  if(data && data.type==="chat"){
+    // add emoji buttons
+    ["👍","❤️","😂"].forEach(e=>{
+      const btn = document.createElement("span")
+      btn.className = "emoji-btn"
+      btn.textContent = e + (data.reactions[e]? ` ${data.reactions[e].length}`:"")
+      btn.onclick = ()=>{ react(data.id, e) }
+      li.appendChild(btn)
+    })
+  }
+  document.getElementById("chat").appendChild(li)
+  li.scrollIntoView({behavior:"smooth"})
+}
+
+function react(messageId, emoji){
+  if(!connected || !currentRoom) return
+  ws.send(JSON.stringify({ type:"reaction", messageId, emoji }))
 }
 </script>
 
