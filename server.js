@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true },
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  friends:  [{ type: String }], // array of usernames
+  friends:  [{ type: String }],
 }, { timestamps: true });
 
 const messageSchema = new mongoose.Schema({
@@ -50,9 +50,10 @@ const PREDEFINED_ROOMS = [
 const rooms = {};
 PREDEFINED_ROOMS.forEach(r => rooms[r] = { clients: new Set() });
 
-/* ── In-memory: pending 2FA codes & connected clients map ── */
-const pendingCodes   = {}; // username -> { code, expires }
-const onlineClients  = {}; // username -> ws
+/* ── In-memory ── */
+const pendingCodes   = {};
+const onlineClients  = {};
+const activeCalls    = {}; // callId -> { caller, callee, state }
 
 /* ── Send 2FA email via Resend ── */
 function send2FAEmail(email, username, code) {
@@ -87,11 +88,6 @@ function sendToUser(username, obj) {
   const client = onlineClients[username];
   if (client && client.readyState === WebSocket.OPEN)
     client.send(JSON.stringify(obj));
-}
-
-/* ── Helper: get DM room name (alphabetically sorted for consistency) ── */
-function dmRoomName(a, b) {
-  return "dm_" + [a, b].sort().join("_");
 }
 
 /* ── REST: Register ── */
@@ -163,7 +159,6 @@ function broadcastUsers(room) {
 }
 
 async function broadcastMessage(room, msgObj) {
-  // Ensure room bucket exists (DM rooms are created on demand)
   if (!rooms[room]) rooms[room] = { clients: new Set() };
 
   if (msgObj.type === "chat") {
@@ -194,7 +189,6 @@ wss.on("connection", (ws) => {
         const payload = jwt.verify(data.token, JWT_SECRET);
         ws.username = payload.username;
         onlineClients[ws.username] = ws;
-        // Send user their friends list
         const user = await User.findOne({ username: ws.username }).lean();
         ws.send(JSON.stringify({ type: "auth_ok", username: ws.username, friends: user ? user.friends || [] : [] }));
       } catch {
@@ -210,7 +204,6 @@ wss.on("connection", (ws) => {
     /* ── Join room ── */
     if (data.type === "join") {
       const room = data.room;
-      // Allow predefined rooms + DM rooms (must start with dm_)
       const isDM = room.startsWith("dm_");
       if (!PREDEFINED_ROOMS.includes(room) && !isDM) return;
 
@@ -225,7 +218,6 @@ wss.on("connection", (ws) => {
       ws.room = room;
       rooms[room].clients.add(ws);
 
-      // Send history
       try {
         const history = await Message.find({ room }).sort({ createdAt: -1 }).limit(50).lean();
         history.reverse().forEach(m => {
@@ -271,12 +263,10 @@ wss.on("connection", (ws) => {
       if (target === ws.username) return;
       const targetUser = await User.findOne({ username: { $regex: new RegExp(`^${target}$`, "i") } });
       if (!targetUser) { ws.send(JSON.stringify({ type: "error", error: "User not found" })); return; }
-      // Check already friends
       const me = await User.findOne({ username: ws.username });
       if (me.friends.includes(targetUser.username)) {
         ws.send(JSON.stringify({ type: "error", error: "Already friends" })); return;
       }
-      // Send request notification to target if online
       sendToUser(targetUser.username, { type: "friend_request", from: ws.username });
       ws.send(JSON.stringify({ type: "friend_request_sent", to: targetUser.username }));
       return;
@@ -285,10 +275,8 @@ wss.on("connection", (ws) => {
     /* ── Friend accept ── */
     if (data.type === "friend_accept") {
       const from = data.from;
-      // Add each other as friends
       await User.updateOne({ username: ws.username }, { $addToSet: { friends: from } });
       await User.updateOne({ username: from },        { $addToSet: { friends: ws.username } });
-      // Notify both parties with updated friends list
       const meUser     = await User.findOne({ username: ws.username }).lean();
       const senderUser = await User.findOne({ username: from }).lean();
       ws.send(JSON.stringify({ type: "friends_update", friends: meUser.friends }));
@@ -313,10 +301,99 @@ wss.on("connection", (ws) => {
       sendToUser(target, { type: "unfriended", by: ws.username });
       return;
     }
+
+    /* ══════════════════════════════════
+       VOICE CALL SIGNALING (WebRTC)
+    ══════════════════════════════════ */
+
+    /* ── Initiate call ── */
+    if (data.type === "call_request") {
+      const { to } = data;
+      if (!to || to === ws.username) return;
+      const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
+      sendToUser(to, { type: "call_incoming", from: ws.username, callId });
+      ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
+      // Auto-cancel after 30s if not answered
+      setTimeout(() => {
+        if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
+          sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
+          sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
+          delete activeCalls[callId];
+        }
+      }, 30000);
+      return;
+    }
+
+    /* ── Accept call ── */
+    if (data.type === "call_accept") {
+      const { callId } = data;
+      const call = activeCalls[callId];
+      if (!call || call.callee !== ws.username) return;
+      call.state = "active";
+      sendToUser(call.caller, { type: "call_accepted", callId, by: ws.username });
+      return;
+    }
+
+    /* ── Decline call ── */
+    if (data.type === "call_decline") {
+      const { callId } = data;
+      const call = activeCalls[callId];
+      if (!call) return;
+      sendToUser(call.caller, { type: "call_declined", callId, by: ws.username });
+      delete activeCalls[callId];
+      return;
+    }
+
+    /* ── End call ── */
+    if (data.type === "call_end") {
+      const { callId } = data;
+      const call = activeCalls[callId];
+      if (!call) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "call_ended", callId, reason: "hung_up" });
+      delete activeCalls[callId];
+      return;
+    }
+
+    /* ── WebRTC: SDP Offer ── */
+    if (data.type === "rtc_offer") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
+      return;
+    }
+
+    /* ── WebRTC: SDP Answer ── */
+    if (data.type === "rtc_answer") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
+      return;
+    }
+
+    /* ── WebRTC: ICE Candidate ── */
+    if (data.type === "rtc_ice") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
+      return;
+    }
   });
 
   ws.on("close", () => {
     if (ws.username && onlineClients[ws.username] === ws) delete onlineClients[ws.username];
+    // End any active calls on disconnect
+    for (const [callId, call] of Object.entries(activeCalls)) {
+      if (call.caller === ws.username || call.callee === ws.username) {
+        const other = call.caller === ws.username ? call.callee : call.caller;
+        sendToUser(other, { type: "call_ended", callId, reason: "disconnected" });
+        delete activeCalls[callId];
+      }
+    }
     if (ws.room && rooms[ws.room]) {
       rooms[ws.room].clients.delete(ws);
       if (ws.username && !ws.room.startsWith("dm_"))
