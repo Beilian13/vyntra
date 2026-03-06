@@ -329,43 +329,29 @@ window.addEventListener("resize",()=>{
 })
 
 function populateRooms(list){
+  const container=document.getElementById('roomsList');
+  const mobilePanel=document.getElementById('mobileRoomsPanel');
 
-  const desktop=document.getElementById("roomsList")
-  const mobile=document.getElementById("mobileRoomsPanel")
-
-  desktop.innerHTML=""
-  mobile.innerHTML=""
+  container.innerHTML='';
+  if(mobilePanel) mobilePanel.innerHTML='';
 
   list.forEach(r=>{
+    rooms.add(r);
 
-    rooms.add(r)
+    const btn=document.createElement('div');
+    btn.className='room';
+    btn.id=`room-${r}`;
+    btn.innerHTML=`<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+    btn.addEventListener('click', ()=>joinRoom(r));
 
-    const make=()=>{
+    container.appendChild(btn);
 
-      const btn=document.createElement("div")
-      btn.className="room"
-
-      btn.innerHTML=`<div class="emoji">${r.slice(0,2)}</div><h4>${r}</h4>`
-
-      btn.onclick=()=>{
-
-        joinRoom(r)
-
-        if(isPortraitMobile()){
-          mobileRoomsPanel.classList.remove("show")
-        }
-
-      }
-
-      return btn
-
+    if(mobilePanel){
+      const mobileBtn=btn.cloneNode(true);
+      mobileBtn.onclick=()=>joinRoom(r);
+      mobilePanel.appendChild(mobileBtn);
     }
-
-    desktop.appendChild(make())
-    mobile.appendChild(make())
-
-  })
-
+  });
 }
 
 function joinRoom(room){
