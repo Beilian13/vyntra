@@ -307,82 +307,68 @@ wss.on("connection", (ws) => {
     ══════════════════════════════════ */
 
     /* ── Initiate call ── */
-    if (data.type === "call_request") {
-      const { to } = data;
-      if (!to || to === ws.username) return;
-      const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
-      sendToUser(to, { type: "call_incoming", from: ws.username, callId });
-      ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
-      // Auto-cancel after 30s if not answered
-      setTimeout(() => {
-        if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
-          sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
-          sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
-          delete activeCalls[callId];
-        }
-      }, 30000);
-      return;
-    }
+if (data.type === "call_request") {
+  const { to } = data;
+  if (!to || to === ws.username) return;
 
-    /* ── Accept call ── */
-    if (data.type === "call_accept") {
-      const { callId } = data;
-      const call = activeCalls[callId];
-      if (!call || call.callee !== ws.username) return;
-      call.state = "active";
-      sendToUser(call.caller, { type: "call_accepted", callId, by: ws.username });
-      return;
-    }
+  // Allow client-provided callId (so caller can cancel instantly)
+  const provided = typeof data.callId === "string" ? data.callId.trim() : "";
+  const callId = (provided && !activeCalls[provided])
+    ? provided
+    : `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    /* ── Decline call ── */
-    if (data.type === "call_decline") {
-      const { callId } = data;
-      const call = activeCalls[callId];
-      if (!call) return;
-      sendToUser(call.caller, { type: "call_declined", callId, by: ws.username });
+  activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
+
+  sendToUser(to, { type: "call_incoming", from: ws.username, callId });
+  ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
+
+  setTimeout(() => {
+    if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
+      sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
+      sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
       delete activeCalls[callId];
-      return;
     }
+  }, 30000);
 
-    /* ── End call ── */
-    if (data.type === "call_end") {
-      const { callId } = data;
-      const call = activeCalls[callId];
-      if (!call) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "call_ended", callId, reason: "hung_up" });
-      delete activeCalls[callId];
-      return;
-    }
+  return;
+}
 
-    /* ── WebRTC: SDP Offer ── */
-    if (data.type === "rtc_offer") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
-      return;
-    }
+/* ── WebRTC: SDP Offer ── */
+if (data.type === "rtc_offer") {
+  const call = activeCalls[data.callId];
+  if (!call) return;
 
-    /* ── WebRTC: SDP Answer ── */
-    if (data.type === "rtc_answer") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
-      return;
-    }
+  // Only allow caller/callee to signal in this call
+  if (ws.username !== call.caller && ws.username !== call.callee) return;
 
-    /* ── WebRTC: ICE Candidate ── */
-    if (data.type === "rtc_ice") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
-      return;
-    }
-  });
+  const other = call.caller === ws.username ? call.callee : call.caller;
+  sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
+  return;
+}
+
+/* ── WebRTC: SDP Answer ── */
+if (data.type === "rtc_answer") {
+  const call = activeCalls[data.callId];
+  if (!call) return;
+
+  if (ws.username !== call.caller && ws.username !== call.callee) return;
+
+  const other = call.caller === ws.username ? call.callee : call.caller;
+  sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
+  return;
+}
+
+/* ── WebRTC: ICE Candidate ── */
+if (data.type === "rtc_ice") {
+  const call = activeCalls[data.callId];
+  if (!call) return;
+
+  if (ws.username !== call.caller && ws.username !== call.callee) return;
+
+  const other = call.caller === ws.username ? call.callee : call.caller;
+  sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
+  return;
+}
 
   ws.on("close", () => {
     if (ws.username && onlineClients[ws.username] === ws) delete onlineClients[ws.username];
