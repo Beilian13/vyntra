@@ -15,20 +15,38 @@
   --white:#eef2ff;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter,Segoe UI,system-ui,Arial; background:var(--bg); color:var(--white); -webkit-font-smoothing:antialiased}
-header{height:64px;background:linear-gradient(90deg,#11121b, #15172b);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,0.03);position:relative;z-index:100;}
+html,body{height:100%;margin:0;font-family:Inter,Segoe UI,system-ui,Arial;background:var(--bg);color:var(--white);-webkit-font-smoothing:antialiased}
+
+/* ── Auth screen ── */
+#authScreen{display:flex;align-items:center;justify-content:center;height:100%;background:radial-gradient(ellipse at 50% 40%,#1a1c35,var(--bg))}
+.auth-box{width:min(420px,92vw);background:#13152a;border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.04)}
+.auth-box h2{margin:0 0 6px;font-size:22px}
+.auth-box p{margin:0 0 24px;color:var(--muted);font-size:14px}
+.auth-tabs{display:flex;margin-bottom:24px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.06)}
+.auth-tab{flex:1;padding:9px;text-align:center;cursor:pointer;font-size:14px;color:var(--muted);background:transparent;border:none;transition:background 0.15s}
+.auth-tab.active{background:var(--accent);color:#fff}
+.auth-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.auth-field label{font-size:13px;color:var(--muted)}
+.auth-field input{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;transition:border-color 0.15s}
+.auth-field input:focus{border-color:var(--accent)}
+.auth-submit{width:100%;padding:11px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;transition:opacity 0.15s}
+.auth-submit:hover{opacity:0.88}
+.auth-error{color:#ff6b6b;font-size:13px;margin-top:10px;min-height:18px;text-align:center}
+
+/* ── App shell ── */
+#appShell{display:none;flex-direction:column;height:100%}
+header{height:64px;background:linear-gradient(90deg,#11121b,#15172b);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,0.03);position:relative;z-index:100}
 .header-left{display:flex;gap:12px;align-items:center}
 h1{font-size:16px;margin:0;font-weight:600;color:var(--white)}
 .controls{display:flex;gap:8px;align-items:center}
 input,select,button{font-size:14px}
-input[type="text"], select{background:#0b0d16;border:1px solid rgba(255,255,255,0.04);color:var(--white);padding:8px;border-radius:6px}
 button{background:var(--accent);color:white;border:0;padding:8px 10px;border-radius:8px;cursor:pointer}
-button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--white)}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white)}
 main{display:flex;flex:1;overflow:hidden;height:calc(100% - 64px)}
 .sideRooms{width:220px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,0.02);padding:12px;overflow:auto}
 .room{padding:8px 10px;border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:8px}
 .room.active{background:linear-gradient(90deg,#1b1d33,#151629);box-shadow:inset 0 0 0 1px rgba(108,124,255,0.06)}
-.room .emoji{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#0f111a}
+.room .emoji{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#0f111a;font-size:13px;font-weight:700;color:var(--muted)}
 .room h4{margin:0;font-size:13px}
 .chatArea{flex:1;display:flex;flex-direction:column;min-width:0}
 .roomHeader{padding:12px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,rgba(0,0,0,0.04),transparent)}
@@ -37,395 +55,289 @@ main{display:flex;flex:1;overflow:hidden;height:calc(100% - 64px)}
 .msg{max-width:80%;padding:10px 12px;border-radius:10px;background:var(--bubble);position:relative;word-break:break-word;align-self:flex-start}
 .msg.me{background:linear-gradient(90deg,#5f6bff,#7d86ff);color:white;align-self:flex-end}
 .msg .meta{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;gap:8px;align-items:center}
-.msg .text{font-size:14px;line-height:1.25}
+.msg.me .meta{color:rgba(255,255,255,0.6)}
+.msg .text{font-size:14px;line-height:1.4}
 .msg .reactions{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
-.reaction{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:13px;cursor:pointer}
-.reaction .count{opacity:0.9}
-.reaction.you{box-shadow:0 0 0 2px rgba(108,124,255,0.12)}
+.reaction{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:13px;cursor:pointer;border:1px solid transparent}
+.reaction.you{border-color:rgba(108,124,255,0.3);background:rgba(108,124,255,0.08)}
 .system{font-style:italic;color:var(--system);font-size:13px;text-align:center;padding:6px}
 .compose{display:flex;padding:12px;border-top:1px solid rgba(255,255,255,0.03);gap:8px;background:#0e1020}
-input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:#0b0d16;color:var(--white)}
-.icon-btn{width:44px;height:44px;border-radius:50%;background:#0b0d16;border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--white);}
-.small{font-size:12px;padding:6px 8px}
+input.msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:#0b0d16;color:var(--white);outline:none}
+input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
+.icon-btn{width:44px;height:44px;border-radius:50%;background:#0b0d16;border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--white);flex-shrink:0}
+.small{font-size:12px;padding:6px 10px}
 .usersPanel{width:220px;border-left:1px solid rgba(255,255,255,0.02);background:#0b0e18;padding:12px;overflow:auto}
-.usersPanel h4{margin:0 0 8px 0;color:var(--muted)}
-.user{padding:6px 8px;border-radius:6px;background:transparent;margin-bottom:6px;color:var(--white);display:flex;justify-content:space-between;align-items:center}
-.pulse{width:8px;height:8px;border-radius:50%;background:#39d353;margin-right:8px}
+.usersPanel h4{margin:0 0 8px 0;color:var(--muted);font-size:13px}
+.user{padding:6px 8px;border-radius:6px;margin-bottom:4px;color:var(--white);display:flex;align-items:center}
+.pulse{width:8px;height:8px;border-radius:50%;background:#39d353;margin-right:8px;flex-shrink:0}
 .center-note{display:flex;align-items:center;justify-content:center;color:var(--muted);height:100%}
 
-/* Emoji picker */
-#emoji-picker-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 1200;
-  align-items: center;
-  justify-content: center;
-}
-#emoji-picker {
-  width: min(640px, 92vw);
-  height: min(480px, 70vh);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff, #f4f6ff);
-  position: relative;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 18px;
-}
-#emoji-grid {
-  flex: 1;
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 44px);
-  gap: 8px;
-  align-content: start;
-  overflow: auto;
-  padding: 12px;
-  border-radius: 12px;
-}
-#emoji-close {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  background: #ff4d4f;
-  color: #fff;
-  border: none;
-  font-size: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  cursor: pointer;
-}
+/* ── Emoji picker ── */
+#emoji-picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1200;align-items:center;justify-content:center}
+#emoji-picker{width:min(640px,92vw);height:min(480px,70vh);border-radius:16px;background:linear-gradient(180deg,#ffffff,#f4f6ff);position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;padding:18px}
+#emoji-grid{flex:1;width:100%;display:grid;grid-template-columns:repeat(auto-fill,44px);gap:8px;align-content:start;overflow:auto;padding:12px;border-radius:12px}
+#emoji-close{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#ff4d4f;color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,0.2);cursor:pointer}
 
-/* ── Mobile rooms button — hidden by default, shown on small screens ── */
-#mobileRoomsBtn {
-  display: none;
-  position: relative;
-  z-index: 101;
-  flex-shrink: 0;
-  margin-right: 4px;
-}
-
-/* ── Mobile slide-in panel ── */
-#mobileRoomsPanel {
-  position: fixed;
-  top: 64px;
-  left: 0;
-  width: 220px;
-  max-width: 70vw;
-  height: calc(100% - 64px);
-  background: #0d0f1a;
-  border-right: 1px solid rgba(255,255,255,0.02);
-  overflow: auto;
-  padding: 12px;
-  z-index: 999;
-  box-shadow: 4px 0 16px rgba(0,0,0,0.4);
-  transform: translateX(-100%);
-  transition: transform 0.25s ease;
-  /* always in the DOM — visibility controlled by transform only */
-}
-#mobileRoomsPanel.show {
-  transform: translateX(0);
-}
-
-/* Overlay behind the panel so tapping outside closes it */
-#mobileRoomsOverlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  top: 64px;
-  z-index: 998;
-  background: rgba(0,0,0,0.35);
-}
-#mobileRoomsOverlay.show {
-  display: block;
-}
-
-/* ── Responsive breakpoint ── */
-@media (max-width: 900px) {
-  #mobileRoomsBtn   { display: flex; }
-  .sideRooms        { display: none; }
-  .usersPanel       { display: none; }
-  .roomHeader .meta { display: none; }
+/* ── Mobile ── */
+#mobileRoomsBtn{display:none;position:relative;z-index:101;flex-shrink:0;margin-right:4px}
+#mobileRoomsPanel{position:fixed;top:64px;left:0;width:220px;max-width:70vw;height:calc(100% - 64px);background:#0d0f1a;border-right:1px solid rgba(255,255,255,0.02);overflow:auto;padding:12px;z-index:999;box-shadow:4px 0 16px rgba(0,0,0,0.4);transform:translateX(-100%);transition:transform 0.25s ease}
+#mobileRoomsPanel.show{transform:translateX(0)}
+#mobileRoomsOverlay{display:none;position:fixed;inset:0;top:64px;z-index:998;background:rgba(0,0,0,0.35)}
+#mobileRoomsOverlay.show{display:block}
+@media(max-width:900px){
+  #mobileRoomsBtn{display:flex}
+  .sideRooms{display:none}
+  .usersPanel{display:none}
+  .roomHeader .meta{display:none}
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-left">
-    <!-- Mobile rooms toggle — only visible on small screens via CSS -->
-    <button id="mobileRoomsBtn" class="icon-btn" title="Rooms">☰</button>
+<!-- ── Auth Screen ── -->
+<div id="authScreen">
+  <div class="auth-box">
+    <h2>Vyntra</h2>
+    <p>Chat with your friends</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+      <button class="auth-tab"        onclick="switchTab('register')">Register</button>
+    </div>
 
-    <h1>Vyntra</h1>
+    <div id="formLogin">
+      <div class="auth-field"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com" /></div>
+      <div class="auth-field"><label>Password</label><input id="loginPass" type="password" placeholder="••••••••" /></div>
+      <button class="auth-submit" onclick="doLogin()">Login</button>
+    </div>
+
+    <div id="formReg" style="display:none">
+      <div class="auth-field"><label>Username</label><input id="regUsername" type="text" placeholder="coolname" /></div>
+      <div class="auth-field"><label>Email</label><input id="regEmail" type="email" placeholder="you@example.com" /></div>
+      <div class="auth-field"><label>Password</label><input id="regPass" type="password" placeholder="••••••••" /></div>
+      <button class="auth-submit" onclick="doRegister()">Create account</button>
+    </div>
+
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- ── App Shell ── -->
+<div id="appShell">
+  <header>
+    <div class="header-left">
+      <button id="mobileRoomsBtn" class="icon-btn" title="Rooms">☰</button>
+      <h1>Vyntra</h1>
+      <span id="headerUsername" style="color:var(--muted);font-size:13px"></span>
+    </div>
     <div class="controls">
-      <input id="name" type="text" placeholder="username" style="width:150px" />
-      <button id="setNameBtn" class="small">Set</button>
+      <button class="ghost small" id="reconnectBtn">Reconnect</button>
+      <button class="ghost small" onclick="doLogout()">Logout</button>
     </div>
-  </div>
+  </header>
 
-  <div class="controls">
-    <div style="color:var(--muted);font-size:13px;margin-right:8px">Predefined rooms</div>
-    <button class="ghost small" id="reconnectBtn">Reconnect</button>
-  </div>
-</header>
+  <div id="mobileRoomsOverlay"></div>
+  <div id="mobileRoomsPanel"></div>
 
-<!-- Overlay that closes the panel when tapped outside -->
-<div id="mobileRoomsOverlay"></div>
-
-<!-- Mobile slide-in rooms panel -->
-<div id="mobileRoomsPanel"></div>
-
-<main>
-  <aside class="sideRooms" id="roomsList"></aside>
-
-  <section class="chatArea">
-    <div class="roomHeader">
-      <div>
-        <div id="roomTitle" style="font-weight:600">Select a room</div>
-        <div class="meta" id="roomMeta">Join a room to start chatting</div>
+  <main>
+    <aside class="sideRooms" id="roomsList"></aside>
+    <section class="chatArea">
+      <div class="roomHeader">
+        <div>
+          <div id="roomTitle" style="font-weight:600">Select a room</div>
+          <div class="meta" id="roomMeta">Join a room to start chatting</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div id="roomUsersCount" class="meta">0 users</div>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <div id="roomUsersCount" class="meta">0 users</div>
+      <div class="messages" id="messages">
+        <div class="center-note">Join a room to see messages</div>
       </div>
-    </div>
+      <div class="compose">
+        <button id="openPickerBtn" class="icon-btn" title="Open emoji picker">✦</button>
+        <input id="msgInput" class="msg-input" type="text" placeholder="Type a message (press Enter to send)" />
+        <button id="sendBtn" class="small">Send</button>
+      </div>
+    </section>
+    <aside class="usersPanel" id="usersPanel">
+      <h4>Users in room</h4>
+      <div id="usersList"></div>
+    </aside>
+  </main>
+</div>
 
-    <div class="messages" id="messages">
-      <div class="center-note">Join a room to see messages</div>
-    </div>
-
-    <div class="compose">
-      <button id="openPickerBtn" class="icon-btn" title="Open emoji picker">✦</button>
-      <input id="msgInput" class="msg-input" type="text" placeholder="Type a message (press Enter to send)" />
-      <button id="sendBtn" class="small">Send</button>
-    </div>
-  </section>
-
-  <aside class="usersPanel" id="usersPanel">
-    <h4>Users in room</h4>
-    <div id="usersList"></div>
-  </aside>
-</main>
-
-<!-- Emoji Picker Overlay -->
+<!-- Emoji Picker -->
 <div id="emoji-picker-overlay" aria-hidden="true">
   <div id="emoji-picker" role="dialog" aria-modal="true">
-    <input id="emoji-search" placeholder="Search emoji (name or char)..." autocomplete="off" />
+    <input id="emoji-search" placeholder="Search emoji..." autocomplete="off" />
     <div id="emoji-grid" role="list"></div>
     <button id="emoji-close" aria-label="Close picker">✕</button>
   </div>
 </div>
 
 <script>
-/* ── WebSocket state ── */
+/* ══════════════════════════════════
+   AUTH
+══════════════════════════════════ */
+function switchTab(tab) {
+  document.getElementById('formLogin').style.display = tab === 'login'    ? '' : 'none';
+  document.getElementById('formReg').style.display   = tab === 'register' ? '' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='login')));
+  document.getElementById('authError').textContent = '';
+}
+
+function setAuthError(msg) { document.getElementById('authError').textContent = msg; }
+
+async function doLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!email || !password) return setAuthError('Please fill in all fields');
+  try {
+    const res  = await fetch('/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) });
+    const data = await res.json();
+    if (!res.ok) return setAuthError(data.error || 'Login failed');
+    saveSession(data.token, data.username);
+    launchApp(data.token, data.username);
+  } catch(e) { setAuthError('Network error'); }
+}
+
+async function doRegister() {
+  const username = document.getElementById('regUsername').value.trim();
+  const email    = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value;
+  if (!username || !email || !password) return setAuthError('Please fill in all fields');
+  try {
+    const res  = await fetch('/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, email, password }) });
+    const data = await res.json();
+    if (!res.ok) return setAuthError(data.error || 'Registration failed');
+    saveSession(data.token, data.username);
+    launchApp(data.token, data.username);
+  } catch(e) { setAuthError('Network error'); }
+}
+
+function saveSession(token, username) {
+  localStorage.setItem('vyntra_token',    token);
+  localStorage.setItem('vyntra_username', username);
+}
+
+function doLogout() {
+  localStorage.removeItem('vyntra_token');
+  localStorage.removeItem('vyntra_username');
+  location.reload();
+}
+
+// Auto-login if token saved
+(function checkSavedSession() {
+  const token    = localStorage.getItem('vyntra_token');
+  const username = localStorage.getItem('vyntra_username');
+  if (token && username) launchApp(token, username);
+})();
+
+/* ══════════════════════════════════
+   APP LAUNCH
+══════════════════════════════════ */
+function launchApp(token, username) {
+  myName = username;
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appShell').style.display   = 'flex';
+  document.getElementById('headerUsername').textContent = '@' + username;
+  connectWS(token);
+  initAppListeners();
+}
+
+/* ══════════════════════════════════
+   WEBSOCKET
+══════════════════════════════════ */
 let ws = null, connected = false, currentRoom = null, myName = "";
-const rooms = new Set(), messagesCache = {}, userSet = new Set();
+const rooms = new Set(), messagesCache = {};
 
 function safeParse(s) { try { return JSON.parse(s); } catch(e) { return null; } }
 
-/* ── Demo mode (used when no server is available) ── */
-let demoMode = false;
-const DEMO_ROOMS = ['general','memes','dev','music','games','anime','art','tech','random','news','sports','study','finance','travel','food','pets','movies','tv','fun'];
-const DEMO_USERS = ['alice', 'bob', 'charlie', 'dana'];
-let demoMsgCounter = 0;
+let _listenersReady = false;
+function initAppListeners() {
+  if (_listenersReady) return;
+  _listenersReady = true;
 
-function startDemoMode() {
-  demoMode = true;
-  connected = true;
-  console.log('Vyntra: running in demo mode (no server found)');
-  handleWsMsg(JSON.stringify({ type: 'rooms', rooms: DEMO_ROOMS }));
-  pushSystemMessage('⚠️ No server found — running in demo mode');
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  document.getElementById('msgInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+  document.getElementById('reconnectBtn').addEventListener('click', () => {
+    const t = localStorage.getItem('vyntra_token');
+    if (t) connectWS(t);
+  });
+  document.getElementById('openPickerBtn').addEventListener('click', () => openEmojiPicker('__composer'));
+  document.getElementById('mobileRoomsBtn').addEventListener('click', () => {
+    document.getElementById('mobileRoomsPanel').classList.contains('show') ? closeMobilePanel() : openMobilePanel();
+  });
+  document.getElementById('mobileRoomsOverlay').addEventListener('click', closeMobilePanel);
+  document.getElementById('emoji-close').addEventListener('click', closeEmojiPicker);
+  document.getElementById('emoji-search').addEventListener('input', e => populateEmojiGrid(e.target.value.trim()));
+  document.getElementById('emoji-picker-overlay').addEventListener('click', ev => {
+    if (ev.target === document.getElementById('emoji-picker-overlay')) closeEmojiPicker();
+  });
 }
 
-function demoSend(obj) {
-  if (!demoMode) return;
-  if (obj.type === 'setname') { /* no-op */ }
-  else if (obj.type === 'join') {
-    const room = obj.room;
-    handleWsMsg(JSON.stringify({ type: 'users', room, users: [myName || 'you', ...DEMO_USERS] }));
-    handleWsMsg(JSON.stringify({ type: 'system', text: `You joined #${room}` }));
-  } else if (obj.type === 'message') {
-    const id = `${Date.now()}_demo${demoMsgCounter++}`;
-    handleWsMsg(JSON.stringify({ type: 'chat', room: currentRoom, id, user: myName || 'you', text: obj.text, reactions: {} }));
-  } else if (obj.type === 'reaction') {
-    const cache = messagesCache[currentRoom] || [];
-    const msg = cache.find(m => m.id === obj.messageId);
-    if (msg) {
-      if (!msg.reactions[obj.emoji]) msg.reactions[obj.emoji] = [];
-      const arr = msg.reactions[obj.emoji];
-      const idx = arr.indexOf(myName || 'you');
-      if (idx >= 0) arr.splice(idx, 1); else arr.push(myName || 'you');
-      handleWsMsg(JSON.stringify({ type: 'chat', room: currentRoom, ...msg }));
-    }
-  }
-}
-
-function connect() {
-  if (!location.host) { startDemoMode(); return; }
-  if (ws) ws.close();
+function connectWS(token) {
+  if (!location.host) return;
+  if (ws) { try { ws.close(); } catch(e) {} }
   const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
-  try {
-    ws = new WebSocket(protocol + location.host);
-  } catch(e) { startDemoMode(); return; }
-  ws.addEventListener('open',    ()  => { connected = true; demoMode = false; sendLocalName(); });
-  ws.addEventListener('close',   ()  => { connected = false; setTimeout(connect, 2000); });
+  try { ws = new WebSocket(protocol + location.host); } catch(e) { return; }
+  ws.addEventListener('open',    ()  => { connected = true; ws.send(JSON.stringify({ type: 'auth', token })); });
+  ws.addEventListener('close',   ()  => { connected = false; setTimeout(() => { const t = localStorage.getItem('vyntra_token'); if (t) connectWS(t); }, 2000); });
   ws.addEventListener('message', ev  => handleWsMsg(ev.data));
-  ws.addEventListener('error',   ()  => { if (!connected) { ws = null; startDemoMode(); } });
-}
-connect();
-
-/* ── Header controls ── */
-document.getElementById('setNameBtn').addEventListener('click', () => {
-  const v = document.getElementById('name').value.trim();
-  if (v) { myName = v; sendLocalName(); }
-});
-document.getElementById('sendBtn').addEventListener('click', sendMessage);
-document.getElementById('msgInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-document.getElementById('reconnectBtn').addEventListener('click', () => connect());
-document.getElementById('openPickerBtn').addEventListener('click', () => openEmojiPicker('__composer'));
-
-/* ── Mobile rooms panel toggle ── */
-const mobileRoomsBtn     = document.getElementById('mobileRoomsBtn');
-const mobileRoomsPanel   = document.getElementById('mobileRoomsPanel');
-const mobileRoomsOverlay = document.getElementById('mobileRoomsOverlay');
-
-function openMobilePanel() {
-  mobileRoomsPanel.classList.add('show');
-  mobileRoomsOverlay.classList.add('show');
-}
-function closeMobilePanel() {
-  mobileRoomsPanel.classList.remove('show');
-  mobileRoomsOverlay.classList.remove('show');
-}
-
-mobileRoomsBtn.addEventListener('click', () => {
-  mobileRoomsPanel.classList.contains('show') ? closeMobilePanel() : openMobilePanel();
-});
-mobileRoomsOverlay.addEventListener('click', closeMobilePanel);
-
-/* ── Emoji picker ── */
-let allEmojis = [], pickerOpenFor = null;
-(async function loadEmojiSet() {
-  try {
-    const res  = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
-    const json = await res.json();
-    allEmojis  = json.filter(e => e.char && e.name).map(e => ({ char: e.char, name: e.name }));
-  } catch(e) {
-    allEmojis = [
-      { char: "😀", name: "grinning face" },
-      { char: "😂", name: "face with tears of joy" },
-      { char: "❤️", name: "red heart" }
-    ];
-  }
-})();
-
-function openEmojiPicker(msgId) {
-  pickerOpenFor = msgId;
-  document.getElementById('emoji-picker-overlay').style.display = 'flex';
-  populateEmojiGrid('');
-  setTimeout(() => document.getElementById('emoji-search').focus(), 80);
-}
-
-document.getElementById('emoji-close').addEventListener('click', () => {
-  pickerOpenFor = null;
-  document.getElementById('emoji-picker-overlay').style.display = 'none';
-  document.getElementById('emoji-search').value = '';
-});
-document.getElementById('emoji-search').addEventListener('input', e => populateEmojiGrid(e.target.value.trim()));
-document.getElementById('emoji-picker-overlay').addEventListener('click', ev => {
-  if (ev.target === document.getElementById('emoji-picker-overlay')) {
-    pickerOpenFor = null;
-    document.getElementById('emoji-picker-overlay').style.display = 'none';
-  }
-});
-
-function populateEmojiGrid(filter) {
-  const grid = document.getElementById('emoji-grid');
-  grid.innerHTML = '';
-  const f = (filter || '').toLowerCase();
-  let count = 0;
-  for (const { char, name } of allEmojis) {
-    if (f && !char.includes(f) && !name.toLowerCase().includes(f)) continue;
-    const btn = document.createElement('button');
-    btn.className = 'emoji-btn-grid';
-    btn.textContent = char;
-    btn.onclick = () => {
-      if (pickerOpenFor === '__composer') {
-        document.getElementById('msgInput').value += char;
-        return;
-      }
-      reactMessage(pickerOpenFor, char);
-    };
-    grid.appendChild(btn);
-    if (++count > 3000) break;
-  }
-}
-
-/* ── Chat logic ── */
-function handleWsMsg(raw) {
-  const data = safeParse(raw);
-  if (!data) return;
-  if      (data.type === "rooms")  populateRooms(data.rooms || []);
-  else if (data.type === "users" && data.room === currentRoom) populateUsers(data.users || []);
-  else if (data.type === "system") pushSystemMessage(data.text);
-  else if (data.type === "chat")   cacheAndRenderMessage(data);
+  ws.addEventListener('error',   ()  => { connected = false; });
 }
 
 function wsSend(obj) {
-  if (demoMode) { demoSend(obj); return; }
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
-function sendLocalName() {
-  if (!connected || !myName) return;
-  wsSend({ type: "setname", name: myName });
+/* ══════════════════════════════════
+   MESSAGE HANDLER
+══════════════════════════════════ */
+function handleWsMsg(raw) {
+  const data = safeParse(raw);
+  if (!data) return;
+  if      (data.type === 'rooms')    populateRooms(data.rooms || []);
+  else if (data.type === 'users' && data.room === currentRoom) populateUsers(data.users || []);
+  else if (data.type === 'system')   pushSystemMessage(data.text);
+  else if (data.type === 'chat')     cacheAndRenderMessage(data);
+  else if (data.type === 'auth_err') doLogout();
 }
 
+/* ══════════════════════════════════
+   CHAT ACTIONS
+══════════════════════════════════ */
 function sendMessage() {
-  if (!connected)    return alert('Not connected');
-  if (!currentRoom)  return alert('Join a room first');
+  if (!connected)   return alert('Not connected');
+  if (!currentRoom) return alert('Join a room first');
   const input = document.getElementById('msgInput');
   const text  = input.value.trim();
   if (!text) return;
-  wsSend({ type: "message", text });
+  wsSend({ type: 'message', text });
   input.value = '';
 }
 
 function reactMessage(messageId, emoji) {
   if (!connected || !currentRoom) return;
-  wsSend({ type: "reaction", messageId, emoji });
+  wsSend({ type: 'reaction', messageId, emoji });
 }
 
-/* ── Rooms ── */
+/* ══════════════════════════════════
+   ROOMS
+══════════════════════════════════ */
 function populateRooms(list) {
-  const desktopContainer = document.getElementById('roomsList');
-  const mobileContainer  = document.getElementById('mobileRoomsPanel');
-
-  desktopContainer.innerHTML = '';
-  mobileContainer.innerHTML  = '';
-
+  const desktop = document.getElementById('roomsList');
+  const mobile  = document.getElementById('mobileRoomsPanel');
+  desktop.innerHTML = '';
+  mobile.innerHTML  = '';
   list.forEach(r => {
     rooms.add(r);
-
-    // Build two independent room buttons (desktop + mobile)
-    [desktopContainer, mobileContainer].forEach(container => {
+    [desktop, mobile].forEach(container => {
       const btn = document.createElement('div');
-      btn.className = 'room';
-      // Give mobile copies a distinct id so querySelectorAll still finds both
+      btn.className    = 'room';
       btn.dataset.room = r;
-      btn.innerHTML = `<div class="emoji">${r.slice(0, 2).toUpperCase()}</div><h4>${r}</h4>`;
-      btn.addEventListener('click', () => {
-        joinRoom(r);
-        closeMobilePanel();
-      });
+      btn.innerHTML    = `<div class="emoji">${r.slice(0,2).toUpperCase()}</div><h4>${r}</h4>`;
+      btn.addEventListener('click', () => { joinRoom(r); closeMobilePanel(); });
       container.appendChild(btn);
     });
   });
@@ -435,32 +347,31 @@ function joinRoom(room) {
   if (!connected) return alert('Not connected');
   currentRoom = room;
   document.getElementById('messages').innerHTML = '';
-  document.getElementById('roomTitle').textContent  = room;
-  document.getElementById('roomMeta').textContent   = "Loading recent messages...";
-  document.getElementById('roomUsersCount').textContent = "0 users";
-
-  // Mark active on both panels
-  document.querySelectorAll('.room').forEach(r => {
-    r.classList.toggle('active', r.dataset.room === room);
-  });
-
-  wsSend({ type: "join", room });
+  document.getElementById('roomTitle').textContent      = room;
+  document.getElementById('roomMeta').textContent       = 'Loading messages...';
+  document.getElementById('roomUsersCount').textContent = '0 users';
+  document.querySelectorAll('.room').forEach(r => r.classList.toggle('active', r.dataset.room === room));
+  wsSend({ type: 'join', room });
 }
 
-/* ── Users ── */
+/* ══════════════════════════════════
+   USERS
+══════════════════════════════════ */
 function populateUsers(list) {
   const cont = document.getElementById('usersList');
   cont.innerHTML = '';
   (list || []).forEach(u => {
     const div = document.createElement('div');
     div.className = 'user';
-    div.innerHTML = `<div style="display:flex;align-items:center"><div class="pulse"></div><div>${u}</div></div>`;
+    div.innerHTML = `<div class="pulse"></div><div>${u}</div>`;
     cont.appendChild(div);
   });
-  document.getElementById('roomUsersCount').textContent = `${list.length} users`;
+  document.getElementById('roomUsersCount').textContent = `${list.length} user${list.length !== 1 ? 's' : ''}`;
 }
 
-/* ── Messages ── */
+/* ══════════════════════════════════
+   MESSAGES
+══════════════════════════════════ */
 function cacheAndRenderMessage(msg) {
   if (!msg || !msg.room) return;
   if (!messagesCache[msg.room]) messagesCache[msg.room] = [];
@@ -482,54 +393,107 @@ function pushSystemMessage(text) {
 function renderMessage(msg) {
   const container = document.getElementById('messages');
   const existing  = document.getElementById('msg-' + msg.id);
-  if (existing) {
-    populateReactions(existing.querySelector('.reactions'), msg);
-    return;
-  }
+  if (existing) { populateReactions(existing.querySelector('.reactions'), msg); return; }
+
+  const placeholder = container.querySelector('.center-note');
+  if (placeholder) placeholder.remove();
+
   const wrapper = document.createElement('div');
   wrapper.className = 'msg' + (msg.user === myName ? ' me' : '');
   wrapper.id = 'msg-' + msg.id;
 
   const meta = document.createElement('div');
-  meta.className = 'meta';
+  meta.className   = 'meta';
   meta.textContent = `${msg.user} • ${new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString()}`;
 
   const text = document.createElement('div');
-  text.className = 'text';
+  text.className   = 'text';
   text.textContent = msg.text;
-
-  wrapper.appendChild(meta);
-  wrapper.appendChild(text);
 
   const reactionsDiv = document.createElement('div');
   reactionsDiv.className = 'reactions';
   populateReactions(reactionsDiv, msg);
-  wrapper.appendChild(reactionsDiv);
 
+  wrapper.appendChild(meta);
+  wrapper.appendChild(text);
+  wrapper.appendChild(reactionsDiv);
   container.appendChild(wrapper);
   container.scrollTop = container.scrollHeight;
 }
 
 function populateReactions(reactionsDiv, msg) {
-  const voted = msg.reactions
-    ? Object.keys(msg.reactions).filter(k => msg.reactions[k].length > 0)
-    : [];
+  const voted = msg.reactions ? Object.keys(msg.reactions).filter(k => msg.reactions[k].length > 0) : [];
   reactionsDiv.innerHTML = '';
   voted.forEach(e => {
-    const span = document.createElement('button');
-    span.className = 'reaction';
-    span.innerHTML = `<span style="font-size:16px">${e}</span><span class="count" style="margin-left:6px">${msg.reactions[e].length}</span>`;
-    if (msg.reactions[e].includes(myName)) span.classList.add('you');
-    span.onclick = () => reactMessage(msg.id, e);
-    reactionsDiv.appendChild(span);
+    const btn = document.createElement('button');
+    btn.className = 'reaction' + (msg.reactions[e].includes(myName) ? ' you' : '');
+    btn.innerHTML = `<span style="font-size:16px">${e}</span><span style="margin-left:4px">${msg.reactions[e].length}</span>`;
+    btn.onclick = () => reactMessage(msg.id, e);
+    reactionsDiv.appendChild(btn);
   });
   const picker = document.createElement('button');
-  picker.className = 'reaction';
+  picker.className   = 'reaction';
   picker.textContent = '✦';
-  picker.title = 'Open emoji picker';
+  picker.title       = 'Add reaction';
   picker.style.background = 'transparent';
   picker.onclick = () => openEmojiPicker(msg.id);
   reactionsDiv.appendChild(picker);
+}
+
+/* ══════════════════════════════════
+   MOBILE PANEL
+══════════════════════════════════ */
+function openMobilePanel() {
+  document.getElementById('mobileRoomsPanel').classList.add('show');
+  document.getElementById('mobileRoomsOverlay').classList.add('show');
+}
+function closeMobilePanel() {
+  document.getElementById('mobileRoomsPanel').classList.remove('show');
+  document.getElementById('mobileRoomsOverlay').classList.remove('show');
+}
+
+/* ══════════════════════════════════
+   EMOJI PICKER
+══════════════════════════════════ */
+let allEmojis = [], pickerOpenFor = null;
+(async function loadEmojiSet() {
+  try {
+    const res  = await fetch("https://unpkg.com/emoji.json@13.1.0/emoji.json");
+    const json = await res.json();
+    allEmojis  = json.filter(e => e.char && e.name).map(e => ({ char: e.char, name: e.name }));
+  } catch(e) {
+    allEmojis = [{ char:"😀",name:"grinning face" },{ char:"😂",name:"tears of joy" },{ char:"❤️",name:"red heart" }];
+  }
+})();
+
+function openEmojiPicker(msgId) {
+  pickerOpenFor = msgId;
+  document.getElementById('emoji-picker-overlay').style.display = 'flex';
+  populateEmojiGrid('');
+  setTimeout(() => document.getElementById('emoji-search').focus(), 80);
+}
+function closeEmojiPicker() {
+  pickerOpenFor = null;
+  document.getElementById('emoji-picker-overlay').style.display = 'none';
+  document.getElementById('emoji-search').value = '';
+}
+function populateEmojiGrid(filter) {
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  const f = (filter || '').toLowerCase();
+  let count = 0;
+  for (const { char, name } of allEmojis) {
+    if (f && !char.includes(f) && !name.toLowerCase().includes(f)) continue;
+    const btn = document.createElement('button');
+    btn.textContent = char;
+    btn.onclick = () => {
+      if (pickerOpenFor === '__composer') { document.getElementById('msgInput').value += char; return; }
+      reactMessage(pickerOpenFor, char);
+      closeEmojiPicker();
+    };
+    grid.appendChild(btn);
+    if (++count > 3000) break;
+  }
 }
 </script>
 </body>
