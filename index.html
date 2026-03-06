@@ -199,10 +199,14 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 </div>
 
 <script>
+// State — declared first to avoid temporal dead zone errors
+var ws = null, connected = false, currentRoom = null, myName = "";
+var rooms = new Set(), messagesCache = {};
+
 /* ══════════════════════════════════
    AUTH
 ══════════════════════════════════ */
-let pendingUsername = null; // username waiting for 2FA
+var pendingUsername = null; // username waiting for 2FA
 
 function switchTab(tab) {
   document.getElementById('formLogin').style.display = tab === 'login'    ? '' : 'none';
@@ -335,8 +339,7 @@ function launchApp(token, username) {
 /* ══════════════════════════════════
    WEBSOCKET
 ══════════════════════════════════ */
-let ws = null, connected = false, currentRoom = null, myName = "";
-const rooms = new Set(), messagesCache = {};
+// (state declared at top of script)
 
 function safeParse(s) { try { return JSON.parse(s); } catch(e) { return null; } }
 
