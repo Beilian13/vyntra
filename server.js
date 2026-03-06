@@ -308,17 +308,15 @@ wss.on("connection", (ws) => {
 
     /* ── Initiate call ── */
 if (data.type === "call_request") {
-  const { to } = data;
+  const { to, callId: providedId } = data;
   if (!to || to === ws.username) return;
 
-  // Allow client-provided callId (so caller can cancel instantly)
-  const provided = typeof data.callId === "string" ? data.callId.trim() : "";
-  const callId = (provided && !activeCalls[provided])
-    ? provided
-    : `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const callId =
+    (typeof providedId === "string" && providedId.trim() && !activeCalls[providedId.trim()])
+      ? providedId.trim()
+      : `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
   activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
-
   sendToUser(to, { type: "call_incoming", from: ws.username, callId });
   ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
 
