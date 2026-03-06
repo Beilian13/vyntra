@@ -1,5 +1,6 @@
 const express   = require("express");
 const http      = require("http");
+const https     = require("https");
 const WebSocket = require("ws");
 const mongoose  = require("mongoose");
 const bcrypt    = require("bcrypt");
@@ -52,31 +53,40 @@ const rooms = {};
 PREDEFINED_ROOMS.forEach(r => rooms[r] = { clients: new Set() });
 
 /* ── Send 2FA email via Resend ── */
-async function send2FAEmail(email, username, code) {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+function send2FAEmail(email, username, code) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
       from: "Vyntra <onboarding@resend.dev>",
       to:   [email],
       subject: "Your Vyntra login code",
-      html: `
-        <div style="font-family:sans-serif;max-width:400px;margin:auto;background:#0f1220;color:#eef2ff;padding:32px;border-radius:12px">
-          <h2 style="margin:0 0 8px;color:#6c7cff">Vyntra</h2>
-          <p style="color:#9aa0b4;margin:0 0 24px">Hi <b>${username}</b>, here is your login code:</p>
-          <div style="font-size:36px;font-weight:700;letter-spacing:8px;text-align:center;padding:20px;background:#161827;border-radius:8px;color:#eef2ff">${code}</div>
-          <p style="color:#9aa0b4;font-size:13px;margin-top:16px;text-align:center">This code expires in 10 minutes.</p>
-        </div>
-      `
-    })
+      html: `<div style="font-family:sans-serif;max-width:400px;margin:auto;background:#0f1220;color:#eef2ff;padding:32px;border-radius:12px">
+        <h2 style="margin:0 0 8px;color:#6c7cff">Vyntra</h2>
+        <p style="color:#9aa0b4;margin:0 0 24px">Hi <b>${username}</b>, here is your login code:</p>
+        <div style="font-size:36px;font-weight:700;letter-spacing:8px;text-align:center;padding:20px;background:#161827;border-radius:8px;color:#eef2ff">${code}</div>
+        <p style="color:#9aa0b4;font-size:13px;margin-top:16px;text-align:center">This code expires in 10 minutes.</p>
+      </div>`
+    });
+    const req = https.request({
+      hostname: "api.resend.com",
+      path:     "/emails",
+      method:   "POST",
+      headers: {
+        "Authorization":  `Bearer ${RESEND_API_KEY}`,
+        "Content-Type":   "application/json",
+        "Content-Length": Buffer.byteLength(body)
+      }
+    }, (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve();
+        else reject(new Error("Resend error " + res.statusCode + ": " + data));
+      });
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error("Resend error: " + err);
-  }
 }
 
 /* ── REST: Register ── */
