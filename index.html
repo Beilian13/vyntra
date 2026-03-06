@@ -200,7 +200,7 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 
 <script>
 // State — declared first to avoid temporal dead zone errors
-var ws = null, connected = false, currentRoom = null, myName = "";
+var ws = null, connected = false, currentRoom = null, myName = "", _listenersReady = false;
 var rooms = new Set(), messagesCache = {};
 
 /* ══════════════════════════════════
@@ -343,7 +343,7 @@ function launchApp(token, username) {
 
 function safeParse(s) { try { return JSON.parse(s); } catch(e) { return null; } }
 
-let _listenersReady = false;
+// (declared at top)
 function initAppListeners() {
   if (_listenersReady) return;
   _listenersReady = true;
