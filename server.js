@@ -23,7 +23,7 @@ const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 /* ── ENV ── */
 const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
