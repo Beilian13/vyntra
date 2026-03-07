@@ -106,7 +106,11 @@ app.post('/auth/login', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verifyCode = code;
     await user.save();
-    try { await sendVerifyEmail(user.email, code); } catch(e) { console.warn('Email failed', e.message); }
+    try {
+  await sendVerifyEmail(user.email, code);
+  } catch(e) {
+    console.error("EMAIL ERROR:", e);
+  }
     res.json({ username: user.username });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -313,6 +317,6 @@ wss.on('connection', ws => {
   });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on port", PORT);
 });
