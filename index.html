@@ -127,8 +127,7 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
    VOICE CALL UI
 ══════════════════════════════════ */
 #dmCallBtn{
-  display:none;align-items:center;gap:6px;
-  padding:6px 14px;border-radius:8px;
+  display:none;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;
   background:rgba(57,211,83,0.12);border:1px solid rgba(57,211,83,0.25);
   color:#39d353;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;
 }
@@ -184,25 +183,27 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 .calling-cancel{padding:12px 32px;border-radius:12px;background:#ff5050;color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700}
 .calling-cancel:hover{background:#e63c3c}
 
-/* Mic permission prompt (mobile) */
-#micPrompt{
-  display:none;position:fixed;inset:0;z-index:900;
-  background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);
+/* ── Mic permission modal ── */
+#micModal{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);
   align-items:center;justify-content:center;
 }
-.mic-prompt-box{
+.mic-modal-box{
   background:#13152a;border:1px solid rgba(255,255,255,0.08);
   border-radius:20px;padding:36px 32px;text-align:center;
-  max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  max-width:340px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);
 }
-.mic-prompt-icon{font-size:48px;margin-bottom:16px}
-.mic-prompt-title{font-size:18px;font-weight:700;margin-bottom:8px}
-.mic-prompt-sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.5}
-.mic-prompt-btn{width:100%;padding:12px;border-radius:12px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700;margin-bottom:10px}
-.mic-prompt-btn:hover{opacity:0.88}
-.mic-prompt-cancel{background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:4px}
-.mic-prompt-cancel:hover{color:var(--white)}
-.mic-prompt-error{color:#ff6b6b;font-size:13px;margin-top:12px;min-height:16px}
+.mic-modal-icon{font-size:52px;margin-bottom:16px;line-height:1}
+.mic-modal-title{font-size:18px;font-weight:700;margin-bottom:10px}
+.mic-modal-sub{font-size:14px;color:var(--muted);margin-bottom:8px;line-height:1.55}
+.mic-modal-steps{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;text-align:left;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px 16px}
+.mic-modal-steps b{color:var(--white)}
+.mic-modal-btn{width:100%;padding:12px;border-radius:12px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700;margin-bottom:10px}
+.mic-modal-btn:hover{opacity:0.88}
+.mic-modal-btn.secondary{background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,0.06)}
+.mic-modal-btn.secondary:hover{color:var(--white);background:#22253a}
+.mic-modal-err{color:#ff6b6b;font-size:13px;margin-top:10px;min-height:16px}
 
 /* MOBILE */
 #mobileRoomsBtn{display:none;position:relative;z-index:101;flex-shrink:0;margin-right:4px}
@@ -337,7 +338,7 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   <div class="fr-title">Friend Request 👋</div>
   <div class="fr-sub" id="frSubText"></div>
   <div class="fr-btns">
-    <button class="fr-accept"  id="frAcceptBtn">Accept</button>
+    <button class="fr-accept" id="frAcceptBtn">Accept</button>
     <button class="fr-decline" id="frDeclineBtn">Decline</button>
   </div>
 </div>
@@ -374,15 +375,16 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   </div>
 </div>
 
-<!-- MIC PERMISSION PROMPT (shown on mobile before getUserMedia) -->
-<div id="micPrompt">
-  <div class="mic-prompt-box">
-    <div class="mic-prompt-icon">🎙️</div>
-    <div class="mic-prompt-title">Microphone access needed</div>
-    <div class="mic-prompt-sub">Vyntra needs your microphone to make voice calls. Tap the button below to allow access.</div>
-    <button class="mic-prompt-btn" id="micPromptAllow">Allow microphone</button>
-    <button class="mic-prompt-cancel" id="micPromptCancel">Cancel call</button>
-    <div class="mic-prompt-error" id="micPromptError"></div>
+<!-- MIC PERMISSION MODAL -->
+<div id="micModal">
+  <div class="mic-modal-box">
+    <div class="mic-modal-icon" id="micModalIcon">🎙️</div>
+    <div class="mic-modal-title" id="micModalTitle">Microphone needed</div>
+    <div class="mic-modal-sub" id="micModalSub">Vyntra needs your microphone for voice calls.</div>
+    <div class="mic-modal-steps" id="micModalSteps" style="display:none"></div>
+    <button class="mic-modal-btn" id="micModalPrimaryBtn">Allow microphone</button>
+    <button class="mic-modal-btn secondary" id="micModalCancelBtn">Cancel call</button>
+    <div class="mic-modal-err" id="micModalErr"></div>
   </div>
 </div>
 
@@ -395,8 +397,8 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   </div>
 </div>
 
-<!-- Remote audio (hidden) -->
-<audio id="remoteAudio" autoplay playsinline></audio>
+<!-- Remote audio — NO autoplay attr, we call .play() manually after a user gesture -->
+<audio id="remoteAudio" playsinline></audio>
 
 <script>
 /* ── STATE ── */
@@ -410,12 +412,15 @@ var callState = {
   active: false, callId: null, peer: null, isCaller: false,
   pc: null, localStream: null, muted: false,
   timerInterval: null, timerSeconds: 0,
-  pendingSetup: null, // { isCaller } — waiting for mic
+  // callback to run after mic is granted
+  _micCallback: null,
 };
 var pendingIceCandidates = [];
 
-/* ── Detect mobile ── */
-var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+/* ── Detect platform ── */
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+var isAndroid = /Android/i.test(navigator.userAgent);
+var isMobile = isIOS || isAndroid || /Mobile/i.test(navigator.userAgent);
 
 /* ══════════════════════════════════
    AUTH
@@ -428,11 +433,9 @@ function switchTab(tab){
 }
 function setAuthError(m){document.getElementById('authError').textContent=m;}
 function setBusy(id,busy){
-  var btn=document.getElementById(id);
-  btn.disabled=busy;
+  var btn=document.getElementById(id);btn.disabled=busy;
   btn.textContent=busy?'…':{loginBtn:'Login',registerBtn:'Create account',verifyBtn:'Verify'}[id];
 }
-
 async function doLogin(){
   var u=document.getElementById('loginUsername').value.trim();
   var p=document.getElementById('loginPass').value;
@@ -450,7 +453,6 @@ async function doLogin(){
   }catch(e){setAuthError('Network error');}
   finally{setBusy('loginBtn',false);}
 }
-
 async function doRegister(){
   var u=document.getElementById('regUsername').value.trim();
   var e=document.getElementById('regEmail').value.trim();
@@ -461,12 +463,10 @@ async function doRegister(){
     var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p})});
     var d=await r.json();
     if(!r.ok){setAuthError(d.error||'Registration failed');return;}
-    saveSession(d.token,d.username);
-    launchApp(d.token,d.username,[]);
+    saveSession(d.token,d.username);launchApp(d.token,d.username,[]);
   }catch(e){setAuthError('Network error');}
   finally{setBusy('registerBtn',false);}
 }
-
 async function doVerify(){
   var code=Array.from(document.querySelectorAll('.code-digit')).map(function(i){return i.value;}).join('');
   if(code.length<6) return setAuthError('Enter all 6 digits');
@@ -475,12 +475,10 @@ async function doVerify(){
     var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUsername,code:code})});
     var d=await r.json();
     if(!r.ok){setAuthError(d.error||'Verification failed');return;}
-    saveSession(d.token,d.username);
-    launchApp(d.token,d.username,[]);
+    saveSession(d.token,d.username);launchApp(d.token,d.username,[]);
   }catch(e){setAuthError('Network error');}
   finally{setBusy('verifyBtn',false);}
 }
-
 function cancelVerify(){
   pendingUsername=null;
   document.getElementById('step2FA').style.display='none';
@@ -488,15 +486,12 @@ function cancelVerify(){
   document.querySelectorAll('.code-digit').forEach(function(i){i.value='';});
   setAuthError('');
 }
-function saveSession(token,username){localStorage.setItem('vyntra_token',token);localStorage.setItem('vyntra_username',username);}
+function saveSession(t,u){localStorage.setItem('vyntra_token',t);localStorage.setItem('vyntra_username',u);}
 function doLogout(){localStorage.removeItem('vyntra_token');localStorage.removeItem('vyntra_username');location.reload();}
-
 (function(){
-  var token=localStorage.getItem('vyntra_token');
-  var username=localStorage.getItem('vyntra_username');
-  if(token&&username) launchApp(token,username,[]);
+  var t=localStorage.getItem('vyntra_token'),u=localStorage.getItem('vyntra_username');
+  if(t&&u) launchApp(t,u,[]);
 })();
-
 document.addEventListener('DOMContentLoaded',function(){
   var digits=document.querySelectorAll('.code-digit');
   digits.forEach(function(input,idx){
@@ -507,8 +502,8 @@ document.addEventListener('DOMContentLoaded',function(){
     });
     input.addEventListener('keydown',function(e){if(e.key==='Backspace'&&!input.value&&idx>0) digits[idx-1].focus();});
     input.addEventListener('paste',function(e){
-      var pasted=(e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
-      if(pasted.length===6){digits.forEach(function(d,i){d.value=pasted[i]||'';});digits[5].focus();setTimeout(doVerify,100);}
+      var p=(e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+      if(p.length===6){digits.forEach(function(d,i){d.value=p[i]||'';});digits[5].focus();setTimeout(doVerify,100);}
       e.preventDefault();
     });
   });
@@ -523,8 +518,7 @@ function launchApp(token,username,friends){
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
   document.getElementById('headerUsername').textContent='@'+username;
-  connectWS(token);
-  initAppListeners();
+  connectWS(token);initAppListeners();
 }
 
 /* ══════════════════════════════════
@@ -574,8 +568,7 @@ function handleWsMsg(raw){
    LISTENERS
 ══════════════════════════════════ */
 function initAppListeners(){
-  if(_listenersReady) return;
-  _listenersReady=true;
+  if(_listenersReady) return;_listenersReady=true;
   document.getElementById('sendBtn').addEventListener('click',sendMessage);
   document.getElementById('msgInput').addEventListener('keypress',function(e){if(e.key==='Enter')sendMessage();});
   document.getElementById('reconnectBtn').addEventListener('click',function(){var t=localStorage.getItem('vyntra_token');if(t)connectWS(t);});
@@ -588,7 +581,6 @@ function initAppListeners(){
   document.getElementById('emoji-search').addEventListener('input',function(e){populateEmojiGrid(e.target.value.trim());});
   document.getElementById('emoji-picker-overlay').addEventListener('click',function(ev){if(ev.target===document.getElementById('emoji-picker-overlay'))closeEmojiPicker();});
   document.getElementById('popupOverlay').addEventListener('click',closeUserPopup);
-
   document.getElementById('dmCallBtn').addEventListener('click',function(){
     if(callState.active){endCall();}else{var peer=getDMPeer();if(peer)startCall(peer);}
   });
@@ -597,14 +589,13 @@ function initAppListeners(){
   document.getElementById('callingCancelBtn').addEventListener('click',cancelCall);
   document.getElementById('hudMuteBtn').addEventListener('click',toggleCallMute);
   document.getElementById('hudHangupBtn').addEventListener('click',endCall);
-
-  /* Mic prompt buttons */
-  document.getElementById('micPromptAllow').addEventListener('click',onMicPromptAllow);
-  document.getElementById('micPromptCancel').addEventListener('click',onMicPromptCancel);
+  /* Mic modal */
+  document.getElementById('micModalPrimaryBtn').addEventListener('click',onMicModalPrimary);
+  document.getElementById('micModalCancelBtn').addEventListener('click',onMicModalCancel);
 }
 
 /* ══════════════════════════════════
-   SIDEBAR TABS
+   SIDEBAR / ROOMS / FRIENDS
 ══════════════════════════════════ */
 function switchSidebarTab(tab,btn){
   document.querySelectorAll('.sidebar > .sidebar-tabs .sidebar-tab').forEach(function(t){t.classList.remove('active');});
@@ -618,32 +609,24 @@ function mobileSwitchTab(tab,btn){
   document.getElementById('mobileRoomsList').classList.toggle('active',tab==='rooms');
   document.getElementById('mobileFriendsList').classList.toggle('active',tab==='friends');
 }
-
-/* ══════════════════════════════════
-   ROOMS
-══════════════════════════════════ */
 function populateRooms(list){
   var containers=[document.getElementById('roomsList'),document.getElementById('mobileRoomsList')];
   containers.forEach(function(c){c.innerHTML='';});
   list.forEach(function(r){
     allRooms.add(r);
     containers.forEach(function(container){
-      var btn=document.createElement('div');
-      btn.className='room';btn.dataset.room=r;
+      var btn=document.createElement('div');btn.className='room';btn.dataset.room=r;
       btn.innerHTML='<div class="r-icon">'+r.slice(0,2).toUpperCase()+'</div><h4>'+r+'</h4>';
       btn.addEventListener('click',function(){joinRoom(r);closeMobileSidebar();});
       container.appendChild(btn);
     });
   });
 }
-
 function joinRoom(room){
   if(!connected) return alert('Not connected');
-  currentRoom=room;
-  document.getElementById('messages').innerHTML='';
+  currentRoom=room;document.getElementById('messages').innerHTML='';
   var isDM=room.startsWith('dm_');
-  var title=isDM?'💬 DM: '+room.replace('dm_','').replace(/_/g,' & '):room;
-  document.getElementById('roomTitle').textContent=title;
+  document.getElementById('roomTitle').textContent=isDM?'💬 DM: '+room.replace('dm_','').replace(/_/g,' & '):room;
   document.getElementById('roomMeta').textContent='Loading messages…';
   document.getElementById('roomUsersCount').textContent='0 users';
   document.querySelectorAll('.room').forEach(function(r){r.classList.toggle('active',r.dataset.room===room);});
@@ -652,24 +635,15 @@ function joinRoom(room){
   if(isDM) updateCallBtn();
   wsSend({type:'join',room:room});
 }
-
 function getDMPeer(){
   if(!currentRoom||!currentRoom.startsWith('dm_')) return null;
-  var parts=currentRoom.replace('dm_','').split('_');
-  return parts.find(function(p){return p!==myName;})||null;
+  return currentRoom.replace('dm_','').split('_').find(function(p){return p!==myName;})||null;
 }
-
-/* ══════════════════════════════════
-   FRIENDS
-══════════════════════════════════ */
 function renderFriendsList(){
   var containers=[document.getElementById('friendsList'),document.getElementById('mobileFriendsList')];
   containers.forEach(function(container){
     container.innerHTML='';
-    if(!myFriends.length){
-      container.innerHTML='<div class="no-friends">No friends yet.<br>Click a username in chat to add one!</div>';
-      return;
-    }
+    if(!myFriends.length){container.innerHTML='<div class="no-friends">No friends yet.<br>Click a username in chat to add one!</div>';return;}
     myFriends.forEach(function(f){
       var item=document.createElement('div');item.className='friend-item';
       item.innerHTML='<div class="friend-avatar">'+f.slice(0,1).toUpperCase()+'</div>'+
@@ -686,50 +660,33 @@ function renderFriendsList(){
     });
   });
 }
-
-function openDM(username){
-  var room='dm_'+[myName,username].sort().join('_');
-  joinRoom(room);
-}
+function openDM(username){joinRoom('dm_'+[myName,username].sort().join('_'));}
 
 /* ══════════════════════════════════
    USER POPUP
 ══════════════════════════════════ */
 function openUserPopup(username,event){
   if(username===myName) return;
-  var isFriend=myFriends.indexOf(username)>=0;
-  var isMuted=mutedUsers.indexOf(username)>=0;
+  var isFriend=myFriends.indexOf(username)>=0,isMuted=mutedUsers.indexOf(username)>=0;
   document.getElementById('popupName').textContent=username;
-  var friendBtn=document.getElementById('popupFriend');
-  friendBtn.textContent=isFriend?'👤 Already friends':'👤 Add Friend';
-  friendBtn.disabled=isFriend;
+  var fb=document.getElementById('popupFriend');
+  fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
   document.getElementById('popupMute').textContent=isMuted?'🔊 Unmute':'🔇 Mute';
   document.getElementById('popupDM').onclick=function(){openDM(username);closeUserPopup();};
   document.getElementById('popupCall').onclick=function(){openDM(username);setTimeout(function(){startCall(username);},400);closeUserPopup();};
   document.getElementById('popupFriend').onclick=function(){if(!isFriend){wsSend({type:'friend_request',to:username});closeUserPopup();}};
   document.getElementById('popupMute').onclick=function(){toggleMute(username);closeUserPopup();};
-  var x=Math.min(event.clientX,window.innerWidth-210);
-  var y=Math.min(event.clientY,window.innerHeight-260);
-  var popup=document.getElementById('userPopup');
-  popup.style.left=x+'px';popup.style.top=y+'px';
-  popup.style.display='block';
-  document.getElementById('popupOverlay').style.display='block';
+  var x=Math.min(event.clientX,window.innerWidth-210),y=Math.min(event.clientY,window.innerHeight-260);
+  var popup=document.getElementById('userPopup');popup.style.left=x+'px';popup.style.top=y+'px';
+  popup.style.display='block';document.getElementById('popupOverlay').style.display='block';
 }
-function closeUserPopup(){
-  document.getElementById('userPopup').style.display='none';
-  document.getElementById('popupOverlay').style.display='none';
-}
-
-/* ══════════════════════════════════
-   MUTE / TOAST
-══════════════════════════════════ */
+function closeUserPopup(){document.getElementById('userPopup').style.display='none';document.getElementById('popupOverlay').style.display='none';}
 function toggleMute(username){
   var idx=mutedUsers.indexOf(username);
   if(idx>=0) mutedUsers.splice(idx,1); else mutedUsers.push(username);
   localStorage.setItem('vyntra_muted',JSON.stringify(mutedUsers));
   showToastMsg(idx>=0?'🔊 Unmuted '+username:'🔇 Muted '+username);
 }
-
 function showFriendRequest(from){
   pendingFRFrom=from;
   document.getElementById('frSubText').textContent=from+' wants to be your friend!';
@@ -738,40 +695,31 @@ function showFriendRequest(from){
   document.getElementById('frDeclineBtn').onclick=function(){wsSend({type:'friend_decline',from:from});hideFRToast();};
 }
 function hideFRToast(){document.getElementById('frToast').style.display='none';pendingFRFrom=null;}
-
 function showToastMsg(msg){
   var t=document.createElement('div');
-  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#13152a;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 20px;font-size:14px;z-index:700;box-shadow:0 4px 20px rgba(0,0,0,0.4);white-space:nowrap';
-  t.textContent=msg;document.body.appendChild(t);
-  setTimeout(function(){t.remove();},3500);
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#13152a;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 20px;font-size:14px;z-index:900;box-shadow:0 4px 20px rgba(0,0,0,0.4);white-space:nowrap';
+  t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},3500);
 }
 
 /* ══════════════════════════════════
-   CHAT
+   CHAT / MESSAGES
 ══════════════════════════════════ */
 function sendMessage(){
   if(!connected) return alert('Not connected');
   if(!currentRoom) return alert('Join a room first');
-  var input=document.getElementById('msgInput');
-  var text=input.value.trim();if(!text) return;
+  var input=document.getElementById('msgInput'),text=input.value.trim();if(!text) return;
   wsSend({type:'message',text:text});input.value='';
 }
-function reactMessage(messageId,emoji){
-  if(!connected||!currentRoom) return;
-  wsSend({type:'reaction',messageId:messageId,emoji:emoji});
-}
-
+function reactMessage(messageId,emoji){if(!connected||!currentRoom) return;wsSend({type:'reaction',messageId:messageId,emoji:emoji});}
 function populateUsers(list){
   var cont=document.getElementById('usersList');cont.innerHTML='';
   (list||[]).forEach(function(u){
     var div=document.createElement('div');div.className='user-item';
     div.innerHTML='<div class="pulse"></div><div>'+u+'</div>';
-    div.addEventListener('click',function(e){openUserPopup(u,e);});
-    cont.appendChild(div);
+    div.addEventListener('click',function(e){openUserPopup(u,e);});cont.appendChild(div);
   });
   document.getElementById('roomUsersCount').textContent=list.length+' user'+(list.length!==1?'s':'');
 }
-
 function cacheAndRenderMessage(msg){
   if(!msg||!msg.room) return;
   if(!messagesCache[msg.room]) messagesCache[msg.room]=[];
@@ -779,20 +727,17 @@ function cacheAndRenderMessage(msg){
   if(idx>=0) messagesCache[msg.room][idx]=msg; else messagesCache[msg.room].push(msg);
   if(msg.room===currentRoom) renderMessage(msg);
 }
-
 function pushSystemMessage(text){
   var el=document.createElement('div');el.className='system';el.textContent=text;
   var msgs=document.getElementById('messages');msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;
 }
-
 function renderMessage(msg){
   if(mutedUsers.indexOf(msg.user)>=0) return;
   var container=document.getElementById('messages');
   var existing=document.getElementById('msg-'+msg.id);
   if(existing){populateReactions(existing.querySelector('.reactions'),msg);return;}
   var placeholder=container.querySelector('.center-note');if(placeholder) placeholder.remove();
-  var wrapper=document.createElement('div');
-  wrapper.className='msg'+(msg.user===myName?' me':'');wrapper.id='msg-'+msg.id;
+  var wrapper=document.createElement('div');wrapper.className='msg'+(msg.user===myName?' me':'');wrapper.id='msg-'+msg.id;
   var meta=document.createElement('div');meta.className='meta';
   var nameSpan=document.createElement('span');nameSpan.className='username-link';nameSpan.textContent=msg.user;
   nameSpan.addEventListener('click',function(e){openUserPopup(msg.user,e);});
@@ -805,7 +750,6 @@ function renderMessage(msg){
   wrapper.appendChild(meta);wrapper.appendChild(text);wrapper.appendChild(reactionsDiv);
   container.appendChild(wrapper);container.scrollTop=container.scrollHeight;
 }
-
 function populateReactions(reactionsDiv,msg){
   var voted=msg.reactions?Object.keys(msg.reactions).filter(function(k){return msg.reactions[k].length>0;}):[];
   reactionsDiv.innerHTML='';
@@ -815,32 +759,24 @@ function populateReactions(reactionsDiv,msg){
     btn.innerHTML='<span style="font-size:16px">'+e+'</span><span style="margin-left:4px">'+msg.reactions[e].length+'</span>';
     btn.onclick=function(){reactMessage(msg.id,e);};reactionsDiv.appendChild(btn);
   });
-  var picker=document.createElement('button');
-  picker.className='reaction';picker.textContent='✦';picker.title='Add reaction';picker.style.background='transparent';
+  var picker=document.createElement('button');picker.className='reaction';picker.textContent='✦';picker.title='Add reaction';picker.style.background='transparent';
   picker.onclick=function(){openEmojiPicker(msg.id);};reactionsDiv.appendChild(picker);
 }
-
 function openMobileSidebar(){document.getElementById('mobileSidebar').classList.add('show');document.getElementById('mobileSidebarOverlay').classList.add('show');}
 function closeMobileSidebar(){document.getElementById('mobileSidebar').classList.remove('show');document.getElementById('mobileSidebarOverlay').classList.remove('show');}
 
 /* ══════════════════════════════════
    EMOJI PICKER
 ══════════════════════════════════ */
-(async function loadEmojiSet(){
+(async function(){
   try{
     var res=await fetch('https://unpkg.com/emoji.json@13.1.0/emoji.json');
     var json=await res.json();
     allEmojis=json.filter(function(e){return e.char&&e.name;}).map(function(e){return{char:e.char,name:e.name};});
   }catch(e){allEmojis=[{char:'😀',name:'grinning'},{char:'😂',name:'joy'},{char:'❤️',name:'heart'}];}
 })();
-
-function openEmojiPicker(msgId){
-  pickerOpenFor=msgId;document.getElementById('emoji-picker-overlay').style.display='flex';
-  populateEmojiGrid('');setTimeout(function(){document.getElementById('emoji-search').focus();},80);
-}
-function closeEmojiPicker(){
-  pickerOpenFor=null;document.getElementById('emoji-picker-overlay').style.display='none';document.getElementById('emoji-search').value='';
-}
+function openEmojiPicker(msgId){pickerOpenFor=msgId;document.getElementById('emoji-picker-overlay').style.display='flex';populateEmojiGrid('');setTimeout(function(){document.getElementById('emoji-search').focus();},80);}
+function closeEmojiPicker(){pickerOpenFor=null;document.getElementById('emoji-picker-overlay').style.display='none';document.getElementById('emoji-search').value='';}
 function populateEmojiGrid(filter){
   var grid=document.getElementById('emoji-grid');grid.innerHTML='';
   var f=(filter||'').toLowerCase(),count=0;
@@ -857,107 +793,168 @@ function populateEmojiGrid(filter){
 }
 
 /* ══════════════════════════════════
-   VOICE CALLS — WebRTC
+   MIC MODAL — handles denied + re-ask
 ══════════════════════════════════ */
-var ICE_SERVERS={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 
-/* ── Request mic — handles mobile prompt flow ── */
-function requestMic(isCaller, onSuccess, onFail) {
-  // Try to get mic directly first (works on desktop + previously-granted mobile)
+/*
+  States the modal can be in:
+  'ask'    — first time, show "Allow microphone" button that calls getUserMedia
+  'denied' — permission was denied, show instructions to fix it in settings
+*/
+var micModalState = 'ask';
+
+function showMicModal(callback) {
+  callState._micCallback = callback;
+  micModalState = 'ask';
+  document.getElementById('micModalIcon').textContent = '🎙️';
+  document.getElementById('micModalTitle').textContent = 'Microphone needed';
+  document.getElementById('micModalSub').textContent = 'Tap the button below to allow microphone access for this call.';
+  document.getElementById('micModalSteps').style.display = 'none';
+  document.getElementById('micModalPrimaryBtn').textContent = 'Allow microphone';
+  document.getElementById('micModalPrimaryBtn').style.display = '';
+  document.getElementById('micModalErr').textContent = '';
+  document.getElementById('micModal').style.display = 'flex';
+}
+
+function showMicDeniedModal() {
+  micModalState = 'denied';
+  document.getElementById('micModalIcon').textContent = '🚫';
+  document.getElementById('micModalTitle').textContent = 'Microphone blocked';
+  document.getElementById('micModalSub').textContent = 'You previously denied microphone access. To fix this:';
+
+  var steps = '';
+  if (isIOS) {
+    steps = '<b>iPhone / iPad:</b>\n1. Close Vyntra\n2. Open <b>Settings → Safari</b> (or your browser)\n3. Tap <b>Microphone</b> → set to <b>Allow</b>\n4. Come back and try again';
+  } else if (isAndroid) {
+    steps = '<b>Android:</b>\n1. Tap the <b>lock icon</b> in your browser\'s address bar\n2. Tap <b>Permissions → Microphone</b>\n3. Set to <b>Allow</b>\n4. Reload the page and try again';
+  } else {
+    steps = '1. Click the <b>lock icon</b> in your browser\'s address bar\n2. Find <b>Microphone</b> and set it to <b>Allow</b>\n3. Reload the page and try again';
+  }
+  var stepsEl = document.getElementById('micModalSteps');
+  stepsEl.style.display = 'block';
+  stepsEl.style.whiteSpace = 'pre-line';
+  stepsEl.innerHTML = steps;
+
+  document.getElementById('micModalPrimaryBtn').textContent = '🔄 Reload page';
+  document.getElementById('micModalPrimaryBtn').style.display = '';
+  document.getElementById('micModalErr').textContent = '';
+  document.getElementById('micModal').style.display = 'flex';
+}
+
+function onMicModalPrimary() {
+  if (micModalState === 'denied') {
+    // Best we can do is reload — browser won't re-prompt without settings change
+    location.reload();
+    return;
+  }
+  // Try to get mic
+  document.getElementById('micModalErr').textContent = '';
   navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    .then(function(stream) { onSuccess(stream); })
+    .then(function(stream) {
+      document.getElementById('micModal').style.display = 'none';
+      if (callState._micCallback) {
+        var cb = callState._micCallback;
+        callState._micCallback = null;
+        cb(stream);
+      }
+    })
     .catch(function(err) {
-      // On mobile, show a native-feeling prompt then try again on button tap
-      if (isMobile) {
-        callState.pendingSetup = { isCaller: isCaller };
-        document.getElementById('micPromptError').textContent = '';
-        document.getElementById('micPrompt').style.display = 'flex';
-        // Store callbacks
-        document.getElementById('micPrompt')._onSuccess = onSuccess;
-        document.getElementById('micPrompt')._onFail = onFail;
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        showMicDeniedModal();
       } else {
-        onFail(err);
+        document.getElementById('micModalErr').textContent = 'Error: ' + (err.message || err.name);
       }
     });
 }
 
-/* ── User taps "Allow microphone" button ── */
-function onMicPromptAllow() {
-  var prompt = document.getElementById('micPrompt');
-  document.getElementById('micPromptError').textContent = '';
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    .then(function(stream) {
-      prompt.style.display = 'none';
-      if (prompt._onSuccess) prompt._onSuccess(stream);
-    })
-    .catch(function(err) {
-      var msg = err.name === 'NotAllowedError'
-        ? 'Permission denied. Please allow microphone access in your browser settings.'
-        : 'Could not access microphone: ' + err.message;
-      document.getElementById('micPromptError').textContent = msg;
-    });
-}
-
-/* ── User taps "Cancel call" in mic prompt ── */
-function onMicPromptCancel() {
-  document.getElementById('micPrompt').style.display = 'none';
+function onMicModalCancel() {
+  document.getElementById('micModal').style.display = 'none';
+  callState._micCallback = null;
   if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
   cleanupCall();
 }
 
-/* ── Initiate outgoing call ── */
+/* ── Get mic — always goes through modal on mobile, direct on desktop ── */
+function getMic(callback) {
+  // Check if permission already granted using Permissions API (where available)
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'microphone' }).then(function(result) {
+      if (result.state === 'granted') {
+        // Already have it, just get it directly
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(callback)
+          .catch(function() { showMicModal(callback); });
+      } else if (result.state === 'denied') {
+        showMicDeniedModal();
+        callState._micCallback = callback;
+      } else {
+        // 'prompt' — need to ask
+        showMicModal(callback);
+      }
+    }).catch(function() {
+      // Permissions API not supported, fall through to direct attempt
+      attemptMicDirect(callback);
+    });
+  } else {
+    attemptMicDirect(callback);
+  }
+}
+
+function attemptMicDirect(callback) {
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then(callback)
+    .catch(function(err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        showMicDeniedModal();
+        callState._micCallback = callback;
+      } else {
+        showMicModal(callback);
+      }
+    });
+}
+
+/* ══════════════════════════════════
+   VOICE CALLS — WebRTC
+══════════════════════════════════ */
+var ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
 function startCall(peer) {
   if (callState.active) return showToastMsg('Already in a call');
-  callState.peer = peer;
-  callState.isCaller = true;
-  callState.callId = null;
+  callState.peer = peer;callState.isCaller = true;callState.callId = null;
   document.getElementById('callingName').textContent = peer;
   document.getElementById('callingAvatar').textContent = peer.slice(0,1).toUpperCase();
   document.getElementById('callingOverlay').style.display = 'flex';
   wsSend({ type: 'call_request', to: peer });
 }
-
 function cancelCall() {
   if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
   cleanupCall();
 }
-
-function handleCallRinging(data) {
-  callState.callId = data.callId;
-}
-
+function handleCallRinging(data) { callState.callId = data.callId; }
 function handleCallIncoming(data) {
   if (callState.active) { wsSend({ type: 'call_decline', callId: data.callId }); return; }
-  callState.callId = data.callId;
-  callState.peer = data.from;
-  callState.isCaller = false;
+  callState.callId = data.callId;callState.peer = data.from;callState.isCaller = false;
   document.getElementById('callToastName').textContent = data.from;
   document.getElementById('callToast').style.display = 'block';
 }
-
 function acceptCall() {
   document.getElementById('callToast').style.display = 'none';
   wsSend({ type: 'call_accept', callId: callState.callId });
   setupPeerConnection(false);
 }
-
 function declineCall() {
   wsSend({ type: 'call_decline', callId: callState.callId });
   document.getElementById('callToast').style.display = 'none';
-  callState.callId = null; callState.peer = null;
+  callState.callId = null;callState.peer = null;
 }
-
 function handleCallAccepted(data) {
   document.getElementById('callingOverlay').style.display = 'none';
   callState.callId = data.callId;
   setupPeerConnection(true);
 }
-
 function handleCallDeclined(data) {
-  showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');
-  cleanupCall();
+  showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');cleanupCall();
 }
-
 function handleCallEnded(data) {
   var r=data.reason;
   if(r==='no_answer') showToastMsg('📵 No answer');
@@ -966,18 +963,13 @@ function handleCallEnded(data) {
   cleanupCall();
 }
 
-/* ── Setup RTCPeerConnection (after getting mic) ── */
 function setupPeerConnection(isCaller) {
-  requestMic(isCaller, function(stream) {
-    doSetupPeerConnection(isCaller, stream);
-  }, function(err) {
-    showToastMsg('❌ Microphone access denied');
-    wsSend({ type: 'call_end', callId: callState.callId });
-    cleanupCall();
+  getMic(function(stream) {
+    doSetupPC(isCaller, stream);
   });
 }
 
-function doSetupPeerConnection(isCaller, localStream) {
+function doSetupPC(isCaller, localStream) {
   callState.localStream = localStream;
   var pc = new RTCPeerConnection(ICE_SERVERS);
   callState.pc = pc;
@@ -987,15 +979,24 @@ function doSetupPeerConnection(isCaller, localStream) {
 
   pc.ontrack = function(event) {
     var audio = document.getElementById('remoteAudio');
-    audio.srcObject = event.streams[0];
-    // Required for iOS Safari
-    audio.play().catch(function(){});
+    var stream = event.streams[0];
+    audio.srcObject = stream;
+    /* ── Fix: on mobile, audio.play() must be called from within
+       a user-gesture context. We store the stream and play it
+       immediately since we ARE inside a user-gesture chain
+       (the user tapped Accept or Call). ── */
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function(e) {
+        // Autoplay blocked — show a tap-to-unmute banner
+        showTapToUnmuteBanner();
+      });
+    }
   };
 
   pc.onicecandidate = function(event) {
     if (event.candidate) wsSend({ type: 'rtc_ice', callId: callState.callId, candidate: event.candidate });
   };
-
   pc.onconnectionstatechange = function() {
     if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') endCall();
   };
@@ -1012,28 +1013,45 @@ function doSetupPeerConnection(isCaller, localStream) {
   updateCallBtn();
 }
 
+/* ── Tap-to-unmute banner (last resort for strict autoplay) ── */
+function showTapToUnmuteBanner() {
+  var existing = document.getElementById('tapUnmuteBanner');
+  if (existing) return;
+  var banner = document.createElement('div');
+  banner.id = 'tapUnmuteBanner';
+  banner.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#6c7cff;color:#fff;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;z-index:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+  banner.textContent = '🔊 Tap to hear audio';
+  banner.addEventListener('click', function() {
+    var audio = document.getElementById('remoteAudio');
+    audio.play().catch(function(){});
+    banner.remove();
+  });
+  document.body.appendChild(banner);
+  // Auto-remove after 10s
+  setTimeout(function() { if (banner.parentNode) banner.remove(); }, 10000);
+}
+
 function handleRtcOffer(data) {
   if (!callState.pc || !callState.active) return;
   var pc = callState.pc;
   pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
     var flush = pendingIceCandidates.splice(0);
-    return Promise.all(flush.map(function(c){return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){});}));
+    return Promise.all(flush.map(function(c) { return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); }));
   }).then(function() {
     return pc.createAnswer();
   }).then(function(answer) {
     return pc.setLocalDescription(answer);
   }).then(function() {
     wsSend({ type: 'rtc_answer', callId: callState.callId, sdp: pc.localDescription });
-  }).catch(function(e){ console.error('Answer error', e); });
+  }).catch(function(e) { console.error('Answer error', e); });
 }
 
 function handleRtcAnswer(data) {
   if (!callState.pc) return;
-  var pc = callState.pc;
-  pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
+  callState.pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
     var flush = pendingIceCandidates.splice(0);
-    return Promise.all(flush.map(function(c){return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){});}));
-  }).catch(function(e){ console.error('Answer set error', e); });
+    return Promise.all(flush.map(function(c) { return callState.pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); }));
+  }).catch(function(e) { console.error('Answer set error', e); });
 }
 
 function handleRtcIce(data) {
@@ -1046,47 +1064,43 @@ function endCall() {
   if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
   cleanupCall();
 }
-
 function toggleCallMute() {
   if (!callState.localStream) return;
   callState.muted = !callState.muted;
-  callState.localStream.getAudioTracks().forEach(function(t){t.enabled=!callState.muted;});
-  var btn=document.getElementById('hudMuteBtn');
-  btn.textContent=callState.muted?'🔇':'🎙️';
-  btn.classList.toggle('muted',callState.muted);
+  callState.localStream.getAudioTracks().forEach(function(t) { t.enabled = !callState.muted; });
+  var btn = document.getElementById('hudMuteBtn');
+  btn.textContent = callState.muted ? '🔇' : '🎙️';
+  btn.classList.toggle('muted', callState.muted);
 }
-
 function showCallHUD(peer) {
-  document.getElementById('hudName').textContent=peer;
-  callState.timerSeconds=0;
-  document.getElementById('hudTimer').textContent='0:00';
-  document.getElementById('callHUD').style.display='flex';
-  callState.timerInterval=setInterval(function(){
+  document.getElementById('hudName').textContent = peer;
+  callState.timerSeconds = 0;document.getElementById('hudTimer').textContent = '0:00';
+  document.getElementById('callHUD').style.display = 'flex';
+  callState.timerInterval = setInterval(function() {
     callState.timerSeconds++;
     var m=Math.floor(callState.timerSeconds/60),s=callState.timerSeconds%60;
-    document.getElementById('hudTimer').textContent=m+':'+(s<10?'0':'')+s;
-  },1000);
+    document.getElementById('hudTimer').textContent = m+':'+(s<10?'0':'')+s;
+  }, 1000);
 }
-
 function updateCallBtn() {
-  var btn=document.getElementById('dmCallBtn');
-  if(callState.active){btn.textContent='📵 End Call';btn.classList.add('in-call');}
-  else{btn.textContent='📞 Call';btn.classList.remove('in-call');}
+  var btn = document.getElementById('dmCallBtn');
+  if (callState.active) { btn.textContent = '📵 End Call';btn.classList.add('in-call'); }
+  else { btn.textContent = '📞 Call';btn.classList.remove('in-call'); }
 }
-
 function cleanupCall() {
-  if(callState.localStream){callState.localStream.getTracks().forEach(function(t){t.stop();});callState.localStream=null;}
-  if(callState.pc){callState.pc.close();callState.pc=null;}
-  if(callState.timerInterval){clearInterval(callState.timerInterval);callState.timerInterval=null;}
-  document.getElementById('remoteAudio').srcObject=null;
+  if (callState.localStream) { callState.localStream.getTracks().forEach(function(t){t.stop();});callState.localStream=null; }
+  if (callState.pc) { callState.pc.close();callState.pc=null; }
+  if (callState.timerInterval) { clearInterval(callState.timerInterval);callState.timerInterval=null; }
+  var audio = document.getElementById('remoteAudio');
+  audio.pause();audio.srcObject = null;
   callState.active=false;callState.callId=null;callState.peer=null;
-  callState.isCaller=false;callState.muted=false;callState.timerSeconds=0;
-  callState.pendingSetup=null;
+  callState.isCaller=false;callState.muted=false;callState.timerSeconds=0;callState._micCallback=null;
   pendingIceCandidates=[];
   document.getElementById('callHUD').style.display='none';
   document.getElementById('callingOverlay').style.display='none';
   document.getElementById('callToast').style.display='none';
-  document.getElementById('micPrompt').style.display='none';
+  document.getElementById('micModal').style.display='none';
+  var banner=document.getElementById('tapUnmuteBanner');if(banner) banner.remove();
   document.getElementById('hudMuteBtn').textContent='🎙️';
   document.getElementById('hudMuteBtn').classList.remove('muted');
   updateCallBtn();
