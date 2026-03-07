@@ -1,422 +1,321 @@
-const express   = require("express");
-const http      = require("http");
-const https     = require("https");
-const WebSocket = require("ws");
-const mongoose  = require("mongoose");
-const bcrypt    = require("bcrypt");
-const jwt       = require("jsonwebtoken");
+/**
+ * Vyntra — server.js
+ * 
+ * Requires env vars:
+ *   MONGO_URI, JWT_SECRET, EMAIL_USER, EMAIL_PASS
+ *   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
+ *
+ * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk
+ */
+
+const express    = require('express');
+const http       = require('http');
+const WebSocket  = require('ws');
+const mongoose   = require('mongoose');
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const path       = require('path');
+const { AccessToken } = require('@livekit/server-sdk');
 
 const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
-app.use(express.static(__dirname));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-const JWT_SECRET     = process.env.JWT_SECRET     || "dev_secret";
-const MONGO_URI      = process.env.MONGO_URI      || "";
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+/* ── ENV ── */
+const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
+const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
+const EMAIL_USER        = process.env.EMAIL_USER        || '';
+const EMAIL_PASS        = process.env.EMAIL_PASS        || '';
+const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
+const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
+const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
+const PORT              = process.env.PORT              || 3000;
 
-/* ── MongoDB ── */
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch(e  => console.error("MongoDB error:", e));
+/* ── MONGOOSE ── */
+mongoose.connect(MONGO_URI).catch(console.error);
 
-/* ── Schemas ── */
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true, trim: true },
-  email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password: { type: String, required: true },
-  friends:  [{ type: String }],
-}, { timestamps: true });
+  username:    { type: String, unique: true, required: true },
+  email:       { type: String, unique: true, required: true },
+  password:    { type: String, required: true },
+  friends:     [String],
+  verifyCode:  String,
+  verified:    { type: Boolean, default: false },
+  createdAt:   { type: Date, default: Date.now },
+});
+const User = mongoose.model('User', userSchema);
 
-const messageSchema = new mongoose.Schema({
-  room:      { type: String, required: true },
-  user:      { type: String, required: true },
-  text:      { type: String, required: true },
-  msgId:     { type: String, required: true, unique: true },
-  reactions: { type: Object, default: {} },
+const msgSchema = new mongoose.Schema({
+  room:      String,
+  user:      String,
+  text:      String,
+  reactions: { type: Map, of: [String], default: {} },
+  id:        String,
   createdAt: { type: Date, default: Date.now },
 });
+const Message = mongoose.model('Message', msgSchema);
 
-const User    = mongoose.model("User",    userSchema);
-const Message = mongoose.model("Message", messageSchema);
-
-/* ── Rooms ── */
-const PREDEFINED_ROOMS = [
-  "general","memes","dev","music","games","anime","art","tech","random",
-  "news","sports","study","finance","travel","food","pets","movies","tv","fun"
-];
-const rooms = {};
-PREDEFINED_ROOMS.forEach(r => rooms[r] = { clients: new Set() });
-
-/* ── In-memory ── */
-const pendingCodes  = {};
-const onlineClients = {};
-const activeCalls   = {}; // callId -> { caller, callee, state }
-
-/* ── Send 2FA email via Resend ── */
-function send2FAEmail(email, username, code) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      from: "Vyntra <onboarding@resend.dev>",
-      to:   [email],
-      subject: "Your Vyntra login code",
-      html: `<div style="font-family:sans-serif;max-width:400px;margin:auto;background:#0f1220;color:#eef2ff;padding:32px;border-radius:12px">
-        <h2 style="margin:0 0 8px;color:#6c7cff">Vyntra</h2>
-        <p style="color:#9aa0b4;margin:0 0 24px">Hi <b>${username}</b>, here is your login code:</p>
-        <div style="font-size:36px;font-weight:700;letter-spacing:8px;text-align:center;padding:20px;background:#161827;border-radius:8px;color:#eef2ff">${code}</div>
-        <p style="color:#9aa0b4;font-size:13px;margin-top:16px;text-align:center">Expires in 10 minutes.</p>
-      </div>`
-    });
-    const req = https.request({
-      hostname: "api.resend.com", path: "/emails", method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body)
-      }
-    }, (res) => {
-      let data = "";
-      res.on("data", c => data += c);
-      res.on("end", () => res.statusCode < 300 ? resolve() : reject(new Error("Resend " + res.statusCode + ": " + data)));
-    });
-    req.on("error", reject);
-    req.write(body);
-    req.end();
+/* ── EMAIL ── */
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+});
+async function sendVerifyEmail(email, code) {
+  await transporter.sendMail({
+    from: EMAIL_USER,
+    to:   email,
+    subject: 'Vyntra — your verification code',
+    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`,
   });
 }
 
-/* ── Helper: send WS message to a specific user if online ── */
-function sendToUser(username, obj) {
-  const client = onlineClients[username];
-  if (client && client.readyState === WebSocket.OPEN)
-    client.send(JSON.stringify(obj));
-}
+/* ── IN-MEMORY STATE ── */
+// username → WebSocket
+const clients = {};
+// roomName → Set<username>
+const rooms = {};
+// pre-created rooms
+const DEFAULT_ROOMS = ['general','gaming','music','dev'];
+DEFAULT_ROOMS.forEach(r => { rooms[r] = new Set(); });
 
-/* ── Broadcast helpers ── */
-function broadcastUsers(room) {
-  if (!rooms[room]) return;
-  const users = [];
-  for (const c of rooms[room].clients) if (c.username) users.push(c.username);
-  const payload = JSON.stringify({ type: "users", room, users });
-  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
-}
-
-async function broadcastMessage(room, msgObj) {
-  if (!rooms[room]) rooms[room] = { clients: new Set() };
-  if (msgObj.type === "chat") {
-    try {
-      await Message.findOneAndUpdate(
-        { msgId: msgObj.id },
-        { room, user: msgObj.user, text: msgObj.text, msgId: msgObj.id, reactions: msgObj.reactions },
-        { upsert: true, new: true }
-      );
-    } catch(e) { console.error("DB save error:", e); }
-  }
-  const payload = JSON.stringify(msgObj);
-  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
-}
-
-/* ── REST: Register ── */
-app.post("/auth/register", async (req, res) => {
+/* ── AUTH ROUTES ── */
+app.post('/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password)
-      return res.status(400).json({ error: "All fields required" });
-    if (username.length < 2 || username.length > 20)
-      return res.status(400).json({ error: "Username must be 2–20 characters" });
-
-    const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
-    if (existingUser) return res.status(409).json({ error: "Username already taken" });
-    const existingEmail = await User.findOne({ email: email.toLowerCase() });
-    if (existingEmail) return res.status(409).json({ error: "Email already registered" });
-
-    const hash  = await bcrypt.hash(password, 10);
-    const user  = await User.create({ username, email, password: hash });
-    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: "30d" });
+      return res.status(400).json({ error: 'All fields required' });
+    const existing = await User.findOne({ $or: [{ username }, { email }] });
+    if (existing) return res.status(400).json({ error: 'Username or email already taken' });
+    const hash = await bcrypt.hash(password, 10);
+    const user = await User.create({ username, email, password: hash, verified: true });
+    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, username: user.username });
-  } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-/* ── REST: Login step 1 ── */
-app.post("/auth/login", async (req, res) => {
+app.post('/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    if (!username || !password)
-      return res.status(400).json({ error: "Username and password required" });
-
-    const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
-    if (!user) return res.status(401).json({ error: "Invalid username or password" });
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Invalid username or password" });
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    pendingCodes[user.username] = { code, expires: Date.now() + 10 * 60 * 1000 };
-    await send2FAEmail(user.email, user.username, code);
-    res.json({ requires2FA: true, username: user.username });
-  } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
+    const user = await User.findOne({ username });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    // send 2FA code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verifyCode = code;
+    await user.save();
+    try { await sendVerifyEmail(user.email, code); } catch(e) { console.warn('Email failed', e.message); }
+    res.json({ username: user.username });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-/* ── REST: Login step 2 (verify 2FA) ── */
-app.post("/auth/verify", async (req, res) => {
+app.post('/auth/verify', async (req, res) => {
   try {
     const { username, code } = req.body;
-    if (!username || !code) return res.status(400).json({ error: "Required fields missing" });
-
-    const pending = pendingCodes[username];
-    if (!pending) return res.status(401).json({ error: "No code requested" });
-    if (Date.now() > pending.expires) { delete pendingCodes[username]; return res.status(401).json({ error: "Code expired" }); }
-    if (pending.code !== code.trim()) return res.status(401).json({ error: "Incorrect code" });
-
-    delete pendingCodes[username];
-    const user  = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
-    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: "30d" });
-    res.json({ token, username: user.username });
-  } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
+    const user = await User.findOne({ username });
+    if (!user || user.verifyCode !== code)
+      return res.status(401).json({ error: 'Invalid code' });
+    user.verifyCode = null;
+    user.verified   = true;
+    await user.save();
+    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, username: user.username, friends: user.friends });
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-/* ══════════════════════════════════
-   WEBSOCKET
-══════════════════════════════════ */
-wss.on("connection", (ws) => {
-  ws.username = null;
-  ws.room     = null;
+/* ── LIVEKIT TOKEN ROUTE ── */
+// Called by the frontend when joining a call/room.
+// Returns a short-lived Livekit token for that room.
+app.post('/livekit/token', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace('Bearer ', '');
+    let payload;
+    try { payload = jwt.verify(token, JWT_SECRET); }
+    catch(e) { return res.status(401).json({ error: 'Unauthorized' }); }
 
-  ws.on("message", async (raw) => {
+    const { room } = req.body;
+    if (!room) return res.status(400).json({ error: 'room required' });
+
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+      return res.status(503).json({ error: 'Livekit not configured' });
+    }
+
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: payload.username,
+      ttl: '2h',
+    });
+    at.addGrant({
+      roomJoin:       true,
+      room:           room,
+      canPublish:     true,
+      canSubscribe:   true,
+      canPublishData: true,
+    });
+
+    const lvToken = await at.toJwt();
+    res.json({ token: lvToken, url: LIVEKIT_URL });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ── WEBSOCKET ── */
+function broadcast(room, data, excludeUser) {
+  const members = rooms[room];
+  if (!members) return;
+  const msg = JSON.stringify(data);
+  members.forEach(u => {
+    if (u === excludeUser) return;
+    const ws = clients[u];
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
+  });
+}
+function sendTo(username, data) {
+  const ws = clients[username];
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+function broadcastRoomUsers(room) {
+  const members = rooms[room];
+  if (!members) return;
+  const users = [...members];
+  members.forEach(u => sendTo(u, { type: 'users', room, users }));
+}
+
+wss.on('connection', ws => {
+  let username = null;
+  let currentRoom = null;
+
+  ws.on('message', async raw => {
     let data;
-    try { data = JSON.parse(raw); } catch { return; }
+    try { data = JSON.parse(raw); } catch(e) { return; }
 
-    /* ── Auth ── */
-    if (data.type === "auth") {
+    /* AUTH */
+    if (data.type === 'auth') {
       try {
         const payload = jwt.verify(data.token, JWT_SECRET);
-        ws.username = payload.username;
-        onlineClients[ws.username] = ws;
-        const user = await User.findOne({ username: ws.username }).lean();
-        ws.send(JSON.stringify({ type: "auth_ok", username: ws.username, friends: user ? user.friends || [] : [] }));
-      } catch {
-        ws.send(JSON.stringify({ type: "auth_err", error: "Invalid token" }));
-        return;
+        username = payload.username;
+        clients[username] = ws;
+        const user = await User.findOne({ username });
+        ws.send(JSON.stringify({
+          type: 'auth_ok',
+          friends: user ? user.friends : [],
+        }));
+        // Send available rooms
+        ws.send(JSON.stringify({ type: 'rooms', rooms: DEFAULT_ROOMS }));
+      } catch(e) {
+        ws.send(JSON.stringify({ type: 'auth_err' }));
       }
-      ws.send(JSON.stringify({ type: "rooms", rooms: PREDEFINED_ROOMS }));
       return;
     }
 
-    if (!ws.username) return ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));
+    if (!username) return;
 
-    /* ── Join room ── */
-    if (data.type === "join") {
+    /* JOIN ROOM */
+    if (data.type === 'join') {
+      // Leave old room
+      if (currentRoom && rooms[currentRoom]) {
+        rooms[currentRoom].delete(username);
+        broadcastRoomUsers(currentRoom);
+        broadcast(currentRoom, { type: 'system', text: `${username} left` }, username);
+      }
       const room = data.room;
-      const isDM = room.startsWith("dm_");
-      if (!PREDEFINED_ROOMS.includes(room) && !isDM) return;
+      if (!rooms[room]) rooms[room] = new Set();
+      rooms[room].add(username);
+      currentRoom = room;
+      broadcastRoomUsers(room);
+      broadcast(room, { type: 'system', text: `${username} joined` }, username);
+      // Send recent messages
+      const recent = await Message.find({ room }).sort({ createdAt: -1 }).limit(50).lean();
+      recent.reverse().forEach(m => {
+        const reactions = {};
+        if (m.reactions) m.reactions.forEach((v, k) => { reactions[k] = v; });
+        ws.send(JSON.stringify({ type: 'chat', room, user: m.user, text: m.text, id: m.id, reactions }));
+      });
+      return;
+    }
 
-      if (ws.room && rooms[ws.room]) {
-        rooms[ws.room].clients.delete(ws);
-        if (!ws.room.startsWith("dm_"))
-          broadcastMessage(ws.room, { type: "system", text: `${ws.username} left ${ws.room}` });
-        broadcastUsers(ws.room);
+    /* MESSAGE */
+    if (data.type === 'message' && currentRoom) {
+      const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const msg = await Message.create({ room: currentRoom, user: username, text: data.text, id });
+      const out = { type: 'chat', room: currentRoom, user: username, text: data.text, id, reactions: {} };
+      rooms[currentRoom].forEach(u => sendTo(u, out));
+      return;
+    }
+
+    /* REACTION */
+    if (data.type === 'reaction') {
+      const msg = await Message.findOne({ id: data.messageId });
+      if (!msg) return;
+      const r = msg.reactions || new Map();
+      const arr = r.get(data.emoji) || [];
+      const idx = arr.indexOf(username);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(username);
+      r.set(data.emoji, arr);
+      msg.reactions = r;
+      await msg.save();
+      const reactions = {};
+      r.forEach((v, k) => { reactions[k] = v; });
+      if (currentRoom && rooms[currentRoom]) {
+        rooms[currentRoom].forEach(u => sendTo(u, { type: 'chat', room: currentRoom, user: msg.user, text: msg.text, id: msg.id, reactions }));
       }
-
-      if (!rooms[room]) rooms[room] = { clients: new Set() };
-      ws.room = room;
-      rooms[room].clients.add(ws);
-
-      try {
-        const history = await Message.find({ room }).sort({ createdAt: -1 }).limit(50).lean();
-        history.reverse().forEach(m => {
-          if (ws.readyState === WebSocket.OPEN)
-            ws.send(JSON.stringify({ type: "chat", room: m.room, user: m.user, text: m.text, id: m.msgId, reactions: m.reactions || {} }));
-        });
-      } catch(e) { console.error("History error:", e); }
-
-      if (!isDM) broadcastMessage(room, { type: "system", text: `${ws.username} joined ${room}` });
-      broadcastUsers(room);
       return;
     }
 
-    /* ── Message ── */
-    if (data.type === "message" && ws.room) {
-      const msgObj = {
-        type: "chat", room: ws.room, user: ws.username, text: data.text,
-        id: `${Date.now()}_${Math.floor(Math.random() * 9999)}`, reactions: {}
-      };
-      broadcastMessage(ws.room, msgObj);
+    /* FRIENDS */
+    if (data.type === 'friend_request') {
+      const target = await User.findOne({ username: data.to });
+      if (!target) return;
+      sendTo(data.to, { type: 'friend_request', from: username });
+      sendTo(username, { type: 'friend_request_sent', to: data.to });
       return;
     }
-
-    /* ── Reaction ── */
-    if (data.type === "reaction" && ws.room) {
-      try {
-        const msg = await Message.findOne({ msgId: data.messageId });
-        if (!msg) return;
-        if (!msg.reactions[data.emoji]) msg.reactions[data.emoji] = [];
-        const idx = msg.reactions[data.emoji].indexOf(ws.username);
-        if (idx >= 0) msg.reactions[data.emoji].splice(idx, 1);
-        else msg.reactions[data.emoji].push(ws.username);
-        msg.markModified("reactions");
-        await msg.save();
-        broadcastMessage(ws.room, { type: "chat", room: msg.room, user: msg.user, text: msg.text, id: msg.msgId, reactions: msg.reactions });
-      } catch(e) { console.error("Reaction error:", e); }
+    if (data.type === 'friend_accept') {
+      const [u1, u2] = [username, data.from];
+      await User.updateOne({ username: u1 }, { $addToSet: { friends: u2 } });
+      await User.updateOne({ username: u2 }, { $addToSet: { friends: u1 } });
+      const me = await User.findOne({ username: u1 });
+      const them = await User.findOne({ username: u2 });
+      sendTo(u1,  { type: 'friends_update', friends: me.friends });
+      sendTo(u2,  { type: 'friends_update', friends: them.friends });
+      sendTo(u2,  { type: 'friend_accepted', by: u1 });
       return;
     }
-
-    /* ── Friend request ── */
-    if (data.type === "friend_request") {
-      const target = data.to;
-      if (target === ws.username) return;
-      const targetUser = await User.findOne({ username: { $regex: new RegExp(`^${target}$`, "i") } });
-      if (!targetUser) { ws.send(JSON.stringify({ type: "error", error: "User not found" })); return; }
-      const me = await User.findOne({ username: ws.username });
-      if (me.friends.includes(targetUser.username)) {
-        ws.send(JSON.stringify({ type: "error", error: "Already friends" })); return;
-      }
-      sendToUser(targetUser.username, { type: "friend_request", from: ws.username });
-      ws.send(JSON.stringify({ type: "friend_request_sent", to: targetUser.username }));
+    if (data.type === 'friend_decline') {
+      sendTo(data.from, { type: 'friend_declined', by: username });
       return;
     }
-
-    /* ── Friend accept ── */
-    if (data.type === "friend_accept") {
-      const from = data.from;
-      await User.updateOne({ username: ws.username }, { $addToSet: { friends: from } });
-      await User.updateOne({ username: from },        { $addToSet: { friends: ws.username } });
-      const meUser     = await User.findOne({ username: ws.username }).lean();
-      const senderUser = await User.findOne({ username: from }).lean();
-      ws.send(JSON.stringify({ type: "friends_update", friends: meUser.friends }));
-      sendToUser(from, { type: "friends_update", friends: senderUser.friends });
-      sendToUser(from, { type: "friend_accepted", by: ws.username });
+    if (data.type === 'unfriend') {
+      await User.updateOne({ username }, { $pull: { friends: data.username } });
+      await User.updateOne({ username: data.username }, { $pull: { friends: username } });
+      const me = await User.findOne({ username });
+      sendTo(username, { type: 'friends_update', friends: me.friends });
+      sendTo(data.username, { type: 'unfriended', by: username });
       return;
-    }
-
-    /* ── Friend decline ── */
-    if (data.type === "friend_decline") {
-      sendToUser(data.from, { type: "friend_declined", by: ws.username });
-      return;
-    }
-
-    /* ── Unfriend ── */
-    if (data.type === "unfriend") {
-      const target = data.username;
-      await User.updateOne({ username: ws.username }, { $pull: { friends: target } });
-      await User.updateOne({ username: target },      { $pull: { friends: ws.username } });
-      const meUser = await User.findOne({ username: ws.username }).lean();
-      ws.send(JSON.stringify({ type: "friends_update", friends: meUser.friends }));
-      sendToUser(target, { type: "unfriended", by: ws.username });
-      return;
-    }
-
-    /* ══════════════════════════════════
-       VOICE CALL SIGNALING (WebRTC)
-    ══════════════════════════════════ */
-
-    /* ── Initiate call ── */
-    if (data.type === "call_request") {
-      const { to, callId: providedId } = data;
-      if (!to || to === ws.username) return;
-
-      const callId =
-        (typeof providedId === "string" && providedId.trim() && !activeCalls[providedId.trim()])
-          ? providedId.trim()
-          : `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-
-      activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
-      sendToUser(to, { type: "call_incoming", from: ws.username, callId });
-      ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
-
-      setTimeout(() => {
-        if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
-          sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
-          sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
-          delete activeCalls[callId];
-        }
-      }, 30000);
-      return;
-    }
-
-    /* ── Accept call ── */
-    if (data.type === "call_accept") {
-      const call = activeCalls[data.callId];
-      if (!call || call.callee !== ws.username) return;
-      call.state = "active";
-      sendToUser(call.caller, { type: "call_accepted", callId: data.callId, by: ws.username });
-      return;
-    }
-
-    /* ── Decline call ── */
-    if (data.type === "call_decline") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      sendToUser(call.caller, { type: "call_declined", callId: data.callId, by: ws.username });
-      delete activeCalls[data.callId];
-      return;
-    }
-
-    /* ── End call ── */
-    if (data.type === "call_end") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "call_ended", callId: data.callId, reason: "hung_up" });
-      delete activeCalls[data.callId];
-      return;
-    }
-
-    /* ── WebRTC: SDP Offer ── */
-    if (data.type === "rtc_offer") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      if (ws.username !== call.caller && ws.username !== call.callee) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
-      return;
-    }
-
-    /* ── WebRTC: SDP Answer ── */
-    if (data.type === "rtc_answer") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      if (ws.username !== call.caller && ws.username !== call.callee) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
-      return;
-    }
-
-    /* ── WebRTC: ICE Candidate ── */
-    if (data.type === "rtc_ice") {
-      const call = activeCalls[data.callId];
-      if (!call) return;
-      if (ws.username !== call.caller && ws.username !== call.callee) return;
-      const other = call.caller === ws.username ? call.callee : call.caller;
-      sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
-      return;
-    }
-
-  }); // end ws.on("message")
-
-  /* ── Disconnect cleanup ── */
-  ws.on("close", () => {
-    if (ws.username && onlineClients[ws.username] === ws) delete onlineClients[ws.username];
-
-    // End any active calls involving this user
-    for (const [callId, call] of Object.entries(activeCalls)) {
-      if (call.caller === ws.username || call.callee === ws.username) {
-        const other = call.caller === ws.username ? call.callee : call.caller;
-        sendToUser(other, { type: "call_ended", callId, reason: "disconnected" });
-        delete activeCalls[callId];
-      }
-    }
-
-    if (ws.room && rooms[ws.room]) {
-      rooms[ws.room].clients.delete(ws);
-      if (ws.username && !ws.room.startsWith("dm_"))
-        broadcastMessage(ws.room, { type: "system", text: `${ws.username} left ${ws.room}` });
-      broadcastUsers(ws.room);
     }
   });
 
-}); // end wss.on("connection")
+  ws.on('close', () => {
+    if (!username) return;
+    delete clients[username];
+    if (currentRoom && rooms[currentRoom]) {
+      rooms[currentRoom].delete(username);
+      broadcastRoomUsers(currentRoom);
+    }
+  });
+});
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, "0.0.0.0", () => console.log(`Vyntra running on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Vyntra running on port ${PORT}`));
