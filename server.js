@@ -61,11 +61,11 @@ const Message = mongoose.model('Message', msgSchema);
 
 async function sendVerifyEmail(email, code) {
   await resend.emails.send({
-    from: "Vyntra <noreply@vyntra.app>",
-    to: email,
-    subject: "Vyntra — your verification code",
-    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`
-  });
+  from: "Vyntra <onboarding@resend.dev>",
+  to: email,
+  subject: "Vyntra — your verification code",
+  text: `Your code is: ${code}`
+});
 }
 
 /* ── IN-MEMORY STATE ── */
