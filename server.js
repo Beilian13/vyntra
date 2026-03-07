@@ -5,7 +5,7 @@
  *   MONGO_URI, JWT_SECRET, EMAIL_USER, EMAIL_PASS
  *   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
  *
- * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk
+ * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk thing
  */
 
 const express    = require('express');
