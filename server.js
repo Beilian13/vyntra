@@ -16,7 +16,7 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const path       = require('path');
-const { AccessToken } = require('@livekit/server-sdk');
+const { AccessToken } = require('livekit-server-sdk');
 
 const app    = express();
 const server = http.createServer(app);
