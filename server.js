@@ -51,9 +51,9 @@ const rooms = {};
 PREDEFINED_ROOMS.forEach(r => rooms[r] = { clients: new Set() });
 
 /* ── In-memory ── */
-const pendingCodes   = {};
-const onlineClients  = {};
-const activeCalls    = {}; // callId -> { caller, callee, state }
+const pendingCodes  = {};
+const onlineClients = {};
+const activeCalls   = {}; // callId -> { caller, callee, state }
 
 /* ── Send 2FA email via Resend ── */
 function send2FAEmail(email, username, code) {
@@ -71,7 +71,11 @@ function send2FAEmail(email, username, code) {
     });
     const req = https.request({
       hostname: "api.resend.com", path: "/emails", method: "POST",
-      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body)
+      }
     }, (res) => {
       let data = "";
       res.on("data", c => data += c);
@@ -90,6 +94,30 @@ function sendToUser(username, obj) {
     client.send(JSON.stringify(obj));
 }
 
+/* ── Broadcast helpers ── */
+function broadcastUsers(room) {
+  if (!rooms[room]) return;
+  const users = [];
+  for (const c of rooms[room].clients) if (c.username) users.push(c.username);
+  const payload = JSON.stringify({ type: "users", room, users });
+  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
+}
+
+async function broadcastMessage(room, msgObj) {
+  if (!rooms[room]) rooms[room] = { clients: new Set() };
+  if (msgObj.type === "chat") {
+    try {
+      await Message.findOneAndUpdate(
+        { msgId: msgObj.id },
+        { room, user: msgObj.user, text: msgObj.text, msgId: msgObj.id, reactions: msgObj.reactions },
+        { upsert: true, new: true }
+      );
+    } catch(e) { console.error("DB save error:", e); }
+  }
+  const payload = JSON.stringify(msgObj);
+  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
+}
+
 /* ── REST: Register ── */
 app.post("/auth/register", async (req, res) => {
   try {
@@ -99,8 +127,8 @@ app.post("/auth/register", async (req, res) => {
     if (username.length < 2 || username.length > 20)
       return res.status(400).json({ error: "Username must be 2–20 characters" });
 
-    const existingUser  = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
-    if (existingUser)  return res.status(409).json({ error: "Username already taken" });
+    const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
+    if (existingUser) return res.status(409).json({ error: "Username already taken" });
     const existingEmail = await User.findOne({ email: email.toLowerCase() });
     if (existingEmail) return res.status(409).json({ error: "Email already registered" });
 
@@ -149,32 +177,9 @@ app.post("/auth/verify", async (req, res) => {
   } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
 });
 
-/* ── Broadcast helpers ── */
-function broadcastUsers(room) {
-  if (!rooms[room]) return;
-  const users = [];
-  for (const c of rooms[room].clients) if (c.username) users.push(c.username);
-  const payload = JSON.stringify({ type: "users", room, users });
-  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
-}
-
-async function broadcastMessage(room, msgObj) {
-  if (!rooms[room]) rooms[room] = { clients: new Set() };
-
-  if (msgObj.type === "chat") {
-    try {
-      await Message.findOneAndUpdate(
-        { msgId: msgObj.id },
-        { room, user: msgObj.user, text: msgObj.text, msgId: msgObj.id, reactions: msgObj.reactions },
-        { upsert: true, new: true }
-      );
-    } catch(e) { console.error("DB save error:", e); }
-  }
-  const payload = JSON.stringify(msgObj);
-  for (const c of rooms[room].clients) if (c.readyState === WebSocket.OPEN) c.send(payload);
-}
-
-/* ── WebSocket ── */
+/* ══════════════════════════════════
+   WEBSOCKET
+══════════════════════════════════ */
 wss.on("connection", (ws) => {
   ws.username = null;
   ws.room     = null;
@@ -307,70 +312,94 @@ wss.on("connection", (ws) => {
     ══════════════════════════════════ */
 
     /* ── Initiate call ── */
-if (data.type === "call_request") {
-  const { to, callId: providedId } = data;
-  if (!to || to === ws.username) return;
+    if (data.type === "call_request") {
+      const { to, callId: providedId } = data;
+      if (!to || to === ws.username) return;
 
-  const callId =
-    (typeof providedId === "string" && providedId.trim() && !activeCalls[providedId.trim()])
-      ? providedId.trim()
-      : `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const callId =
+        (typeof providedId === "string" && providedId.trim() && !activeCalls[providedId.trim()])
+          ? providedId.trim()
+          : `call_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
 
-  activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
-  sendToUser(to, { type: "call_incoming", from: ws.username, callId });
-  ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
+      activeCalls[callId] = { caller: ws.username, callee: to, state: "ringing" };
+      sendToUser(to, { type: "call_incoming", from: ws.username, callId });
+      ws.send(JSON.stringify({ type: "call_ringing", callId, to }));
 
-  setTimeout(() => {
-    if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
-      sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
-      sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
-      delete activeCalls[callId];
+      setTimeout(() => {
+        if (activeCalls[callId] && activeCalls[callId].state === "ringing") {
+          sendToUser(ws.username, { type: "call_ended", callId, reason: "no_answer" });
+          sendToUser(to, { type: "call_ended", callId, reason: "no_answer" });
+          delete activeCalls[callId];
+        }
+      }, 30000);
+      return;
     }
-  }, 30000);
 
-  return;
-}
+    /* ── Accept call ── */
+    if (data.type === "call_accept") {
+      const call = activeCalls[data.callId];
+      if (!call || call.callee !== ws.username) return;
+      call.state = "active";
+      sendToUser(call.caller, { type: "call_accepted", callId: data.callId, by: ws.username });
+      return;
+    }
 
-/* ── WebRTC: SDP Offer ── */
-if (data.type === "rtc_offer") {
-  const call = activeCalls[data.callId];
-  if (!call) return;
+    /* ── Decline call ── */
+    if (data.type === "call_decline") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      sendToUser(call.caller, { type: "call_declined", callId: data.callId, by: ws.username });
+      delete activeCalls[data.callId];
+      return;
+    }
 
-  // Only allow caller/callee to signal in this call
-  if (ws.username !== call.caller && ws.username !== call.callee) return;
+    /* ── End call ── */
+    if (data.type === "call_end") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "call_ended", callId: data.callId, reason: "hung_up" });
+      delete activeCalls[data.callId];
+      return;
+    }
 
-  const other = call.caller === ws.username ? call.callee : call.caller;
-  sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
-  return;
-}
+    /* ── WebRTC: SDP Offer ── */
+    if (data.type === "rtc_offer") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      if (ws.username !== call.caller && ws.username !== call.callee) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_offer", callId: data.callId, sdp: data.sdp, from: ws.username });
+      return;
+    }
 
-/* ── WebRTC: SDP Answer ── */
-if (data.type === "rtc_answer") {
-  const call = activeCalls[data.callId];
-  if (!call) return;
+    /* ── WebRTC: SDP Answer ── */
+    if (data.type === "rtc_answer") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      if (ws.username !== call.caller && ws.username !== call.callee) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
+      return;
+    }
 
-  if (ws.username !== call.caller && ws.username !== call.callee) return;
+    /* ── WebRTC: ICE Candidate ── */
+    if (data.type === "rtc_ice") {
+      const call = activeCalls[data.callId];
+      if (!call) return;
+      if (ws.username !== call.caller && ws.username !== call.callee) return;
+      const other = call.caller === ws.username ? call.callee : call.caller;
+      sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
+      return;
+    }
 
-  const other = call.caller === ws.username ? call.callee : call.caller;
-  sendToUser(other, { type: "rtc_answer", callId: data.callId, sdp: data.sdp, from: ws.username });
-  return;
-}
+  }); // end ws.on("message")
 
-/* ── WebRTC: ICE Candidate ── */
-if (data.type === "rtc_ice") {
-  const call = activeCalls[data.callId];
-  if (!call) return;
-
-  if (ws.username !== call.caller && ws.username !== call.callee) return;
-
-  const other = call.caller === ws.username ? call.callee : call.caller;
-  sendToUser(other, { type: "rtc_ice", callId: data.callId, candidate: data.candidate, from: ws.username });
-  return;
-}
-
+  /* ── Disconnect cleanup ── */
   ws.on("close", () => {
     if (ws.username && onlineClients[ws.username] === ws) delete onlineClients[ws.username];
-    // End any active calls on disconnect
+
+    // End any active calls involving this user
     for (const [callId, call] of Object.entries(activeCalls)) {
       if (call.caller === ws.username || call.callee === ws.username) {
         const other = call.caller === ws.username ? call.callee : call.caller;
@@ -378,6 +407,7 @@ if (data.type === "rtc_ice") {
         delete activeCalls[callId];
       }
     }
+
     if (ws.room && rooms[ws.room]) {
       rooms[ws.room].clients.delete(ws);
       if (ws.username && !ws.room.startsWith("dm_"))
@@ -385,7 +415,8 @@ if (data.type === "rtc_ice") {
       broadcastUsers(ws.room);
     }
   });
-});
+
+}); // end wss.on("connection")
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Vyntra running on http://localhost:${PORT}`));
