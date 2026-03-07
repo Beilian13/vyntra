@@ -135,16 +135,21 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 #dmCallBtn.in-call{background:rgba(255,80,80,0.12);border-color:rgba(255,80,80,0.3);color:#ff5050;}
 #dmCallBtn.in-call:hover{background:rgba(255,80,80,0.22);}
 
+/* Incoming call toast — pulsing ring animation */
 #callToast{
   display:none;position:fixed;bottom:24px;right:24px;
-  background:#13152a;border:1px solid rgba(57,211,83,0.35);
-  border-radius:16px;padding:20px 22px;z-index:800;
-  box-shadow:0 8px 40px rgba(0,0,0,0.6);min-width:280px;
+  background:#13152a;border:1px solid rgba(57,211,83,0.4);
+  border-radius:20px;padding:20px 22px;z-index:800;
+  box-shadow:0 8px 40px rgba(0,0,0,0.6);min-width:300px;
   animation:callPulse 1s ease-in-out infinite alternate;
 }
-@keyframes callPulse{from{box-shadow:0 8px 40px rgba(0,0,0,0.6);}to{box-shadow:0 8px 40px rgba(57,211,83,0.25);}}
-.call-toast-title{font-size:13px;color:var(--muted);margin-bottom:4px}
-.call-toast-name{font-size:17px;font-weight:700;margin-bottom:14px;color:var(--white)}
+@keyframes callPulse{from{box-shadow:0 8px 40px rgba(0,0,0,0.6),0 0 0 0 rgba(57,211,83,0.4);}to{box-shadow:0 8px 40px rgba(0,0,0,0.6),0 0 0 10px rgba(57,211,83,0);}}
+.call-toast-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.call-toast-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0;animation:avatarRing 1.2s ease-in-out infinite}
+@keyframes avatarRing{0%,100%{box-shadow:0 0 0 0 rgba(108,124,255,0.5)}50%{box-shadow:0 0 0 8px rgba(108,124,255,0)}}
+.call-toast-info{}
+.call-toast-title{font-size:12px;color:var(--muted);margin-bottom:2px}
+.call-toast-name{font-size:16px;font-weight:700;color:var(--white)}
 .call-toast-btns{display:flex;gap:10px}
 .call-btn-accept{flex:1;padding:10px;border-radius:10px;background:#39d353;color:#fff;border:none;cursor:pointer;font-size:14px;font-weight:700;}
 .call-btn-accept:hover{background:#2ec447}
@@ -175,7 +180,6 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 .hud-hangup:hover{background:#e63c3c}
 .hud-settings-btn{background:#1a1d30;font-size:15px;}
 .hud-settings-btn:hover{background:#22253a}
-/* VAD controls row */
 .hud-vad{display:flex;align-items:center;gap:10px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.05)}
 .hud-vad-label{font-size:11px;color:var(--muted);white-space:nowrap}
 .hud-vad-bar{flex:1;display:flex;flex-direction:column;gap:4px}
@@ -209,6 +213,18 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 .mic-modal-btn.secondary{background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,0.06)}
 .mic-modal-btn.secondary:hover{color:var(--white);background:#22253a}
 .mic-modal-err{color:#ff6b6b;font-size:13px;margin-top:10px;min-height:16px}
+
+/* Notification permission banner */
+#notifBanner{
+  display:none;position:fixed;top:72px;left:50%;transform:translateX(-50%);
+  background:#1a1d30;border:1px solid rgba(108,124,255,0.3);
+  border-radius:12px;padding:12px 18px;z-index:700;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  display:none;align-items:center;gap:12px;max-width:92vw;
+}
+.notif-banner-text{font-size:13px;color:var(--white);flex:1}
+.notif-banner-allow{padding:6px 14px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600}
+.notif-banner-dismiss{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0 4px}
 
 /* MOBILE */
 #mobileRoomsBtn{display:none;position:relative;z-index:101;flex-shrink:0;margin-right:4px}
@@ -280,6 +296,13 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
     </div>
   </header>
 
+  <!-- Notification permission banner -->
+  <div id="notifBanner">
+    <div class="notif-banner-text">🔔 Enable notifications to get alerted when someone calls you</div>
+    <button class="notif-banner-allow" id="notifBannerAllow">Enable</button>
+    <button class="notif-banner-dismiss" id="notifBannerDismiss">✕</button>
+  </div>
+
   <div id="mobileSidebarOverlay"></div>
   <div id="mobileSidebar">
     <div class="sidebar-tabs">
@@ -350,11 +373,16 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 
 <!-- INCOMING CALL TOAST -->
 <div id="callToast">
-  <div class="call-toast-title">📞 Incoming voice call</div>
-  <div class="call-toast-name" id="callToastName"></div>
+  <div class="call-toast-header">
+    <div class="call-toast-avatar" id="callToastAvatar"></div>
+    <div class="call-toast-info">
+      <div class="call-toast-title">📞 Incoming voice call</div>
+      <div class="call-toast-name" id="callToastName"></div>
+    </div>
+  </div>
   <div class="call-toast-btns">
-    <button class="call-btn-accept" id="callAcceptBtn">Accept</button>
-    <button class="call-btn-decline" id="callDeclineBtn">Decline</button>
+    <button class="call-btn-accept" id="callAcceptBtn">✓ Accept</button>
+    <button class="call-btn-decline" id="callDeclineBtn">✕ Decline</button>
   </div>
 </div>
 
@@ -380,11 +408,10 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
     </div>
     <div class="hud-btns">
       <button class="hud-btn hud-mute" id="hudMuteBtn" title="Mute mic">🎙️</button>
-      <button class="hud-btn hud-settings-btn" id="hudVadToggle" title="Sensitivity settings">⚙️</button>
+      <button class="hud-btn hud-settings-btn" id="hudVadToggle" title="Sensitivity">⚙️</button>
       <button class="hud-btn hud-hangup" id="hudHangupBtn" title="Hang up">📵</button>
     </div>
   </div>
-  <!-- VAD / sensitivity panel (toggle) -->
   <div class="hud-vad" id="hudVadPanel" style="display:none">
     <div class="hud-vad-label">🎚️ Sensitivity</div>
     <div class="hud-vad-bar">
@@ -400,7 +427,7 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   <div class="mic-modal-box">
     <div class="mic-modal-icon" id="micModalIcon">🎙️</div>
     <div class="mic-modal-title" id="micModalTitle">Microphone needed</div>
-    <div class="mic-modal-sub" id="micModalSub">Tap the button below to allow microphone access for this call.</div>
+    <div class="mic-modal-sub" id="micModalSub">Tap below to allow microphone access for this call.</div>
     <div class="mic-modal-steps" id="micModalSteps" style="display:none"></div>
     <button class="mic-modal-btn" id="micModalPrimaryBtn">Allow microphone</button>
     <button class="mic-modal-btn secondary" id="micModalCancelBtn">Cancel call</button>
@@ -436,16 +463,175 @@ var callState = {
   pc: null, localStream: null, muted: false,
   timerInterval: null, timerSeconds: 0,
   _micCallback: null,
-  /* VAD / audio processing */
-  audioCtx: null,
-  analyser: null,
-  gainNode: null,
-  vadInterval: null,
-  vadThreshold: 15,   // 0–100 (maps to RMS 0–1)
-  isTalking: false,
-  vadPanelOpen: false,
+  audioCtx: null, analyser: null, gainNode: null,
+  vadInterval: null, vadThreshold: 15,
+  isTalking: false, vadPanelOpen: false,
 };
 var pendingIceCandidates = [];
+
+/* ══════════════════════════════════
+   RINGTONE — pure Web Audio API
+   Plays a repeating two-tone chime
+   (no external files needed)
+══════════════════════════════════ */
+var ringtone = (function() {
+  var ctx = null, intervalId = null, playing = false;
+
+  /* Play one "ring" burst: two beeps */
+  function playBurst() {
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    // Beep 1 — 880 Hz
+    playBeep(880, now,       0.18);
+    // Beep 2 — 1100 Hz
+    playBeep(1100, now + 0.22, 0.18);
+  }
+
+  function playBeep(freq, startTime, duration) {
+    var osc  = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    // Envelope: quick attack, sustain, quick release
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.35, startTime + 0.02);
+    gain.gain.setValueAtTime(0.35, startTime + duration - 0.03);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  }
+
+  return {
+    start: function() {
+      if (playing) return;
+      playing = true;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+      } catch(e) { return; }
+      playBurst();
+      // Repeat every 2.2 seconds
+      intervalId = setInterval(playBurst, 2200);
+    },
+    stop: function() {
+      playing = false;
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      if (ctx) {
+        try { ctx.close(); } catch(e) {}
+        ctx = null;
+      }
+    }
+  };
+})();
+
+/* ══════════════════════════════════
+   OUTGOING RINGBACK TONE
+   Plays while waiting for the other
+   side to pick up (lower, calmer tone)
+══════════════════════════════════ */
+var ringback = (function() {
+  var ctx = null, intervalId = null, playing = false;
+
+  function playBurst() {
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    playBeep(440, now,       0.4);
+    playBeep(480, now + 0.5, 0.4);
+  }
+
+  function playBeep(freq, startTime, duration) {
+    var osc  = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.15, startTime + 0.04);
+    gain.gain.setValueAtTime(0.15, startTime + duration - 0.04);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  }
+
+  return {
+    start: function() {
+      if (playing) return;
+      playing = true;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+      } catch(e) { return; }
+      playBurst();
+      intervalId = setInterval(playBurst, 3000);
+    },
+    stop: function() {
+      playing = false;
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      if (ctx) { try { ctx.close(); } catch(e) {} ctx = null; }
+    }
+  };
+})();
+
+/* ══════════════════════════════════
+   PUSH NOTIFICATIONS
+══════════════════════════════════ */
+var _notifPermission = 'default';
+var _activeNotif = null;  // current Notification object
+
+function initNotifications() {
+  if (!('Notification' in window)) return;
+  _notifPermission = Notification.permission;
+  if (_notifPermission === 'default') {
+    // Show soft banner (don't auto-prompt — needs user gesture)
+    setTimeout(showNotifBanner, 2000);
+  }
+}
+
+function showNotifBanner() {
+  if (Notification.permission !== 'default') return;
+  var banner = document.getElementById('notifBanner');
+  banner.style.display = 'flex';
+}
+
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(function(result) {
+    _notifPermission = result;
+    document.getElementById('notifBanner').style.display = 'none';
+  });
+}
+
+function sendCallNotification(callerName) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  // Close any existing notification
+  if (_activeNotif) { try { _activeNotif.close(); } catch(e) {} }
+
+  try {
+    _activeNotif = new Notification('📞 Incoming call — Vyntra', {
+      body: callerName + ' is calling you',
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="%236c7cff"/><text x="50%25" y="55%25" dominant-baseline="middle" text-anchor="middle" font-size="32" fill="white">📞</text></svg>',
+      tag: 'vyntra-call',       // replaces previous call notif
+      requireInteraction: true, // stays until user interacts
+      silent: false,
+    });
+    // Clicking the notification focuses the window
+    _activeNotif.onclick = function() {
+      window.focus();
+      _activeNotif.close();
+    };
+  } catch(e) { console.warn('Notification failed', e); }
+}
+
+function dismissCallNotification() {
+  if (_activeNotif) {
+    try { _activeNotif.close(); } catch(e) {}
+    _activeNotif = null;
+  }
+}
 
 /* ══════════════════════════════════
    AUTH
@@ -527,13 +713,14 @@ document.addEventListener('DOMContentLoaded',function(){
 function launchApp(token,username,friends){
   myName=username;myFriends=friends||[];
   mutedUsers=JSON.parse(localStorage.getItem('vyntra_muted')||'[]');
-  // Restore saved VAD threshold
   var saved=localStorage.getItem('vyntra_vad');
   if(saved!==null) callState.vadThreshold=parseInt(saved)||15;
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
   document.getElementById('headerUsername').textContent='@'+username;
-  connectWS(token);initAppListeners();
+  connectWS(token);
+  initAppListeners();
+  initNotifications();
 }
 function safeParse(s){try{return JSON.parse(s);}catch(e){return null;}}
 function connectWS(token){
@@ -602,7 +789,6 @@ function initAppListeners(){
   document.getElementById('hudHangupBtn').addEventListener('click',endCall);
   document.getElementById('micModalPrimaryBtn').addEventListener('click',onMicModalPrimary);
   document.getElementById('micModalCancelBtn').addEventListener('click',onMicModalCancel);
-  /* VAD controls */
   document.getElementById('hudVadToggle').addEventListener('click',function(){
     callState.vadPanelOpen=!callState.vadPanelOpen;
     document.getElementById('hudVadPanel').style.display=callState.vadPanelOpen?'flex':'none';
@@ -614,6 +800,13 @@ function initAppListeners(){
     callState.vadThreshold=parseInt(slider.value);
     document.getElementById('vadSliderVal').textContent=callState.vadThreshold;
     localStorage.setItem('vyntra_vad',callState.vadThreshold);
+  });
+  /* Notification banner */
+  document.getElementById('notifBannerAllow').addEventListener('click',function(){
+    requestNotifPermission();
+  });
+  document.getElementById('notifBannerDismiss').addEventListener('click',function(){
+    document.getElementById('notifBanner').style.display='none';
   });
 }
 
@@ -894,32 +1087,70 @@ function startCall(peer){
   document.getElementById('callingName').textContent=peer;
   document.getElementById('callingAvatar').textContent=peer.slice(0,1).toUpperCase();
   document.getElementById('callingOverlay').style.display='flex';
+  ringback.start(); // play ringback tone for caller
   wsSend({type:'call_request',to:peer});
 }
-function cancelCall(){if(callState.callId) wsSend({type:'call_end',callId:callState.callId});cleanupCall();}
-function handleCallRinging(data){callState.callId=data.callId;}
+
+function cancelCall(){
+  ringback.stop();
+  if(callState.callId) wsSend({type:'call_end',callId:callState.callId});
+  cleanupCall();
+}
+
+function handleCallRinging(data){
+  callState.callId=data.callId;
+  // ringback already started in startCall
+}
+
 function handleCallIncoming(data){
   if(callState.active){wsSend({type:'call_decline',callId:data.callId});return;}
   callState.callId=data.callId;callState.peer=data.from;callState.isCaller=false;
+
+  // Show toast with avatar initial
+  document.getElementById('callToastAvatar').textContent=data.from.slice(0,1).toUpperCase();
   document.getElementById('callToastName').textContent=data.from;
   document.getElementById('callToast').style.display='block';
+
+  // Play ringtone
+  ringtone.start();
+
+  // Send push notification
+  sendCallNotification(data.from);
 }
+
 function acceptCall(){
+  ringtone.stop();
+  dismissCallNotification();
   document.getElementById('callToast').style.display='none';
   wsSend({type:'call_accept',callId:callState.callId});
   setupPeerConnection(false);
 }
+
 function declineCall(){
+  ringtone.stop();
+  dismissCallNotification();
   wsSend({type:'call_decline',callId:callState.callId});
   document.getElementById('callToast').style.display='none';
   callState.callId=null;callState.peer=null;
 }
+
 function handleCallAccepted(data){
+  ringback.stop();
   document.getElementById('callingOverlay').style.display='none';
-  callState.callId=data.callId;setupPeerConnection(true);
+  callState.callId=data.callId;
+  setupPeerConnection(true);
 }
-function handleCallDeclined(data){showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');cleanupCall();}
+
+function handleCallDeclined(data){
+  ringback.stop();
+  showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');
+  cleanupCall();
+}
+
 function handleCallEnded(data){
+  ringtone.stop();
+  ringback.stop();
+  dismissCallNotification();
   var r=data.reason;
   if(r==='no_answer') showToastMsg('📵 No answer');
   else if(r==='hung_up') showToastMsg('📵 Call ended');
@@ -927,154 +1158,94 @@ function handleCallEnded(data){
   cleanupCall();
 }
 
-/* ── getUserMedia constraints with noise suppression ── */
 function getMicConstraints(){
   return {
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,   // Browser built-in noise suppression
-      autoGainControl:  true,   // Normalize volume automatically
-      sampleRate: 48000,
-      channelCount: 1,          // Mono — smaller, faster, better for voice
+    audio:{
+      echoCancellation:true,
+      noiseSuppression:true,
+      autoGainControl:true,
+      sampleRate:48000,
+      channelCount:1,
     },
-    video: false
+    video:false
   };
 }
 
 function setupPeerConnection(isCaller){
-  getMic(function(stream){ doSetupPC(isCaller, stream); });
+  getMic(function(stream){doSetupPC(isCaller,stream);});
 }
 
-/* ── Build audio pipeline: mic → analyser → gain → PC track ── */
-function doSetupPC(isCaller, rawStream){
-  callState.localStream = rawStream;
-
-  /* ── Web Audio pipeline ── */
-  var AudioContext = window.AudioContext || window.webkitAudioContext;
-  var ctx = new AudioContext();
-  callState.audioCtx = ctx;
-
-  var source   = ctx.createMediaStreamSource(rawStream);
-  var analyser = ctx.createAnalyser();
-  var gainNode = ctx.createGain();
-  var dest     = ctx.createMediaStreamDestination();
-
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.6;
-  gainNode.gain.value = 1.0;
-
-  // source → analyser → gain → destination
-  source.connect(analyser);
-  analyser.connect(gainNode);
-  gainNode.connect(dest);
-
-  callState.analyser = analyser;
-  callState.gainNode = gainNode;
-
-  // The processed stream (not the raw one) goes to the peer connection
-  var processedStream = dest.stream;
-
-  /* ── RTCPeerConnection ── */
-  var pc = new RTCPeerConnection(ICE_SERVERS);
-  callState.pc = pc;
-  callState.active = true;
-
-  processedStream.getTracks().forEach(function(track){ pc.addTrack(track, processedStream); });
-
-  pc.ontrack = function(event){
-    var audio = document.getElementById('remoteAudio');
-    audio.srcObject = event.streams[0];
-    var pp = audio.play();
-    if(pp !== undefined) pp.catch(function(){ showTapToUnmuteBanner(); });
+function doSetupPC(isCaller,rawStream){
+  callState.localStream=rawStream;
+  var AC=window.AudioContext||window.webkitAudioContext;
+  var ctx=new AC();
+  callState.audioCtx=ctx;
+  var source=ctx.createMediaStreamSource(rawStream);
+  var analyser=ctx.createAnalyser();
+  var gainNode=ctx.createGain();
+  var dest=ctx.createMediaStreamDestination();
+  analyser.fftSize=512;analyser.smoothingTimeConstant=0.6;
+  gainNode.gain.value=1.0;
+  source.connect(analyser);analyser.connect(gainNode);gainNode.connect(dest);
+  callState.analyser=analyser;callState.gainNode=gainNode;
+  var processedStream=dest.stream;
+  var pc=new RTCPeerConnection(ICE_SERVERS);
+  callState.pc=pc;callState.active=true;
+  processedStream.getTracks().forEach(function(track){pc.addTrack(track,processedStream);});
+  pc.ontrack=function(event){
+    var audio=document.getElementById('remoteAudio');
+    audio.srcObject=event.streams[0];
+    var pp=audio.play();
+    if(pp!==undefined) pp.catch(function(){showTapToUnmuteBanner();});
   };
-  pc.onicecandidate = function(event){
+  pc.onicecandidate=function(event){
     if(event.candidate) wsSend({type:'rtc_ice',callId:callState.callId,candidate:event.candidate});
   };
-  pc.onconnectionstatechange = function(){
+  pc.onconnectionstatechange=function(){
     if(pc.connectionState==='disconnected'||pc.connectionState==='failed') endCall();
   };
-
   if(isCaller){
     pc.createOffer().then(function(offer){return pc.setLocalDescription(offer);})
       .then(function(){wsSend({type:'rtc_offer',callId:callState.callId,sdp:pc.localDescription});})
       .catch(function(e){console.error('Offer error',e);});
   }
-
   showCallHUD(callState.peer);
   updateCallBtn();
-  startVAD(analyser, gainNode, ctx);
+  startVAD(analyser,gainNode,ctx);
 }
 
-/* ══════════════════════════════════
-   VAD — Voice Activity Detection
-   Uses RMS (root mean square) of the
-   analyser time-domain data to measure
-   volume and mute the gain when below
-   the user's threshold.
-══════════════════════════════════ */
-function startVAD(analyser, gainNode, ctx){
-  var buf = new Uint8Array(analyser.fftSize);
-  var HOLD_MS  = 300;  // keep open this long after voice drops
-  var lastVoice = 0;
-
-  // Restore slider state
-  var slider = document.getElementById('vadSlider');
-  slider.value = callState.vadThreshold;
-  document.getElementById('vadSliderVal').textContent = callState.vadThreshold;
-
-  callState.vadInterval = setInterval(function(){
+function startVAD(analyser,gainNode,ctx){
+  var buf=new Uint8Array(analyser.fftSize);
+  var HOLD_MS=300,lastVoice=0;
+  var slider=document.getElementById('vadSlider');
+  slider.value=callState.vadThreshold;
+  document.getElementById('vadSliderVal').textContent=callState.vadThreshold;
+  callState.vadInterval=setInterval(function(){
     if(!callState.active) return;
-
     analyser.getByteTimeDomainData(buf);
-
-    // Compute RMS
-    var sum = 0;
-    for(var i=0; i<buf.length; i++){
-      var v = (buf[i] - 128) / 128;
-      sum += v * v;
-    }
-    var rms = Math.sqrt(sum / buf.length); // 0..1
-
-    // Map threshold slider 0–100 → RMS 0–0.25
-    // (normal speech sits around 0.05–0.15)
-    var thresholdRMS = (callState.vadThreshold / 100) * 0.25;
-
-    var now = Date.now();
-    var speaking = rms > thresholdRMS;
-    if(speaking) lastVoice = now;
-
-    var gate = (now - lastVoice) < HOLD_MS;
-
-    // Update gain: 1 when gate open, 0 when closed
-    // Use setTargetAtTime for smooth fade (avoid pops)
-    if(!callState.muted){
-      gainNode.gain.setTargetAtTime(gate ? 1.0 : 0.0, ctx.currentTime, 0.03);
-    }
-
-    // Update talking indicator dot
-    var dot = document.getElementById('hudTalkingDot');
-    if(speaking && !callState.muted){
-      dot.style.display = 'block';
-      callState.isTalking = true;
-    } else {
-      dot.style.display = 'none';
-      callState.isTalking = false;
-    }
-
-    // Update level meter (0–100%)
-    var pct = Math.min(100, (rms / 0.25) * 100).toFixed(0);
-    document.getElementById('vadMeter').style.width = pct + '%';
-
-  }, 30); // ~33fps polling
+    var sum=0;
+    for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
+    var rms=Math.sqrt(sum/buf.length);
+    var thresholdRMS=(callState.vadThreshold/100)*0.25;
+    var now=Date.now();
+    var speaking=rms>thresholdRMS;
+    if(speaking) lastVoice=now;
+    var gate=(now-lastVoice)<HOLD_MS;
+    if(!callState.muted) gainNode.gain.setTargetAtTime(gate?1.0:0.0,ctx.currentTime,0.03);
+    var dot=document.getElementById('hudTalkingDot');
+    if(speaking&&!callState.muted){dot.style.display='block';callState.isTalking=true;}
+    else{dot.style.display='none';callState.isTalking=false;}
+    var pct=Math.min(100,(rms/0.25)*100).toFixed(0);
+    document.getElementById('vadMeter').style.width=pct+'%';
+  },30);
 }
 
 function stopVAD(){
-  if(callState.vadInterval){ clearInterval(callState.vadInterval); callState.vadInterval=null; }
-  if(callState.audioCtx){ try{ callState.audioCtx.close(); }catch(e){} callState.audioCtx=null; }
-  callState.analyser=null; callState.gainNode=null;
+  if(callState.vadInterval){clearInterval(callState.vadInterval);callState.vadInterval=null;}
+  if(callState.audioCtx){try{callState.audioCtx.close();}catch(e){}callState.audioCtx=null;}
+  callState.analyser=null;callState.gainNode=null;
 }
 
-/* ── Show talking-to-audio banner if autoplay blocked ── */
 function showTapToUnmuteBanner(){
   var existing=document.getElementById('tapUnmuteBanner');if(existing) return;
   var banner=document.createElement('div');banner.id='tapUnmuteBanner';
@@ -1085,7 +1256,6 @@ function showTapToUnmuteBanner(){
   setTimeout(function(){if(banner.parentNode) banner.remove();},10000);
 }
 
-/* ── WebRTC signaling ── */
 function handleRtcOffer(data){
   if(!callState.pc||!callState.active) return;
   var pc=callState.pc;
@@ -1110,21 +1280,21 @@ function handleRtcIce(data){
   callState.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(){});
 }
 
-function endCall(){if(callState.callId) wsSend({type:'call_end',callId:callState.callId});cleanupCall();}
-
+function endCall(){
+  ringtone.stop();ringback.stop();dismissCallNotification();
+  if(callState.callId) wsSend({type:'call_end',callId:callState.callId});
+  cleanupCall();
+}
 function toggleCallMute(){
   if(!callState.localStream) return;
   callState.muted=!callState.muted;
-  // When muted, also zero the gain so VAD can't open it
-  if(callState.gainNode && callState.audioCtx){
-    callState.gainNode.gain.setTargetAtTime(callState.muted?0:1, callState.audioCtx.currentTime, 0.02);
-  }
+  if(callState.gainNode&&callState.audioCtx)
+    callState.gainNode.gain.setTargetAtTime(callState.muted?0:1,callState.audioCtx.currentTime,0.02);
   var btn=document.getElementById('hudMuteBtn');
   btn.textContent=callState.muted?'🔇':'🎙️';
   btn.classList.toggle('muted',callState.muted);
   document.getElementById('hudTalkingDot').style.display='none';
 }
-
 function showCallHUD(peer){
   document.getElementById('hudName').textContent=peer;
   callState.timerSeconds=0;document.getElementById('hudTimer').textContent='0:00';
