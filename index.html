@@ -151,24 +151,37 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 .call-btn-decline{flex:1;padding:10px;border-radius:10px;background:#ff5050;color:#fff;border:none;cursor:pointer;font-size:14px;font-weight:700;}
 .call-btn-decline:hover{background:#e63c3c}
 
+/* Active call HUD */
 #callHUD{
   display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  background:rgba(13,15,26,0.95);backdrop-filter:blur(12px);
+  background:rgba(13,15,26,0.97);backdrop-filter:blur(12px);
   border:1px solid rgba(255,255,255,0.08);border-radius:20px;
-  padding:16px 24px;z-index:800;box-shadow:0 8px 40px rgba(0,0,0,0.5);
-  align-items:center;gap:16px;min-width:280px;
+  padding:14px 20px;z-index:800;box-shadow:0 8px 40px rgba(0,0,0,0.5);
+  flex-direction:column;gap:10px;min-width:300px;max-width:92vw;
 }
+.hud-top{display:flex;align-items:center;gap:14px}
 .hud-info{flex:1}
 .hud-name{font-size:15px;font-weight:700;color:var(--white)}
-.hud-timer{font-size:13px;color:#39d353;font-variant-numeric:tabular-nums}
+.hud-status{font-size:12px;color:#39d353;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px}
+.hud-talking-dot{width:7px;height:7px;border-radius:50%;background:#39d353;display:none;animation:tdot 0.6s ease-in-out infinite alternate}
+@keyframes tdot{from{opacity:1}to{opacity:0.3}}
 .hud-btns{display:flex;gap:10px;align-items:center}
-.hud-btn{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:18px;transition:transform 0.1s}
-.hud-btn:active{transform:scale(0.9)}
+.hud-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;font-size:17px;transition:transform 0.1s}
+.hud-btn:active{transform:scale(0.88)}
 .hud-mute{background:#1a1d30;}
 .hud-mute:hover{background:#22253a}
 .hud-mute.muted{background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.3)}
 .hud-hangup{background:#ff5050;}
 .hud-hangup:hover{background:#e63c3c}
+.hud-settings-btn{background:#1a1d30;font-size:15px;}
+.hud-settings-btn:hover{background:#22253a}
+/* VAD controls row */
+.hud-vad{display:flex;align-items:center;gap:10px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.05)}
+.hud-vad-label{font-size:11px;color:var(--muted);white-space:nowrap}
+.hud-vad-bar{flex:1;display:flex;flex-direction:column;gap:4px}
+.hud-vad-slider{width:100%;accent-color:var(--accent);cursor:pointer;height:4px}
+.hud-vad-meter-wrap{width:100%;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+.hud-vad-meter{height:100%;width:0%;background:linear-gradient(90deg,#39d353,#6c7cff);border-radius:2px;transition:width 0.05s}
 
 #callingOverlay{
   display:none;position:fixed;inset:0;z-index:850;
@@ -183,21 +196,13 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 .calling-cancel{padding:12px 32px;border-radius:12px;background:#ff5050;color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700}
 .calling-cancel:hover{background:#e63c3c}
 
-/* ── Mic permission modal ── */
-#micModal{
-  display:none;position:fixed;inset:0;z-index:1000;
-  background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);
-  align-items:center;justify-content:center;
-}
-.mic-modal-box{
-  background:#13152a;border:1px solid rgba(255,255,255,0.08);
-  border-radius:20px;padding:36px 32px;text-align:center;
-  max-width:340px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);
-}
+/* Mic modal */
+#micModal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+.mic-modal-box{background:#13152a;border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:36px 32px;text-align:center;max-width:340px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);}
 .mic-modal-icon{font-size:52px;margin-bottom:16px;line-height:1}
 .mic-modal-title{font-size:18px;font-weight:700;margin-bottom:10px}
 .mic-modal-sub{font-size:14px;color:var(--muted);margin-bottom:8px;line-height:1.55}
-.mic-modal-steps{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;text-align:left;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px 16px}
+.mic-modal-steps{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;text-align:left;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px 16px;white-space:pre-line}
 .mic-modal-steps b{color:var(--white)}
 .mic-modal-btn{width:100%;padding:12px;border-radius:12px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700;margin-bottom:10px}
 .mic-modal-btn:hover{opacity:0.88}
@@ -365,13 +370,28 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
 
 <!-- ACTIVE CALL HUD -->
 <div id="callHUD">
-  <div class="hud-info">
-    <div class="hud-name" id="hudName"></div>
-    <div class="hud-timer" id="hudTimer">0:00</div>
+  <div class="hud-top">
+    <div class="hud-info">
+      <div class="hud-name" id="hudName"></div>
+      <div class="hud-status">
+        <div class="hud-talking-dot" id="hudTalkingDot"></div>
+        <span id="hudTimer">0:00</span>
+      </div>
+    </div>
+    <div class="hud-btns">
+      <button class="hud-btn hud-mute" id="hudMuteBtn" title="Mute mic">🎙️</button>
+      <button class="hud-btn hud-settings-btn" id="hudVadToggle" title="Sensitivity settings">⚙️</button>
+      <button class="hud-btn hud-hangup" id="hudHangupBtn" title="Hang up">📵</button>
+    </div>
   </div>
-  <div class="hud-btns">
-    <button class="hud-btn hud-mute" id="hudMuteBtn" title="Mute">🎙️</button>
-    <button class="hud-btn hud-hangup" id="hudHangupBtn" title="Hang up">📵</button>
+  <!-- VAD / sensitivity panel (toggle) -->
+  <div class="hud-vad" id="hudVadPanel" style="display:none">
+    <div class="hud-vad-label">🎚️ Sensitivity</div>
+    <div class="hud-vad-bar">
+      <input type="range" class="hud-vad-slider" id="vadSlider" min="0" max="100" value="15" />
+      <div class="hud-vad-meter-wrap"><div class="hud-vad-meter" id="vadMeter"></div></div>
+    </div>
+    <div class="hud-vad-label" id="vadSliderVal" style="min-width:28px;text-align:right;font-size:11px;color:var(--white)">15</div>
   </div>
 </div>
 
@@ -380,7 +400,7 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   <div class="mic-modal-box">
     <div class="mic-modal-icon" id="micModalIcon">🎙️</div>
     <div class="mic-modal-title" id="micModalTitle">Microphone needed</div>
-    <div class="mic-modal-sub" id="micModalSub">Vyntra needs your microphone for voice calls.</div>
+    <div class="mic-modal-sub" id="micModalSub">Tap the button below to allow microphone access for this call.</div>
     <div class="mic-modal-steps" id="micModalSteps" style="display:none"></div>
     <button class="mic-modal-btn" id="micModalPrimaryBtn">Allow microphone</button>
     <button class="mic-modal-btn secondary" id="micModalCancelBtn">Cancel call</button>
@@ -397,7 +417,6 @@ input.msg-input:focus{border-color:rgba(108,124,255,0.3)}
   </div>
 </div>
 
-<!-- Remote audio — NO autoplay attr, we call .play() manually after a user gesture -->
 <audio id="remoteAudio" playsinline></audio>
 
 <script>
@@ -407,20 +426,26 @@ var myFriends = [], mutedUsers = [], messagesCache = {}, allRooms = new Set();
 var _listenersReady = false, pendingFRFrom = null, pendingUsername = null;
 var allEmojis = [], pickerOpenFor = null;
 
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+var isAndroid = /Android/i.test(navigator.userAgent);
+var isMobile = isIOS || isAndroid || /Mobile/i.test(navigator.userAgent);
+
 /* ── CALL STATE ── */
 var callState = {
   active: false, callId: null, peer: null, isCaller: false,
   pc: null, localStream: null, muted: false,
   timerInterval: null, timerSeconds: 0,
-  // callback to run after mic is granted
   _micCallback: null,
+  /* VAD / audio processing */
+  audioCtx: null,
+  analyser: null,
+  gainNode: null,
+  vadInterval: null,
+  vadThreshold: 15,   // 0–100 (maps to RMS 0–1)
+  isTalking: false,
+  vadPanelOpen: false,
 };
 var pendingIceCandidates = [];
-
-/* ── Detect platform ── */
-var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-var isAndroid = /Android/i.test(navigator.userAgent);
-var isMobile = isIOS || isAndroid || /Mobile/i.test(navigator.userAgent);
 
 /* ══════════════════════════════════
    AUTH
@@ -437,35 +462,26 @@ function setBusy(id,busy){
   btn.textContent=busy?'…':{loginBtn:'Login',registerBtn:'Create account',verifyBtn:'Verify'}[id];
 }
 async function doLogin(){
-  var u=document.getElementById('loginUsername').value.trim();
-  var p=document.getElementById('loginPass').value;
+  var u=document.getElementById('loginUsername').value.trim(),p=document.getElementById('loginPass').value;
   if(!u||!p) return setAuthError('Please fill in all fields');
   setBusy('loginBtn',true);
   try{
     var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    var d=await r.json();
-    if(!r.ok){setAuthError(d.error||'Login failed');return;}
+    var d=await r.json();if(!r.ok){setAuthError(d.error||'Login failed');return;}
     pendingUsername=d.username;
-    document.getElementById('stepTabs').style.display='none';
-    document.getElementById('step2FA').style.display='';
-    setAuthError('');
-    setTimeout(function(){document.querySelector('.code-digit').focus();},80);
-  }catch(e){setAuthError('Network error');}
-  finally{setBusy('loginBtn',false);}
+    document.getElementById('stepTabs').style.display='none';document.getElementById('step2FA').style.display='';
+    setAuthError('');setTimeout(function(){document.querySelector('.code-digit').focus();},80);
+  }catch(e){setAuthError('Network error');}finally{setBusy('loginBtn',false);}
 }
 async function doRegister(){
-  var u=document.getElementById('regUsername').value.trim();
-  var e=document.getElementById('regEmail').value.trim();
-  var p=document.getElementById('regPass').value;
+  var u=document.getElementById('regUsername').value.trim(),e=document.getElementById('regEmail').value.trim(),p=document.getElementById('regPass').value;
   if(!u||!e||!p) return setAuthError('Please fill in all fields');
   setBusy('registerBtn',true);
   try{
     var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p})});
-    var d=await r.json();
-    if(!r.ok){setAuthError(d.error||'Registration failed');return;}
+    var d=await r.json();if(!r.ok){setAuthError(d.error||'Registration failed');return;}
     saveSession(d.token,d.username);launchApp(d.token,d.username,[]);
-  }catch(e){setAuthError('Network error');}
-  finally{setBusy('registerBtn',false);}
+  }catch(e){setAuthError('Network error');}finally{setBusy('registerBtn',false);}
 }
 async function doVerify(){
   var code=Array.from(document.querySelectorAll('.code-digit')).map(function(i){return i.value;}).join('');
@@ -473,18 +489,14 @@ async function doVerify(){
   setBusy('verifyBtn',true);
   try{
     var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUsername,code:code})});
-    var d=await r.json();
-    if(!r.ok){setAuthError(d.error||'Verification failed');return;}
+    var d=await r.json();if(!r.ok){setAuthError(d.error||'Verification failed');return;}
     saveSession(d.token,d.username);launchApp(d.token,d.username,[]);
-  }catch(e){setAuthError('Network error');}
-  finally{setBusy('verifyBtn',false);}
+  }catch(e){setAuthError('Network error');}finally{setBusy('verifyBtn',false);}
 }
 function cancelVerify(){
-  pendingUsername=null;
-  document.getElementById('step2FA').style.display='none';
+  pendingUsername=null;document.getElementById('step2FA').style.display='none';
   document.getElementById('stepTabs').style.display='';
-  document.querySelectorAll('.code-digit').forEach(function(i){i.value='';});
-  setAuthError('');
+  document.querySelectorAll('.code-digit').forEach(function(i){i.value='';});setAuthError('');
 }
 function saveSession(t,u){localStorage.setItem('vyntra_token',t);localStorage.setItem('vyntra_username',u);}
 function doLogout(){localStorage.removeItem('vyntra_token');localStorage.removeItem('vyntra_username');location.reload();}
@@ -510,20 +522,19 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 
 /* ══════════════════════════════════
-   LAUNCH
+   LAUNCH / WS
 ══════════════════════════════════ */
 function launchApp(token,username,friends){
   myName=username;myFriends=friends||[];
   mutedUsers=JSON.parse(localStorage.getItem('vyntra_muted')||'[]');
+  // Restore saved VAD threshold
+  var saved=localStorage.getItem('vyntra_vad');
+  if(saved!==null) callState.vadThreshold=parseInt(saved)||15;
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
   document.getElementById('headerUsername').textContent='@'+username;
   connectWS(token);initAppListeners();
 }
-
-/* ══════════════════════════════════
-   WEBSOCKET
-══════════════════════════════════ */
 function safeParse(s){try{return JSON.parse(s);}catch(e){return null;}}
 function connectWS(token){
   if(!location.host) return;
@@ -589,9 +600,21 @@ function initAppListeners(){
   document.getElementById('callingCancelBtn').addEventListener('click',cancelCall);
   document.getElementById('hudMuteBtn').addEventListener('click',toggleCallMute);
   document.getElementById('hudHangupBtn').addEventListener('click',endCall);
-  /* Mic modal */
   document.getElementById('micModalPrimaryBtn').addEventListener('click',onMicModalPrimary);
   document.getElementById('micModalCancelBtn').addEventListener('click',onMicModalCancel);
+  /* VAD controls */
+  document.getElementById('hudVadToggle').addEventListener('click',function(){
+    callState.vadPanelOpen=!callState.vadPanelOpen;
+    document.getElementById('hudVadPanel').style.display=callState.vadPanelOpen?'flex':'none';
+  });
+  var slider=document.getElementById('vadSlider');
+  slider.value=callState.vadThreshold;
+  document.getElementById('vadSliderVal').textContent=callState.vadThreshold;
+  slider.addEventListener('input',function(){
+    callState.vadThreshold=parseInt(slider.value);
+    document.getElementById('vadSliderVal').textContent=callState.vadThreshold;
+    localStorage.setItem('vyntra_vad',callState.vadThreshold);
+  });
 }
 
 /* ══════════════════════════════════
@@ -663,14 +686,13 @@ function renderFriendsList(){
 function openDM(username){joinRoom('dm_'+[myName,username].sort().join('_'));}
 
 /* ══════════════════════════════════
-   USER POPUP
+   USER POPUP / TOASTS
 ══════════════════════════════════ */
 function openUserPopup(username,event){
   if(username===myName) return;
   var isFriend=myFriends.indexOf(username)>=0,isMuted=mutedUsers.indexOf(username)>=0;
   document.getElementById('popupName').textContent=username;
-  var fb=document.getElementById('popupFriend');
-  fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
+  var fb=document.getElementById('popupFriend');fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
   document.getElementById('popupMute').textContent=isMuted?'🔊 Unmute':'🔇 Mute';
   document.getElementById('popupDM').onclick=function(){openDM(username);closeUserPopup();};
   document.getElementById('popupCall').onclick=function(){openDM(username);setTimeout(function(){startCall(username);},400);closeUserPopup();};
@@ -702,11 +724,10 @@ function showToastMsg(msg){
 }
 
 /* ══════════════════════════════════
-   CHAT / MESSAGES
+   CHAT
 ══════════════════════════════════ */
 function sendMessage(){
-  if(!connected) return alert('Not connected');
-  if(!currentRoom) return alert('Join a room first');
+  if(!connected) return alert('Not connected');if(!currentRoom) return alert('Join a room first');
   var input=document.getElementById('msgInput'),text=input.value.trim();if(!text) return;
   wsSend({type:'message',text:text});input.value='';
 }
@@ -759,7 +780,7 @@ function populateReactions(reactionsDiv,msg){
     btn.innerHTML='<span style="font-size:16px">'+e+'</span><span style="margin-left:4px">'+msg.reactions[e].length+'</span>';
     btn.onclick=function(){reactMessage(msg.id,e);};reactionsDiv.appendChild(btn);
   });
-  var picker=document.createElement('button');picker.className='reaction';picker.textContent='✦';picker.title='Add reaction';picker.style.background='transparent';
+  var picker=document.createElement('button');picker.className='reaction';picker.textContent='✦';picker.style.background='transparent';
   picker.onclick=function(){openEmojiPicker(msg.id);};reactionsDiv.appendChild(picker);
 }
 function openMobileSidebar(){document.getElementById('mobileSidebar').classList.add('show');document.getElementById('mobileSidebarOverlay').classList.add('show');}
@@ -793,169 +814,112 @@ function populateEmojiGrid(filter){
 }
 
 /* ══════════════════════════════════
-   MIC MODAL — handles denied + re-ask
+   MIC MODAL
 ══════════════════════════════════ */
-
-/*
-  States the modal can be in:
-  'ask'    — first time, show "Allow microphone" button that calls getUserMedia
-  'denied' — permission was denied, show instructions to fix it in settings
-*/
-var micModalState = 'ask';
-
-function showMicModal(callback) {
-  callState._micCallback = callback;
-  micModalState = 'ask';
-  document.getElementById('micModalIcon').textContent = '🎙️';
-  document.getElementById('micModalTitle').textContent = 'Microphone needed';
-  document.getElementById('micModalSub').textContent = 'Tap the button below to allow microphone access for this call.';
-  document.getElementById('micModalSteps').style.display = 'none';
-  document.getElementById('micModalPrimaryBtn').textContent = 'Allow microphone';
-  document.getElementById('micModalPrimaryBtn').style.display = '';
-  document.getElementById('micModalErr').textContent = '';
-  document.getElementById('micModal').style.display = 'flex';
+var micModalState='ask';
+function showMicModal(callback){
+  callState._micCallback=callback;micModalState='ask';
+  document.getElementById('micModalIcon').textContent='🎙️';
+  document.getElementById('micModalTitle').textContent='Microphone needed';
+  document.getElementById('micModalSub').textContent='Tap below to allow microphone access for this call.';
+  document.getElementById('micModalSteps').style.display='none';
+  document.getElementById('micModalPrimaryBtn').textContent='Allow microphone';
+  document.getElementById('micModalErr').textContent='';
+  document.getElementById('micModal').style.display='flex';
 }
-
-function showMicDeniedModal() {
-  micModalState = 'denied';
-  document.getElementById('micModalIcon').textContent = '🚫';
-  document.getElementById('micModalTitle').textContent = 'Microphone blocked';
-  document.getElementById('micModalSub').textContent = 'You previously denied microphone access. To fix this:';
-
-  var steps = '';
-  if (isIOS) {
-    steps = '<b>iPhone / iPad:</b>\n1. Close Vyntra\n2. Open <b>Settings → Safari</b> (or your browser)\n3. Tap <b>Microphone</b> → set to <b>Allow</b>\n4. Come back and try again';
-  } else if (isAndroid) {
-    steps = '<b>Android:</b>\n1. Tap the <b>lock icon</b> in your browser\'s address bar\n2. Tap <b>Permissions → Microphone</b>\n3. Set to <b>Allow</b>\n4. Reload the page and try again';
-  } else {
-    steps = '1. Click the <b>lock icon</b> in your browser\'s address bar\n2. Find <b>Microphone</b> and set it to <b>Allow</b>\n3. Reload the page and try again';
-  }
-  var stepsEl = document.getElementById('micModalSteps');
-  stepsEl.style.display = 'block';
-  stepsEl.style.whiteSpace = 'pre-line';
-  stepsEl.innerHTML = steps;
-
-  document.getElementById('micModalPrimaryBtn').textContent = '🔄 Reload page';
-  document.getElementById('micModalPrimaryBtn').style.display = '';
-  document.getElementById('micModalErr').textContent = '';
-  document.getElementById('micModal').style.display = 'flex';
+function showMicDeniedModal(){
+  micModalState='denied';
+  document.getElementById('micModalIcon').textContent='🚫';
+  document.getElementById('micModalTitle').textContent='Microphone blocked';
+  document.getElementById('micModalSub').textContent='You denied microphone access. To fix it:';
+  var steps='';
+  if(isIOS) steps='<b>iPhone/iPad:</b>\n1. Close this app\n2. Open Settings → Safari\n3. Tap Microphone → Allow\n4. Return and try again';
+  else if(isAndroid) steps='<b>Android:</b>\n1. Tap the lock icon in the address bar\n2. Permissions → Microphone → Allow\n3. Reload and try again';
+  else steps='1. Click the lock icon in the address bar\n2. Microphone → Allow\n3. Reload the page and try again';
+  var stepsEl=document.getElementById('micModalSteps');stepsEl.innerHTML=steps;stepsEl.style.display='block';
+  document.getElementById('micModalPrimaryBtn').textContent='🔄 Reload page';
+  document.getElementById('micModalErr').textContent='';
+  document.getElementById('micModal').style.display='flex';
 }
-
-function onMicModalPrimary() {
-  if (micModalState === 'denied') {
-    // Best we can do is reload — browser won't re-prompt without settings change
-    location.reload();
-    return;
-  }
-  // Try to get mic
-  document.getElementById('micModalErr').textContent = '';
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    .then(function(stream) {
-      document.getElementById('micModal').style.display = 'none';
-      if (callState._micCallback) {
-        var cb = callState._micCallback;
-        callState._micCallback = null;
-        cb(stream);
-      }
+function onMicModalPrimary(){
+  if(micModalState==='denied'){location.reload();return;}
+  document.getElementById('micModalErr').textContent='';
+  navigator.mediaDevices.getUserMedia({audio:true,video:false})
+    .then(function(stream){
+      document.getElementById('micModal').style.display='none';
+      if(callState._micCallback){var cb=callState._micCallback;callState._micCallback=null;cb(stream);}
     })
-    .catch(function(err) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        showMicDeniedModal();
-      } else {
-        document.getElementById('micModalErr').textContent = 'Error: ' + (err.message || err.name);
-      }
+    .catch(function(err){
+      if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError') showMicDeniedModal();
+      else document.getElementById('micModalErr').textContent='Error: '+(err.message||err.name);
     });
 }
-
-function onMicModalCancel() {
-  document.getElementById('micModal').style.display = 'none';
-  callState._micCallback = null;
-  if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
+function onMicModalCancel(){
+  document.getElementById('micModal').style.display='none';callState._micCallback=null;
+  if(callState.callId) wsSend({type:'call_end',callId:callState.callId});
   cleanupCall();
 }
-
-/* ── Get mic — always goes through modal on mobile, direct on desktop ── */
-function getMic(callback) {
-  // Check if permission already granted using Permissions API (where available)
-  if (navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: 'microphone' }).then(function(result) {
-      if (result.state === 'granted') {
-        // Already have it, just get it directly
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          .then(callback)
-          .catch(function() { showMicModal(callback); });
-      } else if (result.state === 'denied') {
-        showMicDeniedModal();
-        callState._micCallback = callback;
+function getMic(callback){
+  if(navigator.permissions&&navigator.permissions.query){
+    navigator.permissions.query({name:'microphone'}).then(function(result){
+      if(result.state==='granted'){
+        navigator.mediaDevices.getUserMedia({audio:true,video:false}).then(callback).catch(function(){showMicModal(callback);});
+      } else if(result.state==='denied'){
+        showMicDeniedModal();callState._micCallback=callback;
       } else {
-        // 'prompt' — need to ask
         showMicModal(callback);
       }
-    }).catch(function() {
-      // Permissions API not supported, fall through to direct attempt
-      attemptMicDirect(callback);
-    });
+    }).catch(function(){attemptMicDirect(callback);});
   } else {
     attemptMicDirect(callback);
   }
 }
-
-function attemptMicDirect(callback) {
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+function attemptMicDirect(callback){
+  navigator.mediaDevices.getUserMedia({audio:true,video:false})
     .then(callback)
-    .catch(function(err) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        showMicDeniedModal();
-        callState._micCallback = callback;
-      } else {
-        showMicModal(callback);
-      }
+    .catch(function(err){
+      if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){showMicDeniedModal();callState._micCallback=callback;}
+      else showMicModal(callback);
     });
 }
 
 /* ══════════════════════════════════
    VOICE CALLS — WebRTC
 ══════════════════════════════════ */
-var ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+var ICE_SERVERS={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 
-function startCall(peer) {
-  if (callState.active) return showToastMsg('Already in a call');
-  callState.peer = peer;callState.isCaller = true;callState.callId = null;
-  document.getElementById('callingName').textContent = peer;
-  document.getElementById('callingAvatar').textContent = peer.slice(0,1).toUpperCase();
-  document.getElementById('callingOverlay').style.display = 'flex';
-  wsSend({ type: 'call_request', to: peer });
+function startCall(peer){
+  if(callState.active) return showToastMsg('Already in a call');
+  callState.peer=peer;callState.isCaller=true;callState.callId=null;
+  document.getElementById('callingName').textContent=peer;
+  document.getElementById('callingAvatar').textContent=peer.slice(0,1).toUpperCase();
+  document.getElementById('callingOverlay').style.display='flex';
+  wsSend({type:'call_request',to:peer});
 }
-function cancelCall() {
-  if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
-  cleanupCall();
+function cancelCall(){if(callState.callId) wsSend({type:'call_end',callId:callState.callId});cleanupCall();}
+function handleCallRinging(data){callState.callId=data.callId;}
+function handleCallIncoming(data){
+  if(callState.active){wsSend({type:'call_decline',callId:data.callId});return;}
+  callState.callId=data.callId;callState.peer=data.from;callState.isCaller=false;
+  document.getElementById('callToastName').textContent=data.from;
+  document.getElementById('callToast').style.display='block';
 }
-function handleCallRinging(data) { callState.callId = data.callId; }
-function handleCallIncoming(data) {
-  if (callState.active) { wsSend({ type: 'call_decline', callId: data.callId }); return; }
-  callState.callId = data.callId;callState.peer = data.from;callState.isCaller = false;
-  document.getElementById('callToastName').textContent = data.from;
-  document.getElementById('callToast').style.display = 'block';
-}
-function acceptCall() {
-  document.getElementById('callToast').style.display = 'none';
-  wsSend({ type: 'call_accept', callId: callState.callId });
+function acceptCall(){
+  document.getElementById('callToast').style.display='none';
+  wsSend({type:'call_accept',callId:callState.callId});
   setupPeerConnection(false);
 }
-function declineCall() {
-  wsSend({ type: 'call_decline', callId: callState.callId });
-  document.getElementById('callToast').style.display = 'none';
-  callState.callId = null;callState.peer = null;
+function declineCall(){
+  wsSend({type:'call_decline',callId:callState.callId});
+  document.getElementById('callToast').style.display='none';
+  callState.callId=null;callState.peer=null;
 }
-function handleCallAccepted(data) {
-  document.getElementById('callingOverlay').style.display = 'none';
-  callState.callId = data.callId;
-  setupPeerConnection(true);
+function handleCallAccepted(data){
+  document.getElementById('callingOverlay').style.display='none';
+  callState.callId=data.callId;setupPeerConnection(true);
 }
-function handleCallDeclined(data) {
-  showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');cleanupCall();
-}
-function handleCallEnded(data) {
+function handleCallDeclined(data){showToastMsg('📵 '+(data.by||callState.peer)+' declined the call');cleanupCall();}
+function handleCallEnded(data){
   var r=data.reason;
   if(r==='no_answer') showToastMsg('📵 No answer');
   else if(r==='hung_up') showToastMsg('📵 Call ended');
@@ -963,143 +927,236 @@ function handleCallEnded(data) {
   cleanupCall();
 }
 
-function setupPeerConnection(isCaller) {
-  getMic(function(stream) {
-    doSetupPC(isCaller, stream);
-  });
+/* ── getUserMedia constraints with noise suppression ── */
+function getMicConstraints(){
+  return {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,   // Browser built-in noise suppression
+      autoGainControl:  true,   // Normalize volume automatically
+      sampleRate: 48000,
+      channelCount: 1,          // Mono — smaller, faster, better for voice
+    },
+    video: false
+  };
 }
 
-function doSetupPC(isCaller, localStream) {
-  callState.localStream = localStream;
+function setupPeerConnection(isCaller){
+  getMic(function(stream){ doSetupPC(isCaller, stream); });
+}
+
+/* ── Build audio pipeline: mic → analyser → gain → PC track ── */
+function doSetupPC(isCaller, rawStream){
+  callState.localStream = rawStream;
+
+  /* ── Web Audio pipeline ── */
+  var AudioContext = window.AudioContext || window.webkitAudioContext;
+  var ctx = new AudioContext();
+  callState.audioCtx = ctx;
+
+  var source   = ctx.createMediaStreamSource(rawStream);
+  var analyser = ctx.createAnalyser();
+  var gainNode = ctx.createGain();
+  var dest     = ctx.createMediaStreamDestination();
+
+  analyser.fftSize = 512;
+  analyser.smoothingTimeConstant = 0.6;
+  gainNode.gain.value = 1.0;
+
+  // source → analyser → gain → destination
+  source.connect(analyser);
+  analyser.connect(gainNode);
+  gainNode.connect(dest);
+
+  callState.analyser = analyser;
+  callState.gainNode = gainNode;
+
+  // The processed stream (not the raw one) goes to the peer connection
+  var processedStream = dest.stream;
+
+  /* ── RTCPeerConnection ── */
   var pc = new RTCPeerConnection(ICE_SERVERS);
   callState.pc = pc;
   callState.active = true;
 
-  localStream.getTracks().forEach(function(track) { pc.addTrack(track, localStream); });
+  processedStream.getTracks().forEach(function(track){ pc.addTrack(track, processedStream); });
 
-  pc.ontrack = function(event) {
+  pc.ontrack = function(event){
     var audio = document.getElementById('remoteAudio');
-    var stream = event.streams[0];
-    audio.srcObject = stream;
-    /* ── Fix: on mobile, audio.play() must be called from within
-       a user-gesture context. We store the stream and play it
-       immediately since we ARE inside a user-gesture chain
-       (the user tapped Accept or Call). ── */
-    var playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(function(e) {
-        // Autoplay blocked — show a tap-to-unmute banner
-        showTapToUnmuteBanner();
-      });
-    }
+    audio.srcObject = event.streams[0];
+    var pp = audio.play();
+    if(pp !== undefined) pp.catch(function(){ showTapToUnmuteBanner(); });
+  };
+  pc.onicecandidate = function(event){
+    if(event.candidate) wsSend({type:'rtc_ice',callId:callState.callId,candidate:event.candidate});
+  };
+  pc.onconnectionstatechange = function(){
+    if(pc.connectionState==='disconnected'||pc.connectionState==='failed') endCall();
   };
 
-  pc.onicecandidate = function(event) {
-    if (event.candidate) wsSend({ type: 'rtc_ice', callId: callState.callId, candidate: event.candidate });
-  };
-  pc.onconnectionstatechange = function() {
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') endCall();
-  };
-
-  if (isCaller) {
-    pc.createOffer().then(function(offer) {
-      return pc.setLocalDescription(offer);
-    }).then(function() {
-      wsSend({ type: 'rtc_offer', callId: callState.callId, sdp: pc.localDescription });
-    }).catch(function(e) { console.error('Offer error', e); });
+  if(isCaller){
+    pc.createOffer().then(function(offer){return pc.setLocalDescription(offer);})
+      .then(function(){wsSend({type:'rtc_offer',callId:callState.callId,sdp:pc.localDescription});})
+      .catch(function(e){console.error('Offer error',e);});
   }
 
   showCallHUD(callState.peer);
   updateCallBtn();
+  startVAD(analyser, gainNode, ctx);
 }
 
-/* ── Tap-to-unmute banner (last resort for strict autoplay) ── */
-function showTapToUnmuteBanner() {
-  var existing = document.getElementById('tapUnmuteBanner');
-  if (existing) return;
-  var banner = document.createElement('div');
-  banner.id = 'tapUnmuteBanner';
-  banner.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#6c7cff;color:#fff;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;z-index:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
-  banner.textContent = '🔊 Tap to hear audio';
-  banner.addEventListener('click', function() {
-    var audio = document.getElementById('remoteAudio');
-    audio.play().catch(function(){});
-    banner.remove();
-  });
+/* ══════════════════════════════════
+   VAD — Voice Activity Detection
+   Uses RMS (root mean square) of the
+   analyser time-domain data to measure
+   volume and mute the gain when below
+   the user's threshold.
+══════════════════════════════════ */
+function startVAD(analyser, gainNode, ctx){
+  var buf = new Uint8Array(analyser.fftSize);
+  var HOLD_MS  = 300;  // keep open this long after voice drops
+  var lastVoice = 0;
+
+  // Restore slider state
+  var slider = document.getElementById('vadSlider');
+  slider.value = callState.vadThreshold;
+  document.getElementById('vadSliderVal').textContent = callState.vadThreshold;
+
+  callState.vadInterval = setInterval(function(){
+    if(!callState.active) return;
+
+    analyser.getByteTimeDomainData(buf);
+
+    // Compute RMS
+    var sum = 0;
+    for(var i=0; i<buf.length; i++){
+      var v = (buf[i] - 128) / 128;
+      sum += v * v;
+    }
+    var rms = Math.sqrt(sum / buf.length); // 0..1
+
+    // Map threshold slider 0–100 → RMS 0–0.25
+    // (normal speech sits around 0.05–0.15)
+    var thresholdRMS = (callState.vadThreshold / 100) * 0.25;
+
+    var now = Date.now();
+    var speaking = rms > thresholdRMS;
+    if(speaking) lastVoice = now;
+
+    var gate = (now - lastVoice) < HOLD_MS;
+
+    // Update gain: 1 when gate open, 0 when closed
+    // Use setTargetAtTime for smooth fade (avoid pops)
+    if(!callState.muted){
+      gainNode.gain.setTargetAtTime(gate ? 1.0 : 0.0, ctx.currentTime, 0.03);
+    }
+
+    // Update talking indicator dot
+    var dot = document.getElementById('hudTalkingDot');
+    if(speaking && !callState.muted){
+      dot.style.display = 'block';
+      callState.isTalking = true;
+    } else {
+      dot.style.display = 'none';
+      callState.isTalking = false;
+    }
+
+    // Update level meter (0–100%)
+    var pct = Math.min(100, (rms / 0.25) * 100).toFixed(0);
+    document.getElementById('vadMeter').style.width = pct + '%';
+
+  }, 30); // ~33fps polling
+}
+
+function stopVAD(){
+  if(callState.vadInterval){ clearInterval(callState.vadInterval); callState.vadInterval=null; }
+  if(callState.audioCtx){ try{ callState.audioCtx.close(); }catch(e){} callState.audioCtx=null; }
+  callState.analyser=null; callState.gainNode=null;
+}
+
+/* ── Show talking-to-audio banner if autoplay blocked ── */
+function showTapToUnmuteBanner(){
+  var existing=document.getElementById('tapUnmuteBanner');if(existing) return;
+  var banner=document.createElement('div');banner.id='tapUnmuteBanner';
+  banner.style.cssText='position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#6c7cff;color:#fff;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;z-index:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
+  banner.textContent='🔊 Tap to hear audio';
+  banner.addEventListener('click',function(){document.getElementById('remoteAudio').play().catch(function(){});banner.remove();});
   document.body.appendChild(banner);
-  // Auto-remove after 10s
-  setTimeout(function() { if (banner.parentNode) banner.remove(); }, 10000);
+  setTimeout(function(){if(banner.parentNode) banner.remove();},10000);
 }
 
-function handleRtcOffer(data) {
-  if (!callState.pc || !callState.active) return;
-  var pc = callState.pc;
-  pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
-    var flush = pendingIceCandidates.splice(0);
-    return Promise.all(flush.map(function(c) { return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); }));
-  }).then(function() {
-    return pc.createAnswer();
-  }).then(function(answer) {
-    return pc.setLocalDescription(answer);
-  }).then(function() {
-    wsSend({ type: 'rtc_answer', callId: callState.callId, sdp: pc.localDescription });
-  }).catch(function(e) { console.error('Answer error', e); });
+/* ── WebRTC signaling ── */
+function handleRtcOffer(data){
+  if(!callState.pc||!callState.active) return;
+  var pc=callState.pc;
+  pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function(){
+    var flush=pendingIceCandidates.splice(0);
+    return Promise.all(flush.map(function(c){return pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){});}));
+  }).then(function(){return pc.createAnswer();})
+    .then(function(answer){return pc.setLocalDescription(answer);})
+    .then(function(){wsSend({type:'rtc_answer',callId:callState.callId,sdp:pc.localDescription});})
+    .catch(function(e){console.error('Answer error',e);});
 }
-
-function handleRtcAnswer(data) {
-  if (!callState.pc) return;
-  callState.pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function() {
-    var flush = pendingIceCandidates.splice(0);
-    return Promise.all(flush.map(function(c) { return callState.pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){}); }));
-  }).catch(function(e) { console.error('Answer set error', e); });
+function handleRtcAnswer(data){
+  if(!callState.pc) return;
+  callState.pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(function(){
+    var flush=pendingIceCandidates.splice(0);
+    return Promise.all(flush.map(function(c){return callState.pc.addIceCandidate(new RTCIceCandidate(c)).catch(function(){});}));
+  }).catch(function(e){console.error('Answer set error',e);});
 }
-
-function handleRtcIce(data) {
-  if (!callState.pc) return;
-  if (!callState.pc.remoteDescription) { pendingIceCandidates.push(data.candidate); return; }
+function handleRtcIce(data){
+  if(!callState.pc) return;
+  if(!callState.pc.remoteDescription){pendingIceCandidates.push(data.candidate);return;}
   callState.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(function(){});
 }
 
-function endCall() {
-  if (callState.callId) wsSend({ type: 'call_end', callId: callState.callId });
-  cleanupCall();
+function endCall(){if(callState.callId) wsSend({type:'call_end',callId:callState.callId});cleanupCall();}
+
+function toggleCallMute(){
+  if(!callState.localStream) return;
+  callState.muted=!callState.muted;
+  // When muted, also zero the gain so VAD can't open it
+  if(callState.gainNode && callState.audioCtx){
+    callState.gainNode.gain.setTargetAtTime(callState.muted?0:1, callState.audioCtx.currentTime, 0.02);
+  }
+  var btn=document.getElementById('hudMuteBtn');
+  btn.textContent=callState.muted?'🔇':'🎙️';
+  btn.classList.toggle('muted',callState.muted);
+  document.getElementById('hudTalkingDot').style.display='none';
 }
-function toggleCallMute() {
-  if (!callState.localStream) return;
-  callState.muted = !callState.muted;
-  callState.localStream.getAudioTracks().forEach(function(t) { t.enabled = !callState.muted; });
-  var btn = document.getElementById('hudMuteBtn');
-  btn.textContent = callState.muted ? '🔇' : '🎙️';
-  btn.classList.toggle('muted', callState.muted);
-}
-function showCallHUD(peer) {
-  document.getElementById('hudName').textContent = peer;
-  callState.timerSeconds = 0;document.getElementById('hudTimer').textContent = '0:00';
-  document.getElementById('callHUD').style.display = 'flex';
-  callState.timerInterval = setInterval(function() {
+
+function showCallHUD(peer){
+  document.getElementById('hudName').textContent=peer;
+  callState.timerSeconds=0;document.getElementById('hudTimer').textContent='0:00';
+  document.getElementById('callHUD').style.display='flex';
+  callState.timerInterval=setInterval(function(){
     callState.timerSeconds++;
     var m=Math.floor(callState.timerSeconds/60),s=callState.timerSeconds%60;
-    document.getElementById('hudTimer').textContent = m+':'+(s<10?'0':'')+s;
-  }, 1000);
+    document.getElementById('hudTimer').textContent=m+':'+(s<10?'0':'')+s;
+  },1000);
 }
-function updateCallBtn() {
-  var btn = document.getElementById('dmCallBtn');
-  if (callState.active) { btn.textContent = '📵 End Call';btn.classList.add('in-call'); }
-  else { btn.textContent = '📞 Call';btn.classList.remove('in-call'); }
+function updateCallBtn(){
+  var btn=document.getElementById('dmCallBtn');
+  if(callState.active){btn.textContent='📵 End Call';btn.classList.add('in-call');}
+  else{btn.textContent='📞 Call';btn.classList.remove('in-call');}
 }
-function cleanupCall() {
-  if (callState.localStream) { callState.localStream.getTracks().forEach(function(t){t.stop();});callState.localStream=null; }
-  if (callState.pc) { callState.pc.close();callState.pc=null; }
-  if (callState.timerInterval) { clearInterval(callState.timerInterval);callState.timerInterval=null; }
-  var audio = document.getElementById('remoteAudio');
-  audio.pause();audio.srcObject = null;
+function cleanupCall(){
+  stopVAD();
+  if(callState.localStream){callState.localStream.getTracks().forEach(function(t){t.stop();});callState.localStream=null;}
+  if(callState.pc){callState.pc.close();callState.pc=null;}
+  if(callState.timerInterval){clearInterval(callState.timerInterval);callState.timerInterval=null;}
+  var audio=document.getElementById('remoteAudio');audio.pause();audio.srcObject=null;
   callState.active=false;callState.callId=null;callState.peer=null;
-  callState.isCaller=false;callState.muted=false;callState.timerSeconds=0;callState._micCallback=null;
+  callState.isCaller=false;callState.muted=false;callState.timerSeconds=0;
+  callState._micCallback=null;callState.isTalking=false;callState.vadPanelOpen=false;
   pendingIceCandidates=[];
   document.getElementById('callHUD').style.display='none';
+  document.getElementById('hudVadPanel').style.display='none';
   document.getElementById('callingOverlay').style.display='none';
   document.getElementById('callToast').style.display='none';
   document.getElementById('micModal').style.display='none';
+  document.getElementById('hudTalkingDot').style.display='none';
+  document.getElementById('vadMeter').style.width='0%';
   var banner=document.getElementById('tapUnmuteBanner');if(banner) banner.remove();
   document.getElementById('hudMuteBtn').textContent='🎙️';
   document.getElementById('hudMuteBtn').classList.remove('muted');
