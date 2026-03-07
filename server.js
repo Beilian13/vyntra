@@ -59,40 +59,25 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
+// build html by replacing placeholder
+function buildVerifyHtml(code){
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;padding:0;background:#0f1220;font-family:Inter,Segoe UI,system-ui,Arial,sans-serif;color:#eef2ff;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="min-height:100%;background:#0f1220;padding:32px 16px;"><tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;"><tr><td style="padding:28px 28px 18px;background:linear-gradient(90deg,#11121b,#15172b);border-radius:12px 12px 8px 8px;border:1px solid rgba(255,255,255,.04);text-align:center;"><div style="font-weight:700;font-size:20px;color:#eef2ff;letter-spacing:0.5px;">Vyntra</div><div style="color:#9aa0b4;font-size:13px;margin-top:6px;">Secure chat & calls</div></td></tr><tr><td style="background:#13152a;border:1px solid rgba(255,255,255,.04);padding:28px;border-radius:0 0 8px 8px;"><h1 style="font-size:18px;margin:0 0 8px;color:#eef2ff;font-weight:700;">Your verification code</h1><p style="margin:0 0 18px;color:#9aa0b4;font-size:14px;line-height:1.4;">Use the code below to finish signing in to Vyntra. It expires in 10 minutes.</p><div style="display:inline-block;padding:16px 22px;border-radius:10px;background:#1f2937;font-weight:700;font-size:28px;letter-spacing:6px;color:#eef2ff;border:3px solid #6c7cff;">${code}</div><p style="color:#9aa0b4;font-size:13px;margin:18px 0 0;">If you didn't request this, you can safely ignore this email.</p><hr style="border:0;border-top:1px solid rgba(255,255,255,.03);margin:20px 0;"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><div style="color:#9aa0b4;font-size:12px;">Need help? Visit <a href="https://vyntra.app" style="color:#6c7cff;text-decoration:none;">vyntra.app</a></div><div style="font-size:12px;color:#9aa0b4;">Vyntra • © ${(new Date()).getFullYear()}</div></div></td></tr></table></td></tr></table></body></html>`;
+}
+
 async function sendVerifyEmail(email, code) {
-  const { data, error } = await resend.emails.send({
-    from: "Vyntra <onboarding@resend.dev>",
-    to: email,
-    subject: "Verify your Vyntra account",
-    html: `
-      <div style="background:#0f172a;padding:40px;font-family:Arial,sans-serif;color:white;">
-        <div style="max-width:500px;margin:auto;background:#111827;border-radius:10px;padding:30px;text-align:center;">
-          
-          <h1 style="color:#38bdf8;margin-bottom:10px;">Vyntra</h1>
-          <p style="color:#d1d5db;font-size:15px;">Your verification code</p>
-
-          <div style="
-            margin:25px 0;
-            font-size:32px;
-            font-weight:bold;
-            letter-spacing:6px;
-            background:#1f2937;
-            padding:15px;
-            border-radius:8px;
-          ">
-            ${code}
-          </div>
-
-          <p style="color:#9ca3af;font-size:13px;">
-            This code expires in 10 minutes.
-          </p>
-
-        </div>
-      </div>
-    `
-  });
-
-  if (error) throw error;
+  try {
+    await resend.emails.send({
+      from: "Vyntra <onboarding@resend.dev>",   // use onboarding@resend.dev for testing
+      to: email,
+      subject: "Verify your Vyntra account",
+      text: `Your Vyntra verification code: ${code}\nIt expires in 10 minutes.`,
+      html: buildVerifyHtml(code),
+    });
+    console.log("Verification email sent to", email);
+  } catch (err) {
+    console.error("EMAIL ERROR:", err);
+    throw err; // optional: let caller handle the failure
+  }
 }
 
 /* ── IN-MEMORY STATE ── */
