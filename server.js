@@ -29,8 +29,7 @@ app.use(express.static(__dirname));
 /* ── ENV ── */
 const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
 const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
-const EMAIL_USER        = process.env.EMAIL_USER        || '';
-const EMAIL_PASS        = process.env.EMAIL_PASS        || '';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
 const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
 const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
@@ -60,17 +59,12 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── EMAIL ── */
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-});
 async function sendVerifyEmail(email, code) {
-  await transporter.sendMail({
-    from: EMAIL_USER,
-    to:   email,
-    subject: 'Vyntra — your verification code',
-    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`,
+  await resend.emails.send({
+    from: "Vyntra <noreply@vyntra.app>",
+    to: email,
+    subject: "Vyntra — your verification code",
+    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`
   });
 }
 
