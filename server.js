@@ -60,12 +60,39 @@ const msgSchema = new mongoose.Schema({
 const Message = mongoose.model('Message', msgSchema);
 
 async function sendVerifyEmail(email, code) {
-  await resend.emails.send({
-  from: "Vyntra <onboarding@resend.dev>",
-  to: email,
-  subject: "Vyntra — your verification code",
-  text: `Your code is: ${code}`
-});
+  const { data, error } = await resend.emails.send({
+    from: "Vyntra <onboarding@resend.dev>",
+    to: email,
+    subject: "Verify your Vyntra account",
+    html: `
+      <div style="background:#0f172a;padding:40px;font-family:Arial,sans-serif;color:white;">
+        <div style="max-width:500px;margin:auto;background:#111827;border-radius:10px;padding:30px;text-align:center;">
+          
+          <h1 style="color:#38bdf8;margin-bottom:10px;">Vyntra</h1>
+          <p style="color:#d1d5db;font-size:15px;">Your verification code</p>
+
+          <div style="
+            margin:25px 0;
+            font-size:32px;
+            font-weight:bold;
+            letter-spacing:6px;
+            background:#1f2937;
+            padding:15px;
+            border-radius:8px;
+          ">
+            ${code}
+          </div>
+
+          <p style="color:#9ca3af;font-size:13px;">
+            This code expires in 10 minutes.
+          </p>
+
+        </div>
+      </div>
+    `
+  });
+
+  if (error) throw error;
 }
 
 /* ── IN-MEMORY STATE ── */
