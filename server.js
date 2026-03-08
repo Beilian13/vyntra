@@ -72,12 +72,54 @@ const Message = mongoose.model('Message', msgSchema);
 
 /* ── EMAIL (Resend) ── */
 const resend = new Resend(RESEND_API_KEY);
-async function sendVerifyEmail(email, code) {
+async function sendVerifyEmail(email, code, username) {
+  const digits = code.split('').map(d =>
+    `<span style="display:inline-block;width:48px;height:56px;line-height:56px;text-align:center;background:#0b0d16;border:1px solid rgba(108,124,255,0.25);border-radius:10px;font-size:26px;font-weight:700;color:#eef2ff;margin:0 4px;font-family:monospace">${d}</span>`
+  ).join('');
+
   await resend.emails.send({
     from:    RESEND_FROM,
     to:      email,
-    subject: 'Your Vyntra verification code',
-    html:    `<p>Your login code is:</p><h1 style="letter-spacing:8px">${code}</h1><p>Expires in 10 minutes.</p>`,
+    subject: '🔐 Your Vyntra login code',
+    html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#0f1220;font-family:Inter,Segoe UI,Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1220;padding:40px 16px">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#1a1c35,#15172b);border-radius:20px 20px 0 0;padding:32px 36px;border-bottom:1px solid rgba(108,124,255,0.15)">
+          <div style="display:inline-block">
+            <span style="font-size:26px;font-weight:800;background:linear-gradient(90deg,#6c7cff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#6c7cff">Vyntra</span>
+          </div>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#13152a;padding:36px 36px 28px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04)">
+          <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#eef2ff">Your login code</p>
+          <p style="margin:0 0 28px;font-size:15px;color:#9aa0b4">Hi <strong style="color:#eef2ff">${username || 'there'}</strong>, use the code below to sign in. It expires in <strong style="color:#eef2ff">10 minutes</strong>.</p>
+
+          <!-- Code box -->
+          <div style="background:#0b0d16;border:1px solid rgba(108,124,255,0.2);border-radius:14px;padding:24px 16px;text-align:center;margin-bottom:28px;box-shadow:0 0 40px rgba(108,124,255,0.08)">
+            <div style="margin-bottom:16px">${digits}</div>
+            <p style="margin:0;font-size:13px;color:#9aa0b4">Enter this code on the Vyntra login page</p>
+          </div>
+
+          <p style="margin:0;font-size:13px;color:#9aa0b4;line-height:1.6">If you didn't try to log in, you can safely ignore this email. Someone may have typed your username by mistake.</p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#0d0f1a;border-radius:0 0 20px 20px;padding:20px 36px;border:1px solid rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.03)">
+          <p style="margin:0;font-size:12px;color:#4a5068;text-align:center">© ${new Date().getFullYear()} Vyntra · This is an automated message, please do not reply</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
   });
 }
 
@@ -143,7 +185,7 @@ app.post('/auth/login', async (req, res) => {
     user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await user.save();
     // Send email in background — don't block the response
-    sendVerifyEmail(user.email, code).catch(e => console.warn('Email send failed:', e.message));
+    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Email send failed:', e.message));
     res.json({ username: user.username });
   } catch (e) {
     console.error('Login error:', e);
@@ -184,7 +226,7 @@ app.post('/auth/resend', async (req, res) => {
     user.verifyCode = code;
     user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
-    sendVerifyEmail(user.email, code).catch(e => console.warn('Resend email failed:', e.message));
+    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Resend email failed:', e.message));
     res.json({ ok: true });
   } catch(e) {
     res.status(500).json({ error: 'Server error' });
