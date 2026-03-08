@@ -5,7 +5,7 @@
  *   MONGO_URI, JWT_SECRET, EMAIL_USER, EMAIL_PASS
  *   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
  *
- * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk thing
+ * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk
  */
 
 const express    = require('express');
@@ -14,22 +14,22 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
+const nodemailer = require('nodemailer');
 const path       = require('path');
-const { AccessToken } = require('livekit-server-sdk');
+const { AccessToken } = require('@livekit/server-sdk');
 
 const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 /* ── ENV ── */
 const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
 const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
-const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const EMAIL_USER        = process.env.EMAIL_USER        || '';
+const EMAIL_PASS        = process.env.EMAIL_PASS        || '';
 const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
 const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
 const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
@@ -59,25 +59,18 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-// build html by replacing placeholder
-function buildVerifyHtml(code){
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;padding:0;background:#0f1220;font-family:Inter,Segoe UI,system-ui,Arial,sans-serif;color:#eef2ff;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="min-height:100%;background:#0f1220;padding:32px 16px;"><tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;"><tr><td style="padding:28px 28px 18px;background:linear-gradient(90deg,#11121b,#15172b);border-radius:12px 12px 8px 8px;border:1px solid rgba(255,255,255,.04);text-align:center;"><div style="font-weight:700;font-size:20px;color:#eef2ff;letter-spacing:0.5px;">Vyntra</div><div style="color:#9aa0b4;font-size:13px;margin-top:6px;">Secure chat & calls</div></td></tr><tr><td style="background:#13152a;border:1px solid rgba(255,255,255,.04);padding:28px;border-radius:0 0 8px 8px;"><h1 style="font-size:18px;margin:0 0 8px;color:#eef2ff;font-weight:700;">Your verification code</h1><p style="margin:0 0 18px;color:#9aa0b4;font-size:14px;line-height:1.4;">Use the code below to finish signing in to Vyntra. It expires in 10 minutes.</p><div style="display:inline-block;padding:16px 22px;border-radius:10px;background:#1f2937;font-weight:700;font-size:28px;letter-spacing:6px;color:#eef2ff;border:3px solid #6c7cff;">${code}</div><p style="color:#9aa0b4;font-size:13px;margin:18px 0 0;">If you didn't request this, you can safely ignore this email.</p><hr style="border:0;border-top:1px solid rgba(255,255,255,.03);margin:20px 0;"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;"><div style="color:#9aa0b4;font-size:12px;">Need help? Visit <a href="https://vyntra.app" style="color:#6c7cff;text-decoration:none;">vyntra.app</a></div><div style="font-size:12px;color:#9aa0b4;">Vyntra • © ${(new Date()).getFullYear()}</div></div></td></tr></table></td></tr></table></body></html>`;
-}
-
+/* ── EMAIL ── */
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+});
 async function sendVerifyEmail(email, code) {
-  try {
-    await resend.emails.send({
-      from: "Vyntra <onboarding@resend.dev>",   // use onboarding@resend.dev for testing
-      to: email,
-      subject: "Verify your Vyntra account",
-      text: `Your Vyntra verification code: ${code}\nIt expires in 10 minutes.`,
-      html: buildVerifyHtml(code),
-    });
-    console.log("Verification email sent to", email);
-  } catch (err) {
-    console.error("EMAIL ERROR:", err);
-    throw err; // optional: let caller handle the failure
-  }
+  await transporter.sendMail({
+    from: EMAIL_USER,
+    to:   email,
+    subject: 'Vyntra — your verification code',
+    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`,
+  });
 }
 
 /* ── IN-MEMORY STATE ── */
@@ -118,11 +111,7 @@ app.post('/auth/login', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verifyCode = code;
     await user.save();
-    try {
-  await sendVerifyEmail(user.email, code);
-  } catch(e) {
-    console.error("EMAIL ERROR:", e);
-  }
+    try { await sendVerifyEmail(user.email, code); } catch(e) { console.warn('Email failed', e.message); }
     res.json({ username: user.username });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
@@ -309,6 +298,25 @@ wss.on('connection', ws => {
       sendTo(data.from, { type: 'friend_declined', by: username });
       return;
     }
+    /* ── CALL SIGNALING (Livekit room name exchanged here) ── */
+    if (data.type === 'call_request') {
+      sendTo(data.to, { type: 'call_incoming', from: username, lvRoom: data.lvRoom, chatRoom: data.chatRoom });
+      sendTo(username, { type: 'call_ringing', to: data.to });
+      return;
+    }
+    if (data.type === 'call_accept') {
+      sendTo(data.to, { type: 'call_accepted', from: username });
+      return;
+    }
+    if (data.type === 'call_decline') {
+      sendTo(data.to, { type: 'call_declined', from: username });
+      return;
+    }
+    if (data.type === 'call_cancel') {
+      sendTo(data.to, { type: 'call_ended', from: username });
+      return;
+    }
+
     if (data.type === 'unfriend') {
       await User.updateOne({ username }, { $pull: { friends: data.username } });
       await User.updateOne({ username: data.username }, { $pull: { friends: username } });
@@ -329,6 +337,4 @@ wss.on('connection', ws => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port", PORT);
-});
+server.listen(PORT, () => console.log(`Vyntra running on port ${PORT}`));
