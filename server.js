@@ -37,7 +37,15 @@ const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-i
 const PORT              = process.env.PORT              || 3000;
 
 /* ── MONGOOSE ── */
-mongoose.connect(MONGO_URI).catch(console.error);
+mongoose.connect(MONGO_URI).then(async () => {
+  // Drop stale unique index on msgId if it exists (leftover from old schema)
+  try {
+    await mongoose.connection.collection('messages').dropIndex('msgId_1');
+    console.log('Dropped stale msgId_1 index');
+  } catch(e) {
+    // Index didn't exist — that's fine
+  }
+}).catch(console.error);
 
 const userSchema = new mongoose.Schema({
   username:    { type: String, unique: true, required: true },
