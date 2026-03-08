@@ -747,7 +747,8 @@ function joinRoom(room){
   document.getElementById('roomTitle').textContent=isDM?'💬 '+room.replace('dm_','').replace(/_/g,' & '):room;
   document.getElementById('roomMeta').textContent='';
   document.querySelectorAll('.room-item').forEach(function(r){r.classList.toggle('active',r.dataset.room===room);});
-  var cb=document.getElementById('callBtn');cb.style.display='flex';
+  var cb=document.getElementById('callBtn');
+  cb.style.display=isDM?'flex':'none';
   updateCallBtn();
   wsSend({type:'join',room:room});
 }
@@ -817,9 +818,13 @@ function toast(msg){
    CHAT
 ══════════════════════════════════════════════ */
 function sendMessage(){
-  if(!connected||!currentRoom) return;
-  var inp=document.getElementById('msgInput'),txt=inp.value.trim();if(!txt) return;
-  wsSend({type:'message',text:txt});inp.value='';
+  var inp=document.getElementById('msgInput'),txt=inp.value.trim();
+  if(!txt) return;
+  if(!connected){toast('❌ Not connected — try Reconnect');return;}
+  if(!currentRoom){toast('❌ Join a room first');return;}
+  wsSend({type:'message',text:txt});
+  inp.value='';
+  inp.focus();
 }
 function populateUsers(list){
   var c=document.getElementById('usersList');c.innerHTML='';
@@ -1014,7 +1019,7 @@ function handleCallIncoming(d){
 }
 
 function acceptCall(){
-  ringtone.stop();dismissNotif();
+  ringtone.stop();ringback.stop();dismissNotif();
   document.getElementById('callToast').style.display='none';
   if(!incomingCallInfo) return;
   wsSend({type:'call_accept',to:incomingCallInfo.from});
@@ -1023,28 +1028,27 @@ function acceptCall(){
 }
 
 function declineCall(){
-  ringtone.stop();dismissNotif();
+  ringtone.stop();ringback.stop();dismissNotif();
   document.getElementById('callToast').style.display='none';
   if(incomingCallInfo){wsSend({type:'call_decline',to:incomingCallInfo.from});incomingCallInfo=null;}
 }
 
 function cancelCall(){
-  ringback.stop();
+  ringtone.stop();ringback.stop();dismissNotif();
   document.getElementById('callingOverlay').style.display='none';
   var peer=getDMPeer(currentRoom);
   if(peer) wsSend({type:'call_cancel',to:peer});
-  // If we already joined Livekit, leave it
   if(lk.room) lk.room.disconnect();
   cleanupCall();
 }
 
 function handleCallAccepted(d){
-  ringback.stop();
+  ringtone.stop();ringback.stop();
   document.getElementById('callingOverlay').style.display='none';
   toast('✅ '+d.from+' joined the call');
 }
 function handleCallDeclined(d){
-  ringback.stop();
+  ringtone.stop();ringback.stop();
   document.getElementById('callingOverlay').style.display='none';
   toast('📵 '+d.from+' declined');
 }
