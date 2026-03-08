@@ -17,7 +17,7 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.7",
-    "@livekit/server-sdk": "^2.0.0"
+    "livekit-server-sdk": "^2.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
