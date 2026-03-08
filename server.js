@@ -2,10 +2,11 @@
  * Vyntra — server.js
  * 
  * Requires env vars:
- *   MONGO_URI, JWT_SECRET, EMAIL_USER, EMAIL_PASS
+ *   MONGO_URI, JWT_SECRET
+ *   RESEND_API_KEY, RESEND_FROM (e.g. "Vyntra <no-reply@yourdomain.com>")
  *   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
  *
- * Install: npm install express ws mongoose bcryptjs jsonwebtoken nodemailer @livekit/server-sdk
+ * Install: npm install express ws mongoose bcryptjs jsonwebtoken resend livekit-server-sdk
  */
 
 const express    = require('express');
@@ -14,7 +15,7 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const { Resend }     = require('resend');
 const path       = require('path');
 const { AccessToken } = require('livekit-server-sdk');
 
@@ -29,8 +30,8 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 /* ── ENV ── */
 const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
 const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
-const EMAIL_USER        = process.env.EMAIL_USER        || '';
-const EMAIL_PASS        = process.env.EMAIL_PASS        || '';
+const RESEND_API_KEY    = process.env.RESEND_API_KEY    || '';
+const RESEND_FROM       = process.env.RESEND_FROM       || 'Vyntra <no-reply@yourdomain.com>';
 const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
 const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
 const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
@@ -69,17 +70,14 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── EMAIL ── */
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-});
+/* ── EMAIL (Resend) ── */
+const resend = new Resend(RESEND_API_KEY);
 async function sendVerifyEmail(email, code) {
-  await transporter.sendMail({
-    from: EMAIL_USER,
-    to:   email,
-    subject: 'Vyntra — your verification code',
-    text: `Your code is: ${code}\n\nIt expires in 10 minutes.`,
+  await resend.emails.send({
+    from:    RESEND_FROM,
+    to:      email,
+    subject: 'Your Vyntra verification code',
+    html:    `<p>Your login code is:</p><h1 style="letter-spacing:8px">${code}</h1><p>Expires in 10 minutes.</p>`,
   });
 }
 
@@ -159,8 +157,8 @@ app.post('/auth/verify', async (req, res) => {
     if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
     const user = await User.findOne({ username });
     if (!user) return res.status(401).json({ error: 'Invalid code' });
-    // Check expiry
-    if (user.verifyExpires && user.verifyExpires < new Date())
+    // Check expiry (only if field exists)
+    if (user.verifyExpires && new Date() > user.verifyExpires)
       return res.status(401).json({ error: 'Code expired — please log in again' });
     if (user.verifyCode !== code)
       return res.status(401).json({ error: 'Wrong code' });
