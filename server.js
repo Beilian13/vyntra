@@ -15,7 +15,7 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const { Resend }     = require('resend');
+const nodemailer   = require('nodemailer');
 const path       = require('path');
 const { AccessToken } = require('livekit-server-sdk');
 
@@ -30,8 +30,9 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 /* ── ENV ── */
 const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
 const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
-const RESEND_API_KEY    = process.env.RESEND_API_KEY    || '';
-const RESEND_FROM       = process.env.RESEND_FROM       || 'Vyntra <no-reply@yourdomain.com>';
+const BREVO_API_KEY     = process.env.BREVO_API_KEY     || '';
+const BREVO_FROM_EMAIL  = process.env.BREVO_FROM_EMAIL  || 'no-reply@yourdomain.com';
+const BREVO_FROM_NAME   = process.env.BREVO_FROM_NAME   || 'Vyntra';
 const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
 const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
 const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
@@ -70,16 +71,24 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── EMAIL (Resend) ── */
-const resend = new Resend(RESEND_API_KEY);
+/* ── EMAIL (Brevo SMTP) ── */
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: BREVO_FROM_EMAIL, // your Brevo account email
+    pass: BREVO_API_KEY,    // your Brevo SMTP API key
+  },
+});
 async function sendVerifyEmail(email, code, username) {
   const digits = code.split('').map(d =>
     `<span style="display:inline-block;width:48px;height:56px;line-height:56px;text-align:center;background:#0b0d16;border:1px solid rgba(108,124,255,0.25);border-radius:10px;font-size:26px;font-weight:700;color:#eef2ff;margin:0 4px;font-family:monospace">${d}</span>`
   ).join('');
 
-  await resend.emails.send({
-    from:    RESEND_FROM,
-    to:      email,
+  await transporter.sendMail({
+    from: `"${BREVO_FROM_NAME}" <${BREVO_FROM_EMAIL}>`,
+    to:   email,
     subject: '🔐 Your Vyntra login code',
     html: `<!DOCTYPE html>
 <html>
@@ -88,33 +97,21 @@ async function sendVerifyEmail(email, code, username) {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1220;padding:40px 16px">
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px">
-
-        <!-- Header -->
         <tr><td style="background:linear-gradient(135deg,#1a1c35,#15172b);border-radius:20px 20px 0 0;padding:32px 36px;border-bottom:1px solid rgba(108,124,255,0.15)">
-          <div style="display:inline-block">
-            <span style="font-size:26px;font-weight:800;background:linear-gradient(90deg,#6c7cff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#6c7cff">Vyntra</span>
-          </div>
+          <span style="font-size:26px;font-weight:800;color:#6c7cff">Vyntra</span>
         </td></tr>
-
-        <!-- Body -->
         <tr><td style="background:#13152a;padding:36px 36px 28px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04)">
           <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#eef2ff">Your login code</p>
           <p style="margin:0 0 28px;font-size:15px;color:#9aa0b4">Hi <strong style="color:#eef2ff">${username || 'there'}</strong>, use the code below to sign in. It expires in <strong style="color:#eef2ff">10 minutes</strong>.</p>
-
-          <!-- Code box -->
-          <div style="background:#0b0d16;border:1px solid rgba(108,124,255,0.2);border-radius:14px;padding:24px 16px;text-align:center;margin-bottom:28px;box-shadow:0 0 40px rgba(108,124,255,0.08)">
+          <div style="background:#0b0d16;border:1px solid rgba(108,124,255,0.2);border-radius:14px;padding:24px 16px;text-align:center;margin-bottom:28px">
             <div style="margin-bottom:16px">${digits}</div>
             <p style="margin:0;font-size:13px;color:#9aa0b4">Enter this code on the Vyntra login page</p>
           </div>
-
-          <p style="margin:0;font-size:13px;color:#9aa0b4;line-height:1.6">If you didn't try to log in, you can safely ignore this email. Someone may have typed your username by mistake.</p>
+          <p style="margin:0;font-size:13px;color:#9aa0b4;line-height:1.6">If you didn't try to log in, you can safely ignore this email.</p>
         </td></tr>
-
-        <!-- Footer -->
         <tr><td style="background:#0d0f1a;border-radius:0 0 20px 20px;padding:20px 36px;border:1px solid rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.03)">
-          <p style="margin:0;font-size:12px;color:#4a5068;text-align:center">© ${new Date().getFullYear()} Vyntra · This is an automated message, please do not reply</p>
+          <p style="margin:0;font-size:12px;color:#4a5068;text-align:center">© ${new Date().getFullYear()} Vyntra · Automated message, do not reply</p>
         </td></tr>
-
       </table>
     </td></tr>
   </table>
