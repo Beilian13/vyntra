@@ -242,7 +242,7 @@ wss.on('connection', ws => {
       const recent = await Message.find({ room }).sort({ createdAt: -1 }).limit(50).lean();
       recent.reverse().forEach(m => {
         const reactions = {};
-        if (m.reactions) m.reactions.forEach((v, k) => { reactions[k] = v; });
+        if (m.reactions) Object.entries(m.reactions).forEach(([k, v]) => { reactions[k] = v; });
         ws.send(JSON.stringify({ type: 'chat', room, user: m.user, text: m.text, id: m.id, reactions }));
       });
       return;
