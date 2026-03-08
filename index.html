@@ -263,6 +263,7 @@ main{display:flex;flex:1;overflow:hidden}
         <input class="digit" maxlength="1" inputmode="numeric"/>
       </div>
       <button class="auth-submit" id="verifyBtn" onclick="doVerify()">Verify</button>
+      <button class="auth-submit" id="resendBtn" onclick="doResend()" style="margin-top:8px;background:#1a1d30;border:1px solid rgba(255,255,255,.06)">Resend code</button>
       <button class="back-btn" onclick="cancelVerify()">← Back</button>
     </div>
     <div class="auth-error" id="authError"></div>
@@ -593,6 +594,25 @@ function cancelVerify(){
   document.getElementById('stepTabs').style.display='';
   document.querySelectorAll('.digit').forEach(function(d){d.value='';});
   setErr('');
+}
+async function doResend(){
+  if(!pendingUser) return;
+  var btn=document.getElementById('resendBtn');
+  btn.disabled=true;btn.textContent='Sending…';
+  try{
+    var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,password:'__resend__'})});
+    // We just need to trigger a new code — use a dedicated endpoint instead
+    var r2=await fetch('/auth/resend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser})});
+    var d=await r2.json();
+    if(r2.ok){setErr('✅ New code sent!');setTimeout(function(){setErr('');},3000);}
+    else setErr(d.error||'Failed to resend');
+  }catch(e){setErr('Network error');}
+  // Cooldown 30s
+  var secs=30;
+  var t=setInterval(function(){
+    btn.textContent='Resend ('+secs+'s)';
+    if(--secs<0){clearInterval(t);btn.disabled=false;btn.textContent='Resend code';}
+  },1000);
 }
 function saveSession(t,u){localStorage.setItem('vt',t);localStorage.setItem('vu',u);}
 function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');location.reload();}
