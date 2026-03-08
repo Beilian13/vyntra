@@ -53,6 +53,7 @@ const userSchema = new mongoose.Schema({
   password:    { type: String, required: true },
   friends:     [String],
   verifyCode:  String,
+  verifyExpires: Date,
   verified:    { type: Boolean, default: false },
   createdAt:   { type: Date, default: Date.now },
 });
@@ -133,17 +134,21 @@ app.post('/auth/register', async (req, res) => {
 app.post('/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'All fields required' });
     const user = await User.findOne({ username });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    // send 2FA code
+    // Generate code and save
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verifyCode = code;
+    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await user.save();
-    try { await sendVerifyEmail(user.email, code); } catch(e) { console.warn('Email failed', e.message); }
+    // Send email in background — don't block the response
+    sendVerifyEmail(user.email, code).catch(e => console.warn('Email send failed:', e.message));
     res.json({ username: user.username });
   } catch (e) {
+    console.error('Login error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -151,20 +156,44 @@ app.post('/auth/login', async (req, res) => {
 app.post('/auth/verify', async (req, res) => {
   try {
     const { username, code } = req.body;
+    if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
     const user = await User.findOne({ username });
-    if (!user || user.verifyCode !== code)
-      return res.status(401).json({ error: 'Invalid code' });
+    if (!user) return res.status(401).json({ error: 'Invalid code' });
+    // Check expiry
+    if (user.verifyExpires && user.verifyExpires < new Date())
+      return res.status(401).json({ error: 'Code expired — please log in again' });
+    if (user.verifyCode !== code)
+      return res.status(401).json({ error: 'Wrong code' });
     user.verifyCode = null;
-    user.verified   = true;
+    user.verifyExpires = null;
+    user.verified = true;
     await user.save();
     const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, username: user.username, friends: user.friends });
   } catch (e) {
+    console.error('Verify error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-/* ── LIVEKIT TOKEN ROUTE ── */
+app.post('/auth/resend', async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'Missing username' });
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verifyCode = code;
+    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+    sendVerifyEmail(user.email, code).catch(e => console.warn('Resend email failed:', e.message));
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 // Called by the frontend when joining a call/room.
 // Returns a short-lived Livekit token for that room.
 app.post('/livekit/token', async (req, res) => {
