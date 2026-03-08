@@ -88,7 +88,28 @@ const clients = {};
 // roomName → Set<username>
 const rooms = {};
 // pre-created rooms
-const DEFAULT_ROOMS = ['general','gaming','music','dev'];
+const DEFAULT_ROOMS = [
+  // General
+  'general', 'off-topic', 'introductions', 'announcements',
+  // Fun & Social
+  'fun', 'memes', 'random', 'daily-chat', 'hot-takes', 'rants',
+  // Media
+  'tv-shows', 'movies', 'anime', 'books', 'podcasts', 'documentaries',
+  // Music
+  'music', 'music-recommendations', 'rap', 'lofi', 'rock', 'edm',
+  // Gaming
+  'gaming', 'minecraft', 'valorant', 'fortnite', 'roblox', 'retro-gaming',
+  // Tech
+  'dev', 'web-dev', 'ai-ml', 'cybersecurity', 'linux', 'gadgets',
+  // Creative
+  'art', 'photography', 'writing', 'design', 'video-editing',
+  // Lifestyle
+  'food', 'fitness', 'travel', 'fashion', 'pets',
+  // Serious
+  'news', 'science', 'history', 'philosophy', 'finance',
+  // Support
+  'mental-health', 'study-together', 'job-hunting',
+];
 DEFAULT_ROOMS.forEach(r => { rooms[r] = new Set(); });
 
 /* ── AUTH ROUTES ── */
