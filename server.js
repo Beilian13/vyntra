@@ -3,10 +3,9 @@
  * 
  * Requires env vars:
  *   MONGO_URI, JWT_SECRET
- *   RESEND_API_KEY, RESEND_FROM (e.g. "Vyntra <no-reply@yourdomain.com>")
  *   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
  *
- * Install: npm install express ws mongoose bcryptjs jsonwebtoken resend livekit-server-sdk
+ * Install: npm install express ws mongoose bcryptjs jsonwebtoken livekit-server-sdk
  */
 
 const express    = require('express');
@@ -15,7 +14,6 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const nodemailer  = require('nodemailer');
 const path       = require('path');
 const { AccessToken } = require('livekit-server-sdk');
 
@@ -30,10 +28,6 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
 const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
-const GMAIL_USER          = process.env.GMAIL_USER          || '';
-const GMAIL_CLIENT_ID     = process.env.GMAIL_CLIENT_ID     || '';
-const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || '';
-const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN || '';
 const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
@@ -51,14 +45,14 @@ mongoose.connect(MONGO_URI).then(async () => {
 }).catch(console.error);
 
 const userSchema = new mongoose.Schema({
-  username:    { type: String, unique: true, required: true },
-  email:       { type: String, unique: true, required: true },
-  password:    { type: String, required: true },
-  friends:     [String],
-  verifyCode:  String,
-  verifyExpires: Date,
-  verified:    { type: Boolean, default: false },
-  createdAt:   { type: Date, default: Date.now },
+  username:       { type: String, unique: true, required: true },
+  email:          { type: String, unique: true, sparse: true },
+  password:       { type: String, required: true },
+  friends:        [String],
+  secretQuestion: { type: String, required: false },
+  secretAnswer:   { type: String, required: false },
+  verified:       { type: Boolean, default: true },
+  createdAt:      { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', userSchema);
 
@@ -71,56 +65,6 @@ const msgSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 const Message = mongoose.model('Message', msgSchema);
-
-/* ── EMAIL (Gmail OAuth2) ── */
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    type:         'OAuth2',
-    user:         GMAIL_USER,
-    clientId:     GMAIL_CLIENT_ID,
-    clientSecret: GMAIL_CLIENT_SECRET,
-    refreshToken: GMAIL_REFRESH_TOKEN,
-  },
-});
-async function sendVerifyEmail(email, code, username) {
-  const digits = code.split('').map(d =>
-    `<span style="display:inline-block;width:48px;height:56px;line-height:56px;text-align:center;background:#0b0d16;border:1px solid rgba(108,124,255,0.25);border-radius:10px;font-size:26px;font-weight:700;color:#eef2ff;margin:0 4px;font-family:monospace">${d}</span>`
-  ).join('');
-  await transporter.sendMail({
-    from:    `"Vyntra" <${GMAIL_USER}>`,
-    to:      email,
-    subject: '🔐 Your Vyntra login code',
-    html: `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#0f1220;font-family:Inter,Segoe UI,Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1220;padding:40px 16px">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px">
-        <tr><td style="background:linear-gradient(135deg,#1a1c35,#15172b);border-radius:20px 20px 0 0;padding:32px 36px;border-bottom:1px solid rgba(108,124,255,0.15)">
-          <span style="font-size:26px;font-weight:800;color:#6c7cff">Vyntra</span>
-        </td></tr>
-        <tr><td style="background:#13152a;padding:36px 36px 28px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04)">
-          <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#eef2ff">Your login code</p>
-          <p style="margin:0 0 28px;font-size:15px;color:#9aa0b4">Hi <strong style="color:#eef2ff">${username || 'there'}</strong>, use the code below to sign in. It expires in <strong style="color:#eef2ff">10 minutes</strong>.</p>
-          <div style="background:#0b0d16;border:1px solid rgba(108,124,255,0.2);border-radius:14px;padding:24px 16px;text-align:center;margin-bottom:28px">
-            <div style="margin-bottom:16px">${digits}</div>
-            <p style="margin:0;font-size:13px;color:#9aa0b4">Enter this code on the Vyntra login page</p>
-          </div>
-          <p style="margin:0;font-size:13px;color:#9aa0b4;line-height:1.6">If you didn't try to log in, you can safely ignore this email.</p>
-        </td></tr>
-        <tr><td style="background:#0d0f1a;border-radius:0 0 20px 20px;padding:20px 36px;border:1px solid rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.03)">
-          <p style="margin:0;font-size:12px;color:#4a5068;text-align:center">© ${new Date().getFullYear()} Vyntra · Automated message, do not reply</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`,
-  });
-}
-
 
 
 
@@ -157,15 +101,25 @@ DEFAULT_ROOMS.forEach(r => { rooms[r] = new Set(); });
 /* ── AUTH ROUTES ── */
 app.post('/auth/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password)
+    const { username, email, password, secretQuestion, secretAnswer } = req.body;
+    if (!username || !password || !secretQuestion || !secretAnswer)
       return res.status(400).json({ error: 'All fields required' });
-    const existing = await User.findOne({ $or: [{ username }, { email }] });
-    if (existing) return res.status(400).json({ error: 'Username or email already taken' });
-    const hash = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hash, verified: true });
+    const existing = await User.findOne({ username });
+    if (existing) return res.status(400).json({ error: 'Username already taken' });
+    if (email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) return res.status(400).json({ error: 'Email already taken' });
+    }
+    const hash       = await bcrypt.hash(password, 10);
+    const answerHash = await bcrypt.hash(secretAnswer.trim().toLowerCase(), 10);
+    const user = await User.create({
+      username, email: email || undefined,
+      password: hash,
+      secretQuestion,
+      secretAnswer: answerHash,
+    });
     const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username });
+    res.json({ token, username: user.username, friends: [] });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error' });
@@ -180,12 +134,7 @@ app.post('/auth/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verifyCode = code;
-    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Email failed:', e.message));
-    res.json({ username: user.username });
+    res.json({ username: user.username, secretQuestion: user.secretQuestion || null });
   } catch (e) {
     console.error('Login error:', e);
     res.status(500).json({ error: 'Server error' });
@@ -194,39 +143,21 @@ app.post('/auth/login', async (req, res) => {
 
 app.post('/auth/verify', async (req, res) => {
   try {
-    const { username, code } = req.body;
-    if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
+    const { username, secretAnswer } = req.body;
+    if (!username || !secretAnswer) return res.status(400).json({ error: 'Missing fields' });
     const user = await User.findOne({ username });
-    if (!user) return res.status(401).json({ error: 'Invalid code' });
-    if (user.verifyExpires && new Date() > user.verifyExpires)
-      return res.status(401).json({ error: 'Code expired — please log in again' });
-    if (user.verifyCode !== code)
-      return res.status(401).json({ error: 'Wrong code' });
-    user.verifyCode = null;
-    user.verifyExpires = null;
-    user.verified = true;
-    await user.save();
+    if (!user) return res.status(401).json({ error: 'Wrong answer' });
+    // Legacy users without secret question — just let them in
+    if (!user.secretAnswer) {
+      const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+      return res.json({ token, username: user.username, friends: user.friends });
+    }
+    const ok = await bcrypt.compare(secretAnswer.trim().toLowerCase(), user.secretAnswer);
+    if (!ok) return res.status(401).json({ error: 'Wrong answer' });
     const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, username: user.username, friends: user.friends });
   } catch (e) {
     console.error('Verify error:', e);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/auth/resend', async (req, res) => {
-  try {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: 'Missing username' });
-    const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verifyCode = code;
-    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
-    await user.save();
-    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Resend failed:', e.message));
-    res.json({ ok: true });
-  } catch(e) {
     res.status(500).json({ error: 'Server error' });
   }
 });
