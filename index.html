@@ -247,23 +247,31 @@ main{display:flex;flex:1;overflow:hidden}
       </div>
       <div id="formReg" style="display:none">
         <div class="auth-field"><label>Username</label><input id="regUser" type="text" autocomplete="username"/></div>
-        <div class="auth-field"><label>Email</label><input id="regEmail" type="email" autocomplete="email"/></div>
+        <div class="auth-field"><label>Email (optional)</label><input id="regEmail" type="email" autocomplete="email"/></div>
         <div class="auth-field"><label>Password</label><input id="regPass" type="password" autocomplete="new-password"/></div>
+        <div class="auth-field">
+          <label>Secret Question</label>
+          <select id="regQuestion" style="padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none">
+            <option value="">— Pick a question —</option>
+            <option>What was the name of your first pet?</option>
+            <option>What city were you born in?</option>
+            <option>What is your mother's maiden name?</option>
+            <option>What was the name of your first school?</option>
+            <option>What was your childhood nickname?</option>
+            <option>What is the name of your favorite childhood friend?</option>
+            <option>What street did you grow up on?</option>
+            <option>What was the make of your first car?</option>
+          </select>
+        </div>
+        <div class="auth-field"><label>Secret Answer</label><input id="regAnswer" type="text" autocomplete="off" placeholder="Your answer (case insensitive)"/></div>
         <button class="auth-submit" id="registerBtn" onclick="doRegister()">Create account</button>
       </div>
     </div>
     <div id="step2FA" style="display:none">
-      <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Enter the 6-digit code sent to your email:</p>
-      <div class="code-inputs">
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-        <input class="digit" maxlength="1" inputmode="numeric"/>
-      </div>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:8px">Security question:</p>
+      <p style="color:var(--white);font-size:15px;font-weight:600;margin-bottom:20px" id="secretQuestionText"></p>
+      <div class="auth-field"><label>Your answer</label><input id="secretAnswerInput" type="text" autocomplete="off" placeholder="Case insensitive"/></div>
       <button class="auth-submit" id="verifyBtn" onclick="doVerify()">Verify</button>
-      <button class="auth-submit" id="resendBtn" onclick="doResend()" style="margin-top:8px;background:#1a1d30;border:1px solid rgba(255,255,255,.06)">Resend code</button>
       <button class="back-btn" onclick="cancelVerify()">← Back</button>
     </div>
     <div class="auth-error" id="authError"></div>
@@ -558,32 +566,43 @@ async function doLogin(){
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Login failed');
     pendingUser=d.username;
+    // If no secret question set (legacy user) skip straight to app
+    if(!d.secretQuestion){
+      var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
+      var d2=await r2.json();
+      if(r2.ok){saveSession(d2.token,d2.username);launchApp(d2.token,d2.username,d2.friends);return;}
+    }
+    document.getElementById('secretQuestionText').textContent=d.secretQuestion;
     document.getElementById('stepTabs').style.display='none';
     document.getElementById('step2FA').style.display='';
-    setTimeout(function(){document.querySelector('.digit').focus();},80);
+    setTimeout(function(){document.getElementById('secretAnswerInput').focus();},80);
   }catch(e){setErr('Network error');}
   finally{setBusy('loginBtn',false,'Login');}
 }
 async function doRegister(){
-  var u=document.getElementById('regUser').value.trim(),e=document.getElementById('regEmail').value.trim(),p=document.getElementById('regPass').value;
-  if(!u||!e||!p) return setErr('Fill in all fields');
+  var u=document.getElementById('regUser').value.trim(),
+      e=document.getElementById('regEmail').value.trim(),
+      p=document.getElementById('regPass').value,
+      q=document.getElementById('regQuestion').value,
+      a=document.getElementById('regAnswer').value.trim();
+  if(!u||!p||!q||!a) return setErr('Fill in all required fields');
   setBusy('registerBtn',true,'Create account');
   try{
-    var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p})});
+    var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e||undefined,password:p,secretQuestion:q,secretAnswer:a})});
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Registration failed');
-    saveSession(d.token,d.username);launchApp(d.token,d.username);
+    saveSession(d.token,d.username);launchApp(d.token,d.username,d.friends);
   }catch(e){setErr('Network error');}
   finally{setBusy('registerBtn',false,'Create account');}
 }
 async function doVerify(){
-  var code=Array.from(document.querySelectorAll('.digit')).map(function(i){return i.value;}).join('');
-  if(code.length<6) return setErr('Enter all 6 digits');
+  var ans=document.getElementById('secretAnswerInput').value.trim();
+  if(!ans) return setErr('Enter your answer');
   setBusy('verifyBtn',true,'Verify');
   try{
-    var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,code:code})});
+    var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
     var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Wrong code');
+    if(!r.ok) return setErr(d.error||'Wrong answer');
     saveSession(d.token,d.username);launchApp(d.token,d.username,d.friends);
   }catch(e){setErr('Network error');}
   finally{setBusy('verifyBtn',false,'Verify');}
@@ -592,46 +611,14 @@ function cancelVerify(){
   pendingUser=null;
   document.getElementById('step2FA').style.display='none';
   document.getElementById('stepTabs').style.display='';
-  document.querySelectorAll('.digit').forEach(function(d){d.value='';});
+  document.getElementById('secretAnswerInput').value='';
   setErr('');
-}
-async function doResend(){
-  if(!pendingUser) return;
-  var btn=document.getElementById('resendBtn');
-  btn.disabled=true;btn.textContent='Sending…';
-  try{
-    var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,password:'__resend__'})});
-    // We just need to trigger a new code — use a dedicated endpoint instead
-    var r2=await fetch('/auth/resend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser})});
-    var d=await r2.json();
-    if(r2.ok){setErr('✅ New code sent!');setTimeout(function(){setErr('');},3000);}
-    else setErr(d.error||'Failed to resend');
-  }catch(e){setErr('Network error');}
-  // Cooldown 30s
-  var secs=30;
-  var t=setInterval(function(){
-    btn.textContent='Resend ('+secs+'s)';
-    if(--secs<0){clearInterval(t);btn.disabled=false;btn.textContent='Resend code';}
-  },1000);
 }
 function saveSession(t,u){localStorage.setItem('vt',t);localStorage.setItem('vu',u);}
 function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');location.reload();}
 
 document.addEventListener('DOMContentLoaded',function(){
-  var digits=document.querySelectorAll('.digit');
-  digits.forEach(function(inp,i){
-    inp.addEventListener('input',function(){
-      inp.value=inp.value.replace(/\D/g,'').slice(-1);
-      if(inp.value&&i<digits.length-1) digits[i+1].focus();
-      if(i===digits.length-1&&inp.value) doVerify();
-    });
-    inp.addEventListener('keydown',function(e){if(e.key==='Backspace'&&!inp.value&&i>0) digits[i-1].focus();});
-    inp.addEventListener('paste',function(e){
-      var p=(e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
-      if(p.length===6){digits.forEach(function(d,j){d.value=p[j]||'';});digits[5].focus();setTimeout(doVerify,100);}
-      e.preventDefault();
-    });
-  });
+  document.getElementById('secretAnswerInput').addEventListener('keypress',function(e){if(e.key==='Enter')doVerify();});
   var t=localStorage.getItem('vt'),u=localStorage.getItem('vu');
   if(t&&u) launchApp(t,u);
 });
