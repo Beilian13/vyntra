@@ -15,7 +15,7 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const nodemailer   = require('nodemailer');
+const { Resend } = require('resend');
 const path       = require('path');
 const { AccessToken } = require('livekit-server-sdk');
 
@@ -28,15 +28,14 @@ app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 /* ── ENV ── */
-const MONGO_URI         = process.env.MONGO_URI         || 'mongodb://localhost/vyntra';
-const JWT_SECRET        = process.env.JWT_SECRET        || 'changeme';
-const BREVO_API_KEY     = process.env.BREVO_API_KEY     || '';
-const BREVO_FROM_EMAIL  = process.env.BREVO_FROM_EMAIL  || 'no-reply@yourdomain.com';
-const BREVO_FROM_NAME   = process.env.BREVO_FROM_NAME   || 'Vyntra';
-const LIVEKIT_API_KEY   = process.env.LIVEKIT_API_KEY   || '';
-const LIVEKIT_API_SECRET= process.env.LIVEKIT_API_SECRET|| '';
-const LIVEKIT_URL       = process.env.LIVEKIT_URL       || 'wss://your-livekit-instance.livekit.cloud';
-const PORT              = process.env.PORT              || 3000;
+const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
+const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
+const RESEND_API_KEY     = process.env.RESEND_API_KEY     || '';
+const RESEND_FROM        = process.env.RESEND_FROM        || 'Vyntra <onboarding@resend.dev>';
+const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
+const PORT               = process.env.PORT               || 3000;
 
 /* ── MONGOOSE ── */
 mongoose.connect(MONGO_URI).then(async () => {
@@ -71,24 +70,15 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── EMAIL (Brevo SMTP) ── */
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: BREVO_FROM_EMAIL, // your Brevo account email
-    pass: BREVO_API_KEY,    // your Brevo SMTP API key
-  },
-});
+/* ── EMAIL (Resend) ── */
+const resend = new Resend(RESEND_API_KEY);
 async function sendVerifyEmail(email, code, username) {
   const digits = code.split('').map(d =>
     `<span style="display:inline-block;width:48px;height:56px;line-height:56px;text-align:center;background:#0b0d16;border:1px solid rgba(108,124,255,0.25);border-radius:10px;font-size:26px;font-weight:700;color:#eef2ff;margin:0 4px;font-family:monospace">${d}</span>`
   ).join('');
-
-  await transporter.sendMail({
-    from: `"${BREVO_FROM_NAME}" <${BREVO_FROM_EMAIL}>`,
-    to:   email,
+  await resend.emails.send({
+    from:    RESEND_FROM,
+    to:      email,
     subject: '🔐 Your Vyntra login code',
     html: `<!DOCTYPE html>
 <html>
@@ -119,6 +109,9 @@ async function sendVerifyEmail(email, code, username) {
 </html>`,
   });
 }
+
+
+
 
 /* ── IN-MEMORY STATE ── */
 // username → WebSocket
@@ -176,13 +169,11 @@ app.post('/auth/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    // Generate code and save
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     user.verifyCode = code;
-    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
-    // Send email in background — don't block the response
-    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Email send failed:', e.message));
+    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Email failed:', e.message));
     res.json({ username: user.username });
   } catch (e) {
     console.error('Login error:', e);
@@ -196,7 +187,6 @@ app.post('/auth/verify', async (req, res) => {
     if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
     const user = await User.findOne({ username });
     if (!user) return res.status(401).json({ error: 'Invalid code' });
-    // Check expiry (only if field exists)
     if (user.verifyExpires && new Date() > user.verifyExpires)
       return res.status(401).json({ error: 'Code expired — please log in again' });
     if (user.verifyCode !== code)
@@ -223,12 +213,15 @@ app.post('/auth/resend', async (req, res) => {
     user.verifyCode = code;
     user.verifyExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
-    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Resend email failed:', e.message));
+    sendVerifyEmail(user.email, code, user.username).catch(e => console.warn('Resend failed:', e.message));
     res.json({ ok: true });
   } catch(e) {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+
+
 
 
 // Called by the frontend when joining a call/room.
