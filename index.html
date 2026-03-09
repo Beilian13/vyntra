@@ -4,6 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Vyntra</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Vyntra"/>
+<meta name="theme-color" content="#0f1220"/>
 <!-- Livekit client SDK -->
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
@@ -1579,6 +1586,95 @@ function cleanupCall(){
   incomingCallInfo=null;
   updateCallBtn();
 }
+
+/* ══════════════════════════════════════════════
+   BACKGROUND AUDIO PERSISTENCE
+══════════════════════════════════════════════ */
+
+/* 1. Service Worker — keeps app shell cached and SW alive via heartbeat */
+var _swReg = null;
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg){
+    _swReg = reg;
+    console.log('SW registered');
+  }).catch(function(e){ console.warn('SW failed:', e); });
+}
+
+/* Heartbeat: ping SW every 20s during active call so it doesn't get killed */
+var _swHeartbeat = null;
+function startSWHeartbeat(){
+  stopSWHeartbeat();
+  _swHeartbeat = setInterval(function(){
+    if(!lk.active) return stopSWHeartbeat();
+    if(navigator.serviceWorker.controller){
+      var ch = new MessageChannel();
+      navigator.serviceWorker.controller.postMessage({type:'CALL_ACTIVE'}, [ch.port2]);
+    }
+  }, 20000);
+}
+function stopSWHeartbeat(){
+  if(_swHeartbeat){clearInterval(_swHeartbeat);_swHeartbeat=null;}
+}
+
+/* 2. Wake Lock — prevents screen/CPU sleep during call */
+var _wakeLock = null;
+async function acquireWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  try{
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', function(){
+      // Re-acquire if call still active (browser releases on tab switch)
+      if(lk.active) setTimeout(acquireWakeLock, 500);
+    });
+  } catch(e){ console.warn('Wake lock failed:', e); }
+}
+function releaseWakeLock(){
+  if(_wakeLock){ _wakeLock.release(); _wakeLock=null; }
+}
+
+/* 3. Visibility change — resume AudioContext and re-acquire wake lock
+      when user comes back to the tab after switching */
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    // Resume AudioContext if it was suspended by the browser
+    if(lk.audioCtx && lk.audioCtx.state === 'suspended'){
+      lk.audioCtx.resume().then(function(){
+        console.log('AudioContext resumed after tab switch');
+      });
+    }
+    // Re-acquire wake lock — browser drops it when tab is backgrounded
+    if(lk.active) acquireWakeLock();
+  } else {
+    // Tab going background during call — keep a silent audio trick
+    // to hint to the browser this tab has active audio
+    if(lk.active && !document.getElementById('_bgAudio')){
+      var a = document.createElement('audio');
+      a.id = '_bgAudio';
+      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='; // 0-byte silent wav
+      a.loop = true;
+      a.volume = 0.001;
+      document.body.appendChild(a);
+      a.play().catch(function(){});
+    }
+  }
+});
+
+/* Hook into call start/end to manage wake lock + heartbeat */
+var _origShowCallWindow = showCallWindow;
+showCallWindow = function(roomLabel){
+  _origShowCallWindow(roomLabel);
+  acquireWakeLock();
+  startSWHeartbeat();
+};
+var _origCleanupCall = cleanupCall;
+cleanupCall = function(){
+  _origCleanupCall();
+  releaseWakeLock();
+  stopSWHeartbeat();
+  var bg = document.getElementById('_bgAudio');
+  if(bg){ bg.pause(); bg.remove(); }
+};
+
 </script>
 </body>
 </html>
