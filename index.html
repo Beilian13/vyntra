@@ -178,10 +178,21 @@ main{display:flex;flex:1;overflow:hidden}
 .call-timer{font-size:13px;color:var(--green);font-variant-numeric:tabular-nums}
 .call-participants{font-size:12px;color:var(--muted)}
 /* VAD meter strip */
-#vadStrip{display:flex;align-items:center;gap:8px;padding:0 16px 0;font-size:12px;color:var(--muted)}
-.vad-bar-wrap{flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+#vadStrip{display:flex;align-items:center;gap:8px;padding:4px 16px;font-size:12px;color:var(--muted);background:rgba(0,0,0,.15);border-top:1px solid rgba(255,255,255,.03)}
+.vad-bar-wrap{flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
 .vad-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:2px;transition:width .04s}
-#vadSlider{width:80px;accent-color:var(--accent);cursor:pointer}
+.vad-label{font-size:11px;white-space:nowrap}
+#vadSlider{width:70px;accent-color:var(--accent);cursor:pointer}
+/* Participant volumes panel */
+#participantsPanel{display:none;padding:8px 16px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.03);max-height:160px;overflow-y:auto}
+.pp-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.pp-row:last-child{border-bottom:none}
+.pp-avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.pp-name{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-vol{width:80px;accent-color:var(--accent);cursor:pointer}
+.pp-mute{background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:3px 8px;font-size:12px;color:var(--muted);cursor:pointer}
+.pp-mute:hover{background:rgba(255,80,80,.15);color:var(--red);border-color:rgba(255,80,80,.3)}
+.pp-mute.muted{background:rgba(255,80,80,.15);color:var(--red);border-color:rgba(255,80,80,.3)}
 
 /* ── MIC MODAL ── */
 #micModal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center}
@@ -401,11 +412,13 @@ main{display:flex;flex:1;overflow:hidden}
     <div class="call-timer" id="callTimer">0:00</div>
   </div>
   <div id="vadStrip">
-    <span>🎚️</span>
-    <div class="vad-bar-wrap"><div class="vad-bar" id="vadBar"></div></div>
-    <input type="range" id="vadSlider" min="0" max="100" value="15"/>
+    <span class="vad-label">🎙️ Sensitivity</span>
+    <input type="range" id="vadSlider" min="1" max="100" value="15"/>
     <span id="vadVal">15</span>
+    <div class="vad-bar-wrap" style="margin-left:8px"><div class="vad-bar" id="vadBar"></div></div>
+    <span id="vadStatus" style="font-size:11px;width:36px;text-align:right">🔇</span>
   </div>
+  <div id="participantsPanel"></div>
   <div id="videoGrid"></div>
   <div id="callControls">
     <button class="ctrl-btn" id="ctrlMic">
@@ -416,6 +429,9 @@ main{display:flex;flex:1;overflow:hidden}
     </button>
     <button class="ctrl-btn" id="ctrlScreen">
       <span class="ctrl-icon">🖥️</span><span>Share</span>
+    </button>
+    <button class="ctrl-btn" id="ctrlPeople" onclick="toggleParticipantsPanel()">
+      <span class="ctrl-icon">👥</span><span>People</span>
     </button>
     <button class="ctrl-btn danger" id="ctrlHangup">
       <span class="ctrl-icon">📵</span><span>Leave</span>
@@ -461,9 +477,9 @@ var isMobile=isIOS||isAndroid||/Mobile/i.test(navigator.userAgent);
 
 /* ══ LIVEKIT CALL STATE ══ */
 var lk={
-  room: null,          // LivekitClient.Room instance
+  room: null,
   active: false,
-  lvRoomName: null,    // Livekit room name (string)
+  lvRoomName: null,
   micEnabled: false,
   camEnabled: false,
   screenEnabled: false,
@@ -472,9 +488,11 @@ var lk={
   // VAD
   audioCtx: null, analyser: null, gainNode: null, vadInterval: null,
   vadThreshold: parseInt(localStorage.getItem('vyntra_vad')||'15'),
+  // Per-participant volume (0-2) and local mute
+  participantVolumes: {},   // identity → 0.0–2.0
+  participantMuted: {},     // identity → bool (local mute only, others can't see)
   // Timer
   timerInterval: null, timerSeconds: 0,
-  // Pending mic callback for modal
   _micCb: null,
 };
 var incomingCallInfo = null; // {from, lvRoom}
@@ -1121,13 +1139,15 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     toast('👋 '+p.identity+' joined the call');
     renderVideoGrid();
     updateParticipantCount();
+    refreshParticipantsPanel();
   });
   room.on(LivekitClient.RoomEvent.ParticipantDisconnected,function(p){
     toast('👋 '+p.identity+' left the call');
     renderVideoGrid();
     updateParticipantCount();
-    // Remove their tile
+    refreshParticipantsPanel();
     var tile=document.getElementById('tile-'+p.sid);if(tile) tile.remove();
+    var audio=document.getElementById('audio-'+p.sid);if(audio) audio.remove();
   });
   room.on(LivekitClient.RoomEvent.TrackSubscribed,function(track,pub,participant){
     renderVideoGrid();
@@ -1219,10 +1239,16 @@ function ensureLocalTile(grid){
 
 function attachTrack(track,pub,participant){
   if(track.kind===LivekitClient.Track.Kind.Audio){
-    // Just attach audio — no tile needed (Livekit handles it)
     var el=track.attach();
     el.style.display='none';
+    el.dataset.identity=participant.identity;
+    // Apply saved volume/mute
+    var vol=lk.participantVolumes[participant.identity];
+    el.volume=(vol!=null)?vol:1;
+    el.muted=!!lk.participantMuted[participant.identity];
+    el.id='audio-'+participant.sid;
     document.body.appendChild(el);
+    refreshParticipantsPanel();
     return;
   }
   if(track.kind!==LivekitClient.Track.Kind.Video) return;
@@ -1392,19 +1418,26 @@ function setupVAD(rawStream){
   lk.vadInterval=setInterval(function(){
     if(!lk.active) return;
     analyser.getByteTimeDomainData(buf);
-    var sum=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
+    var sum=0;
+    for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
     var rms=Math.sqrt(sum/buf.length);
 
-    // Threshold mapped from slider — voice in the filtered band needs
-    // to be noticeably above background to open the gate
-    var thresh=(lk.vadThreshold/100)*0.20;
+    // Slider 1–100. Low value = very sensitive (opens easily).
+    // High value = needs loud voice to open gate.
+    // Map slider to threshold: slider 1 → 0.002, slider 100 → 0.15
+    var thresh=0.002+((lk.vadThreshold-1)/99)*0.148;
+
     var now=Date.now();
     if(rms>thresh) lastVoice=now;
     var open=(now-lastVoice)<HOLD_MS;
     if(lk.micEnabled) gain.gain.setTargetAtTime(open?1:0,ctx.currentTime,0.025);
 
-    // Update meter bar
-    document.getElementById('vadBar').style.width=Math.min(100,(rms/0.20)*100)+'%';
+    // Meter: scale so mid-voice fills ~70% of bar
+    var pct=Math.min(100,(rms/0.08)*100);
+    document.getElementById('vadBar').style.width=pct+'%';
+    // Status icon shows whether gate is open
+    var stEl=document.getElementById('vadStatus');
+    if(stEl) stEl.textContent=open?'🟢':'🔇';
   },30);
 }
 
@@ -1412,6 +1445,78 @@ function stopVAD(){
   if(lk.vadInterval){clearInterval(lk.vadInterval);lk.vadInterval=null;}
   if(lk.audioCtx){try{lk.audioCtx.close();}catch(e){}lk.audioCtx=null;}
   lk.analyser=null;lk.gainNode=null;
+}
+
+/* ══════════════════════════════════════════════
+   PARTICIPANTS PANEL (volume + mute per person)
+══════════════════════════════════════════════ */
+function toggleParticipantsPanel(){
+  var p=document.getElementById('participantsPanel');
+  var showing=p.style.display==='block';
+  p.style.display=showing?'none':'block';
+  document.getElementById('ctrlPeople').classList.toggle('active',!showing);
+  if(!showing) refreshParticipantsPanel();
+}
+
+function refreshParticipantsPanel(){
+  var p=document.getElementById('participantsPanel');
+  if(p.style.display!=='block') return;
+  if(!lk.room){p.innerHTML='<div style="color:var(--muted);font-size:13px;padding:4px 0">No one else in the call</div>';return;}
+
+  var html='';
+  // Self row (mic volume only — affects what YOU send)
+  html+='<div class="pp-row">';
+  html+='<div class="pp-avatar">'+myName[0].toUpperCase()+'</div>';
+  html+='<div class="pp-name">'+myName+' <span style="color:var(--muted);font-size:11px">(you)</span></div>';
+  html+='<input class="pp-vol" type="range" min="0" max="200" value="'+(lk.participantVolumes['__self__']!=null?Math.round(lk.participantVolumes['__self__']*100):100)+'" oninput="setSelfVolume(this.value)">';
+  html+='<button class="pp-mute'+(lk.micEnabled?'':' muted')+'" onclick="toggleMyMic()">'+( lk.micEnabled?'🎙️':'🔇')+'</button>';
+  html+='</div>';
+
+  // Remote participants
+  lk.room.remoteParticipants.forEach(function(participant){
+    var id=participant.identity;
+    var vol=lk.participantVolumes[id]!=null?Math.round(lk.participantVolumes[id]*100):100;
+    var muted=!!lk.participantMuted[id];
+    html+='<div class="pp-row">';
+    html+='<div class="pp-avatar">'+id[0].toUpperCase()+'</div>';
+    html+='<div class="pp-name">'+id+'</div>';
+    html+='<input class="pp-vol" type="range" min="0" max="200" value="'+vol+'" oninput="setParticipantVolume(\''+id+'\',this.value)">';
+    html+='<button class="pp-mute'+(muted?' muted':'')+'" onclick="toggleParticipantMute(\''+id+'\')">'+( muted?'🔇':'🔊')+'</button>';
+    html+='</div>';
+  });
+
+  if(!lk.room.remoteParticipants.size) html+='<div style="color:var(--muted);font-size:12px;padding:4px 0 0">No one else in the call yet</div>';
+  p.innerHTML=html;
+}
+
+function setParticipantVolume(identity,val){
+  var v=parseInt(val)/100;
+  lk.participantVolumes[identity]=v;
+  // Apply to all audio elements for this participant
+  document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){el.volume=Math.min(v,1);});
+}
+
+function setSelfVolume(val){
+  var v=parseInt(val)/100;
+  lk.participantVolumes['__self__']=v;
+  if(lk.gainNode&&lk.audioCtx) lk.gainNode.gain.setTargetAtTime(v,lk.audioCtx.currentTime,0.02);
+}
+
+function toggleParticipantMute(identity){
+  lk.participantMuted[identity]=!lk.participantMuted[identity];
+  var muted=lk.participantMuted[identity];
+  document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){el.muted=muted;});
+  refreshParticipantsPanel();
+}
+
+function toggleMyMic(){
+  if(!lk.room) return;
+  lk.micEnabled=!lk.micEnabled;
+  lk.room.localParticipant.setMicrophoneEnabled(lk.micEnabled);
+  if(lk.gainNode&&lk.audioCtx) lk.gainNode.gain.setTargetAtTime(lk.micEnabled?1:0,lk.audioCtx.currentTime,0.02);
+  document.getElementById('ctrlMic').classList.toggle('active',lk.micEnabled);
+  refreshParticipantsPanel();
+  ensureLocalTile(document.getElementById('videoGrid'));
 }
 
 /* ══════════════════════════════════════════════
@@ -1444,17 +1549,21 @@ function updateCallBtn(){
 function cleanupCall(){
   stopVAD();
   if(lk.timerInterval){clearInterval(lk.timerInterval);lk.timerInterval=null;}
-  // Remove audio elements we attached to body
-  document.querySelectorAll('audio[data-lk]').forEach(function(a){a.remove();});
+  // Remove audio elements attached to body
+  document.querySelectorAll('audio[data-identity]').forEach(function(a){a.remove();});
   lk.room=null;lk.active=false;lk.micEnabled=false;lk.camEnabled=false;
   lk.screenEnabled=false;lk.screenTrack=null;lk.timerSeconds=0;lk._micCb=null;
+  lk.participantVolumes={};lk.participantMuted={};
   document.getElementById('callWindow').style.display='none';
   document.getElementById('videoGrid').innerHTML='';
+  document.getElementById('participantsPanel').style.display='none';
+  document.getElementById('participantsPanel').innerHTML='';
   document.getElementById('callingOverlay').style.display='none';
   document.getElementById('callToast').style.display='none';
   document.getElementById('micModal').style.display='none';
-  // Reset ctrl buttons
-  ['ctrlMic','ctrlCam','ctrlScreen'].forEach(function(id){updateCtrl(id,false);});
+  ['ctrlMic','ctrlCam','ctrlScreen','ctrlPeople'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.classList.remove('active');
+  });
   document.getElementById('ctrlMic').querySelector('.ctrl-icon').textContent='🎙️';
   document.getElementById('ctrlCam').querySelector('.ctrl-icon').textContent='📷';
   document.getElementById('ctrlScreen').querySelector('.ctrl-icon').textContent='🖥️';
