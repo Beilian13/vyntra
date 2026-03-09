@@ -1342,10 +1342,31 @@ function setupVAD(rawStream){
   lk.audioCtx=ctx;
   var src=ctx.createMediaStreamSource(rawStream);
   var analyser=ctx.createAnalyser();
-  var gain=ctx.createGain();
   analyser.fftSize=512;analyser.smoothingTimeConstant=0.6;
+
+  // ── Normalize: bring quiet voices up, loud voices down ──
+  // 1. Pre-gain — boosts quiet speakers before compression
+  var preGain=ctx.createGain();
+  preGain.gain.value=2.5;
+
+  // 2. Compressor — evens out volume differences between speakers
+  var compressor=ctx.createDynamicsCompressor();
+  compressor.threshold.value=-24; // start compressing at -24dB
+  compressor.knee.value=10;       // smooth transition into compression
+  compressor.ratio.value=6;       // 6:1 compression ratio
+  compressor.attack.value=0.003;  // 3ms attack — fast enough to catch plosives
+  compressor.release.value=0.25;  // 250ms release — natural sounding
+
+  // 3. Post-gain (VAD gate) — cuts mic when silence detected
+  var gain=ctx.createGain();
   gain.gain.value=1;
-  src.connect(analyser);analyser.connect(gain);
+
+  // Chain: mic → analyser → preGain → compressor → vadGate → output
+  src.connect(analyser);
+  analyser.connect(preGain);
+  preGain.connect(compressor);
+  compressor.connect(gain);
+
   lk.analyser=analyser;lk.gainNode=gain;
 
   var buf=new Uint8Array(analyser.fftSize),lastVoice=0;
