@@ -201,6 +201,24 @@ main{display:flex;flex:1;overflow:hidden}
 .pp-mute:hover{background:rgba(255,80,80,.15);color:var(--red);border-color:rgba(255,80,80,.3)}
 .pp-mute.muted{background:rgba(255,80,80,.15);color:var(--red);border-color:rgba(255,80,80,.3)}
 
+/* ── SOUNDBOARD ── */
+#soundboardPanel{display:none;padding:10px 16px;background:rgba(0,0,0,.25);border-top:1px solid rgba(255,255,255,.03);max-height:220px;overflow-y:auto}
+.sb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sb-title{font-size:13px;font-weight:600;color:var(--white)}
+.sb-upload{font-size:12px;color:var(--accent);cursor:pointer;background:none;border:1px solid rgba(108,124,255,.3);border-radius:6px;padding:3px 10px}
+.sb-upload:hover{background:rgba(108,124,255,.1)}
+.sb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
+.sb-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;cursor:pointer;font-size:11px;color:var(--muted);transition:all .15s;position:relative}
+.sb-btn:hover{background:rgba(108,124,255,.15);border-color:rgba(108,124,255,.35);color:var(--white)}
+.sb-btn.playing{background:rgba(108,124,255,.25);border-color:var(--accent);color:var(--accent);animation:sbpulse .6s ease-in-out infinite alternate}
+@keyframes sbpulse{from{box-shadow:0 0 0 0 rgba(108,124,255,.4)}to{box-shadow:0 0 0 6px rgba(108,124,255,0)}}
+.sb-icon{font-size:22px;line-height:1}
+.sb-name{text-align:center;word-break:break-word;line-height:1.2}
+.sb-del{position:absolute;top:3px;right:4px;font-size:10px;color:var(--muted);opacity:0;cursor:pointer;background:none;border:none;padding:0}
+.sb-btn:hover .sb-del{opacity:1}
+.sb-stop{width:100%;margin-top:6px;padding:5px;background:rgba(255,80,80,.1);border:1px solid rgba(255,80,80,.25);border-radius:8px;color:var(--red);font-size:12px;cursor:pointer;display:none}
+.sb-stop:hover{background:rgba(255,80,80,.2)}
+
 /* ── MIC MODAL ── */
 #micModal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);align-items:center;justify-content:center}
 .mic-box{background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:36px 32px;text-align:center;max-width:340px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.6)}
@@ -426,6 +444,15 @@ main{display:flex;flex:1;overflow:hidden}
     <span id="vadStatus" style="font-size:11px;width:36px;text-align:right">🔇</span>
   </div>
   <div id="participantsPanel"></div>
+  <div id="soundboardPanel">
+    <div class="sb-header">
+      <span class="sb-title">🎵 Soundboard</span>
+      <button class="sb-upload" onclick="document.getElementById('sbFileInput').click()">+ Upload sound</button>
+      <input type="file" id="sbFileInput" accept="audio/*" style="display:none" onchange="sbUpload(this)"/>
+    </div>
+    <div class="sb-grid" id="sbGrid"></div>
+    <button class="sb-stop" id="sbStopBtn" onclick="sbStopAll()">⏹ Stop all sounds</button>
+  </div>
   <div id="videoGrid"></div>
   <div id="callControls">
     <button class="ctrl-btn" id="ctrlMic">
@@ -439,6 +466,9 @@ main{display:flex;flex:1;overflow:hidden}
     </button>
     <button class="ctrl-btn" id="ctrlPeople" onclick="toggleParticipantsPanel()">
       <span class="ctrl-icon">👥</span><span>People</span>
+    </button>
+    <button class="ctrl-btn" id="ctrlSoundboard" onclick="toggleSoundboard()">
+      <span class="ctrl-icon">🎵</span><span>Sounds</span>
     </button>
     <button class="ctrl-btn danger" id="ctrlHangup">
       <span class="ctrl-icon">📵</span><span>Leave</span>
@@ -1671,10 +1701,304 @@ cleanupCall = function(){
   _origCleanupCall();
   releaseWakeLock();
   stopSWHeartbeat();
+  sbStopAll();
+  document.getElementById('soundboardPanel').style.display='none';
+  document.getElementById('ctrlSoundboard').classList.remove('active');
   var bg = document.getElementById('_bgAudio');
   if(bg){ bg.pause(); bg.remove(); }
 };
+/* ══════════════════════════════════════════════
+   SOUNDBOARD
+══════════════════════════════════════════════ */
 
-</script>
+/* Built-in sounds generated entirely with Web Audio — no files */
+var SB_BUILTIN = [
+  {id:'airhorn',   name:'Air Horn',    icon:'📯'},
+  {id:'bruh',      name:'Bruh',        icon:'😐'},
+  {id:'boom',      name:'Boom',        icon:'💥'},
+  {id:'tada',      name:'Ta-da!',      icon:'🎉'},
+  {id:'fail',      name:'Fail',        icon:'📉'},
+  {id:'clap',      name:'Clap',        icon:'👏'},
+  {id:'laser',     name:'Laser',       icon:'🔫'},
+  {id:'nope',      name:'Nope',        icon:'🙅'},
+];
+
+/* Per-sound AudioContext and active sources so we can stop them */
+var sbCtx = null;
+var sbActiveSources = [];   // {source, gainNode}
+var sbCustomSounds = [];    // {id, name, icon, dataUrl} — loaded from localStorage
+var sbPlayingId = null;
+
+function getSbCtx(){
+  if(!sbCtx || sbCtx.state === 'closed'){
+    var AC = window.AudioContext||window.webkitAudioContext;
+    sbCtx = new AC();
+  }
+  if(sbCtx.state === 'suspended') sbCtx.resume();
+  return sbCtx;
+}
+
+/* ── Web Audio sound generators ── */
+function sbGenerate(id){
+  var ctx = getSbCtx();
+  var master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+
+  function osc(type, freq, start, dur, gainStart, gainEnd, detune){
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    if(detune) o.detune.value = detune;
+    g.gain.setValueAtTime(gainStart, ctx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(Math.max(gainEnd,0.001), ctx.currentTime + start + dur);
+    o.connect(g); g.connect(master);
+    o.start(ctx.currentTime + start);
+    o.stop(ctx.currentTime + start + dur + 0.05);
+    return o;
+  }
+  function noise(start, dur, gainVal){
+    var buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for(var i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(gainVal, ctx.currentTime+start);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+start+dur);
+    src.connect(g); g.connect(master);
+    src.start(ctx.currentTime+start);
+    src.stop(ctx.currentTime+start+dur+0.05);
+    return src;
+  }
+
+  switch(id){
+    case 'airhorn':
+      osc('sawtooth', 233, 0,   1.8, 0.9, 0.7);
+      osc('sawtooth', 349, 0,   1.8, 0.6, 0.5);
+      osc('sawtooth', 466, 0.0, 1.8, 0.4, 0.3);
+      return 1.9;
+    case 'bruh':
+      osc('sine', 130, 0,   0.08, 0.8, 0.8);
+      osc('sine', 100, 0.08,0.25, 0.8, 0.001);
+      osc('sine',  80, 0.3, 0.4,  0.6, 0.001);
+      return 0.8;
+    case 'boom':
+      noise(0, 0.6, 1.0);
+      osc('sine', 60,  0, 0.4, 1.0, 0.001);
+      osc('sine', 40,  0, 0.5, 0.7, 0.001);
+      return 0.7;
+    case 'tada':
+      [0,0.12,0.24,0.36,0.5].forEach(function(t,i){
+        osc('triangle',[523,659,784,1047,1319][i], t, 0.18, 0.6, 0.001);
+      });
+      return 0.9;
+    case 'fail':
+      osc('sawtooth', 440, 0,    0.2, 0.5, 0.001);
+      osc('sawtooth', 370, 0.2,  0.2, 0.5, 0.001);
+      osc('sawtooth', 311, 0.4,  0.2, 0.5, 0.001);
+      osc('sawtooth', 220, 0.6,  0.5, 0.5, 0.001);
+      return 1.2;
+    case 'clap':
+      [0,0.02,0.04].forEach(function(t){ noise(t, 0.1, 0.7); });
+      return 0.2;
+    case 'laser':
+      osc('sawtooth', 1200, 0, 0.4, 0.7, 0.001, 0);
+      (function(){
+        var o=ctx.createOscillator(), g=ctx.createGain();
+        o.type='sawtooth'; o.frequency.setValueAtTime(1200, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(200, ctx.currentTime+0.4);
+        g.gain.setValueAtTime(0.7,ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+        o.connect(g); g.connect(master);
+        o.start(); o.stop(ctx.currentTime+0.45);
+      })();
+      return 0.5;
+    case 'nope':
+      osc('square', 200, 0,   0.1, 0.5, 0.001);
+      osc('square', 180, 0.15,0.1, 0.5, 0.001);
+      osc('square', 160, 0.3, 0.2, 0.5, 0.001);
+      return 0.6;
+    default: return 0.5;
+  }
+}
+
+/* Play a built-in sound through call mic via AudioContext routing */
+function sbPlayBuiltin(id, btnEl){
+  sbStopAll();
+  var dur = sbGenerate(id);
+  sbMarkPlaying(id, btnEl, dur);
+
+  // Also route through mic if in a call, so others hear it
+  sbRouteToMic(id, dur);
+}
+
+/* Route soundboard audio through the mic track so call participants hear it */
+function sbRouteToMic(id, dur){
+  if(!lk.active || !lk.room) return;
+  // We create a separate AudioContext, generate the sound, capture it as a
+  // MediaStream destination, then mix it into the published mic track via Livekit
+  try{
+    var AC = window.AudioContext||window.webkitAudioContext;
+    var routeCtx = new AC();
+    var dest = routeCtx.createMediaStreamDestination();
+    var master = routeCtx.createGain();
+    master.gain.value = 0.9;
+    master.connect(dest);
+    // Re-generate into routeCtx (same logic, different ctx)
+    var sbOld = sbCtx;
+    sbCtx = routeCtx;
+    sbGenerate(id);
+    sbCtx = sbOld;
+    master.connect(routeCtx.destination);
+
+    // Publish as an additional audio track for the duration
+    var track = dest.stream.getAudioTracks()[0];
+    if(track){
+      lk.room.localParticipant.publishTrack(track, {name:'soundboard',source:LivekitClient.Track.Source.Unknown});
+      setTimeout(function(){
+        try{lk.room.localParticipant.unpublishTrack(track);}catch(e){}
+        routeCtx.close();
+      }, (dur+0.3)*1000);
+    }
+  } catch(e){ console.warn('Soundboard mic route failed:', e); }
+}
+
+/* Play a custom uploaded sound */
+function sbPlayCustom(id, btnEl){
+  sbStopAll();
+  var sound = sbCustomSounds.find(function(s){return s.id===id;});
+  if(!sound) return;
+  var ctx = getSbCtx();
+  fetch(sound.dataUrl)
+    .then(function(r){return r.arrayBuffer();})
+    .then(function(buf){return ctx.decodeAudioData(buf);})
+    .then(function(decoded){
+      var src = ctx.createBufferSource();
+      var g = ctx.createGain();
+      g.gain.value = 0.85;
+      src.buffer = decoded;
+      src.connect(g); g.connect(ctx.destination);
+      src.start();
+      sbActiveSources.push({source:src, gainNode:g});
+      sbMarkPlaying(id, btnEl, decoded.duration);
+
+      // Route to mic
+      if(lk.active && lk.room){
+        try{
+          var dest2 = ctx.createMediaStreamDestination();
+          g.connect(dest2);
+          var t2 = dest2.stream.getAudioTracks()[0];
+          if(t2){
+            lk.room.localParticipant.publishTrack(t2,{name:'soundboard',source:LivekitClient.Track.Source.Unknown});
+            setTimeout(function(){
+              try{lk.room.localParticipant.unpublishTrack(t2);}catch(e){}
+            }, (decoded.duration+0.3)*1000);
+          }
+        }catch(e){}
+      }
+    }).catch(function(e){console.warn('sbPlayCustom failed:',e);});
+}
+
+function sbMarkPlaying(id, btnEl, dur){
+  sbPlayingId = id;
+  document.querySelectorAll('.sb-btn').forEach(function(b){b.classList.remove('playing');});
+  if(btnEl) btnEl.classList.add('playing');
+  document.getElementById('sbStopBtn').style.display='block';
+  setTimeout(function(){
+    if(sbPlayingId===id){
+      sbPlayingId=null;
+      document.querySelectorAll('.sb-btn').forEach(function(b){b.classList.remove('playing');});
+      document.getElementById('sbStopBtn').style.display='none';
+    }
+  }, dur*1000+200);
+}
+
+function sbStopAll(){
+  sbActiveSources.forEach(function(s){
+    try{s.source.stop();}catch(e){}
+  });
+  sbActiveSources=[];
+  sbPlayingId=null;
+  document.querySelectorAll('.sb-btn').forEach(function(b){b.classList.remove('playing');});
+  document.getElementById('sbStopBtn').style.display='none';
+}
+
+function toggleSoundboard(){
+  var p = document.getElementById('soundboardPanel');
+  var showing = p.style.display==='block';
+  p.style.display = showing?'none':'block';
+  document.getElementById('ctrlSoundboard').classList.toggle('active',!showing);
+  if(!showing) renderSoundboard();
+}
+
+function renderSoundboard(){
+  var grid = document.getElementById('sbGrid');
+  var html = '';
+  // Built-ins
+  SB_BUILTIN.forEach(function(s){
+    html += '<button class="sb-btn" id="sb-'+s.id+'" onclick="sbPlayBuiltin(\''+s.id+'\',this)">'
+          + '<span class="sb-icon">'+s.icon+'</span>'
+          + '<span class="sb-name">'+s.name+'</span>'
+          + '</button>';
+  });
+  // Custom
+  sbCustomSounds.forEach(function(s){
+    html += '<button class="sb-btn" id="sb-'+s.id+'" onclick="sbPlayCustom(\''+s.id+'\',this)">'
+          + '<span class="sb-icon">'+s.icon+'</span>'
+          + '<span class="sb-name">'+s.name+'</span>'
+          + '<button class="sb-del" onclick="sbDelete(event,\''+s.id+'\')">✕</button>'
+          + '</button>';
+  });
+  grid.innerHTML = html;
+}
+
+function sbUpload(input){
+  var file = input.files[0];
+  if(!file) return;
+  var maxMB = 2;
+  if(file.size > maxMB*1024*1024){ toast('⚠️ Max '+maxMB+'MB per sound'); input.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var id = 'custom_'+Date.now();
+    var name = file.name.replace(/\.[^.]+$/,'').slice(0,20);
+    var sound = {id:id, name:name, icon:'🔊', dataUrl:e.target.result};
+    sbCustomSounds.push(sound);
+    sbSaveCustom();
+    renderSoundboard();
+    toast('✅ Added: '+name);
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+function sbDelete(e, id){
+  e.stopPropagation();
+  sbCustomSounds = sbCustomSounds.filter(function(s){return s.id!==id;});
+  sbSaveCustom();
+  renderSoundboard();
+}
+
+function sbSaveCustom(){
+  try{
+    // Store only metadata + dataUrl — cap at 10 sounds to avoid quota
+    var toSave = sbCustomSounds.slice(-10).map(function(s){
+      return {id:s.id,name:s.name,icon:s.icon,dataUrl:s.dataUrl};
+    });
+    localStorage.setItem('vyntra_sb', JSON.stringify(toSave));
+  }catch(e){ console.warn('Soundboard save failed (quota?):', e); }
+}
+
+function sbLoadCustom(){
+  try{
+    var raw = localStorage.getItem('vyntra_sb');
+    if(raw) sbCustomSounds = JSON.parse(raw);
+  }catch(e){}
+}
+
+// Load saved sounds on startup
+sbLoadCustom();
+
 </body>
 </html>
