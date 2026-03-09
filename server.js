@@ -15,7 +15,7 @@ const WebSocket  = require('ws');
 const mongoose   = require('mongoose');
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
-const { Resend } = require('resend');
+const nodemailer  = require('nodemailer');
 const path       = require('path');
 const { AccessToken } = require('livekit-server-sdk');
 
@@ -30,8 +30,10 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
 const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
-const RESEND_API_KEY     = process.env.RESEND_API_KEY     || '';
-const RESEND_FROM        = process.env.RESEND_FROM        || 'Vyntra <onboarding@resend.dev>';
+const GMAIL_USER          = process.env.GMAIL_USER          || '';
+const GMAIL_CLIENT_ID     = process.env.GMAIL_CLIENT_ID     || '';
+const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || '';
+const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN || '';
 const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
@@ -70,14 +72,23 @@ const msgSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── EMAIL (Resend) ── */
-const resend = new Resend(RESEND_API_KEY);
+/* ── EMAIL (Gmail OAuth2) ── */
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    type:         'OAuth2',
+    user:         GMAIL_USER,
+    clientId:     GMAIL_CLIENT_ID,
+    clientSecret: GMAIL_CLIENT_SECRET,
+    refreshToken: GMAIL_REFRESH_TOKEN,
+  },
+});
 async function sendVerifyEmail(email, code, username) {
   const digits = code.split('').map(d =>
     `<span style="display:inline-block;width:48px;height:56px;line-height:56px;text-align:center;background:#0b0d16;border:1px solid rgba(108,124,255,0.25);border-radius:10px;font-size:26px;font-weight:700;color:#eef2ff;margin:0 4px;font-family:monospace">${d}</span>`
   ).join('');
-  await resend.emails.send({
-    from:    RESEND_FROM,
+  await transporter.sendMail({
+    from:    `"Vyntra" <${GMAIL_USER}>`,
     to:      email,
     subject: '🔐 Your Vyntra login code',
     html: `<!DOCTYPE html>
