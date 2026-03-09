@@ -1385,29 +1385,35 @@ function setupVAD(rawStream){
   var analyser=ctx.createAnalyser();
   analyser.fftSize=512;analyser.smoothingTimeConstant=0.7;
 
-  // ── Pre-gain: boost quiet speakers ──
-  var preGain=ctx.createGain();
-  preGain.gain.value=2.5;
+  // ── Pre-gain: removed — was causing clipping on quiet signals ──
 
-  // ── Compressor: normalize volume across speakers ──
+  // ── Compressor: normalize volume, catches both quiet and loud speakers ──
   var compressor=ctx.createDynamicsCompressor();
-  compressor.threshold.value=-24;
-  compressor.knee.value=10;
-  compressor.ratio.value=6;
-  compressor.attack.value=0.003;
-  compressor.release.value=0.25;
+  compressor.threshold.value=-40; // lower threshold catches quiet voices too
+  compressor.knee.value=20;       // wider knee = smoother, less aggressive
+  compressor.ratio.value=4;       // gentler 4:1 ratio avoids over-compression
+  compressor.attack.value=0.005;  // 5ms — fast but not harsh
+  compressor.release.value=0.35;  // 350ms — natural release
+
+  // ── Limiter: hard brick-wall at -1dB, prevents any distortion peaks ──
+  var limiter=ctx.createDynamicsCompressor();
+  limiter.threshold.value=-1;
+  limiter.knee.value=0;
+  limiter.ratio.value=20;   // 20:1 ≈ hard limiter
+  limiter.attack.value=0.001;
+  limiter.release.value=0.1;
 
   // ── VAD gate: cuts mic during non-voice ──
   var gain=ctx.createGain();
   gain.gain.value=1;
 
-  // Chain: mic → highpass → lowpass → analyser → preGain → compressor → gate → output
+  // Chain: mic → highpass → lowpass → analyser → compressor → limiter → gate → output
   src.connect(highpass);
   highpass.connect(lowpass);
   lowpass.connect(analyser);
-  analyser.connect(preGain);
-  preGain.connect(compressor);
-  compressor.connect(gain);
+  analyser.connect(compressor);
+  compressor.connect(limiter);
+  limiter.connect(gain);
 
   lk.analyser=analyser;lk.gainNode=gain;
 
@@ -1480,7 +1486,7 @@ function refreshParticipantsPanel(){
     html+='<div class="pp-row">';
     html+='<div class="pp-avatar">'+id[0].toUpperCase()+'</div>';
     html+='<div class="pp-name">'+id+'</div>';
-    html+='<input class="pp-vol" type="range" min="0" max="200" value="'+vol+'" oninput="setParticipantVolume(\''+id+'\',this.value)">';
+    html+='<input class="pp-vol" type="range" min="0" max="100" value="'+vol+'" oninput="setParticipantVolume(\''+id+'\',this.value)">';
     html+='<button class="pp-mute'+(muted?' muted':'')+'" onclick="toggleParticipantMute(\''+id+'\')">'+( muted?'🔇':'🔊')+'</button>';
     html+='</div>';
   });
@@ -1492,12 +1498,15 @@ function refreshParticipantsPanel(){
 function setParticipantVolume(identity,val){
   var v=parseInt(val)/100;
   lk.participantVolumes[identity]=v;
-  // Apply to all audio elements for this participant
-  document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){el.volume=Math.min(v,1);});
+  // Cap at 1.0 on the audio element to avoid browser-side clipping
+  document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){
+    el.volume=Math.min(v,1);
+  });
 }
 
 function setSelfVolume(val){
-  var v=parseInt(val)/100;
+  // Self slider adjusts outgoing mic gate level (0–1 only, never amplify past 1 to avoid distortion)
+  var v=Math.min(parseInt(val)/100,1);
   lk.participantVolumes['__self__']=v;
   if(lk.gainNode&&lk.audioCtx) lk.gainNode.gain.setTargetAtTime(v,lk.audioCtx.currentTime,0.02);
 }
