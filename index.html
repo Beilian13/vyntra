@@ -1341,28 +1341,44 @@ function setupVAD(rawStream){
   var ctx=new AC();
   lk.audioCtx=ctx;
   var src=ctx.createMediaStreamSource(rawStream);
-  var analyser=ctx.createAnalyser();
-  analyser.fftSize=512;analyser.smoothingTimeConstant=0.6;
 
-  // ── Normalize: bring quiet voices up, loud voices down ──
-  // 1. Pre-gain — boosts quiet speakers before compression
+  // ── Voice frequency filter (300Hz–3400Hz) ──
+  // Cuts everything outside the human voice range
+  // Background TV, music, distant family = attenuated
+  var highpass=ctx.createBiquadFilter();
+  highpass.type='highpass';
+  highpass.frequency.value=300;  // cut below 300Hz (rumble, bass, thuds)
+  highpass.Q.value=0.7;
+
+  var lowpass=ctx.createBiquadFilter();
+  lowpass.type='lowpass';
+  lowpass.frequency.value=3400;  // cut above 3400Hz (hiss, high-freq noise)
+  lowpass.Q.value=0.7;
+
+  // ── Analyser reads ONLY the filtered voice band ──
+  var analyser=ctx.createAnalyser();
+  analyser.fftSize=512;analyser.smoothingTimeConstant=0.7;
+
+  // ── Pre-gain: boost quiet speakers ──
   var preGain=ctx.createGain();
   preGain.gain.value=2.5;
 
-  // 2. Compressor — evens out volume differences between speakers
+  // ── Compressor: normalize volume across speakers ──
   var compressor=ctx.createDynamicsCompressor();
-  compressor.threshold.value=-24; // start compressing at -24dB
-  compressor.knee.value=10;       // smooth transition into compression
-  compressor.ratio.value=6;       // 6:1 compression ratio
-  compressor.attack.value=0.003;  // 3ms attack — fast enough to catch plosives
-  compressor.release.value=0.25;  // 250ms release — natural sounding
+  compressor.threshold.value=-24;
+  compressor.knee.value=10;
+  compressor.ratio.value=6;
+  compressor.attack.value=0.003;
+  compressor.release.value=0.25;
 
-  // 3. Post-gain (VAD gate) — cuts mic when silence detected
+  // ── VAD gate: cuts mic during non-voice ──
   var gain=ctx.createGain();
   gain.gain.value=1;
 
-  // Chain: mic → analyser → preGain → compressor → vadGate → output
-  src.connect(analyser);
+  // Chain: mic → highpass → lowpass → analyser → preGain → compressor → gate → output
+  src.connect(highpass);
+  highpass.connect(lowpass);
+  lowpass.connect(analyser);
   analyser.connect(preGain);
   preGain.connect(compressor);
   compressor.connect(gain);
@@ -1370,18 +1386,25 @@ function setupVAD(rawStream){
   lk.analyser=analyser;lk.gainNode=gain;
 
   var buf=new Uint8Array(analyser.fftSize),lastVoice=0;
+  // Voice hold time — 400ms so words don't get clipped at the end
+  var HOLD_MS=400;
+
   lk.vadInterval=setInterval(function(){
     if(!lk.active) return;
     analyser.getByteTimeDomainData(buf);
     var sum=0;for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
     var rms=Math.sqrt(sum/buf.length);
-    var thresh=(lk.vadThreshold/100)*0.25;
+
+    // Threshold mapped from slider — voice in the filtered band needs
+    // to be noticeably above background to open the gate
+    var thresh=(lk.vadThreshold/100)*0.20;
     var now=Date.now();
     if(rms>thresh) lastVoice=now;
-    var open=(now-lastVoice)<300;
-    if(lk.micEnabled) gain.gain.setTargetAtTime(open?1:0,ctx.currentTime,0.03);
-    // Update meter
-    document.getElementById('vadBar').style.width=Math.min(100,(rms/0.25)*100)+'%';
+    var open=(now-lastVoice)<HOLD_MS;
+    if(lk.micEnabled) gain.gain.setTargetAtTime(open?1:0,ctx.currentTime,0.025);
+
+    // Update meter bar
+    document.getElementById('vadBar').style.width=Math.min(100,(rms/0.20)*100)+'%';
   },30);
 }
 
