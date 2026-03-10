@@ -1128,6 +1128,7 @@ function renderChannelCol(serverId){
     if(list) renderFriendsInCol(list);
     if(mcpTitle) mcpTitle.textContent='Direct Messages';
     if(mcpList) renderFriendsInCol(mcpList);
+    if(isMobileLayout()) renderMobileChannels('__dm__');
     return;
   }
   var srv=myServers.find(function(s){return s._id===serverId;});if(!srv)return;
@@ -1202,8 +1203,8 @@ function renderFriendsInCol(container){
   myFriends.forEach(function(f){
     var el=document.createElement('div');el.className='friend-item';
     el.innerHTML='<div class="friend-avatar">'+f[0].toUpperCase()+'</div><div class="friend-name">'+f+'</div><div class="friend-actions"><button class="fbtn" data-a="call">📞</button><button class="fbtn" data-a="dm">💬</button><button class="fbtn" data-a="rm" style="color:#ff5050">✕</button></div>';
-    el.querySelector('[data-a=dm]').onclick=function(){openDM(f);closeMobileSidebar();};
-    el.querySelector('[data-a=call]').onclick=function(){openDM(f);setTimeout(function(){startCallInRoom('dm_'+[myName,f].sort().join('_'));},300);closeMobileSidebar();};
+    el.querySelector('[data-a=dm]').onclick=function(){openDM(f);if(isMobileLayout())mobileGoTo(2);};
+    el.querySelector('[data-a=call]').onclick=function(){openDM(f);setTimeout(function(){startCallInRoom('dm_'+[myName,f].sort().join('_'));},300);if(isMobileLayout())mobileGoTo(2);};
     el.querySelector('[data-a=rm]').onclick=function(){if(confirm('Unfriend '+f+'?'))wsSend({type:'unfriend',username:f});};
     container.appendChild(el);
   });
@@ -1351,8 +1352,8 @@ function renderFriends(){
           '<button class="fbtn" data-action="dm">💬</button>'+
           '<button class="fbtn" data-action="rm" style="color:#ff5050">✕</button>'+
         '</div>';
-      el.querySelector('[data-action=dm]').onclick=function(){openDM(f);closeMobileSidebar();};
-      el.querySelector('[data-action=call]').onclick=function(){openDM(f);setTimeout(function(){startCallInRoom('dm_'+[myName,f].sort().join('_'));},300);closeMobileSidebar();};
+      el.querySelector('[data-action=dm]').onclick=function(){openDM(f);if(isMobileLayout())mobileGoTo(2);};
+      el.querySelector('[data-action=call]').onclick=function(){openDM(f);setTimeout(function(){startCallInRoom('dm_'+[myName,f].sort().join('_'));},300);if(isMobileLayout())mobileGoTo(2);};
       el.querySelector('[data-action=rm]').onclick=function(){if(confirm('Unfriend '+f+'?'))wsSend({type:'unfriend',username:f});};
       c.appendChild(el);
     });
@@ -1368,8 +1369,8 @@ function openPopup(user,ev){
   document.getElementById('popupName').textContent=user;
   var fb=document.getElementById('pupFriend');fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
   document.getElementById('pupMute').textContent=isMuted?'🔊 Unmute':'🔇 Mute';
-  document.getElementById('pupDM').onclick=function(){openDM(user);closePopup();};
-  document.getElementById('pupCall').onclick=function(){openDM(user);setTimeout(function(){startCallInRoom('dm_'+[myName,user].sort().join('_'));},300);closePopup();};
+  document.getElementById('pupDM').onclick=function(){openDM(user);closePopup();if(isMobileLayout())mobileGoTo(2);};
+  document.getElementById('pupCall').onclick=function(){openDM(user);setTimeout(function(){startCallInRoom('dm_'+[myName,user].sort().join('_'));},300);closePopup();if(isMobileLayout())mobileGoTo(2);};
   document.getElementById('pupFriend').onclick=function(){if(!isFriend){wsSend({type:'friend_request',to:user});closePopup();}};
   document.getElementById('pupMute').onclick=function(){toggleMuteUser(user);closePopup();};
   var x=Math.min(ev.clientX,window.innerWidth-200),y=Math.min(ev.clientY,window.innerHeight-250);
@@ -1737,18 +1738,17 @@ function startCallInRoom(chatRoom){
     document.getElementById('caName').textContent=peer;
     document.getElementById('callingOverlay').style.display='flex';
     ringback.start();
+    // Store pending DM call info — join Livekit only after callee accepts
+    lk._pendingDMRoom = {lvRoom:lvRoom, chatRoom:chatRoom};
     wsSend({type:'call_request',to:peer,lvRoom:lvRoom,chatRoom:chatRoom});
-    // Auto-cancel if no answer in 30s
     if(window._ringbackTimeout) clearTimeout(window._ringbackTimeout);
     window._ringbackTimeout = setTimeout(function(){
-      if(ringback.isOn()){
-        cancelCall();
-        toast('No answer');
-      }
+      if(ringback.isOn()){ cancelCall(); toast('No answer'); }
     }, 30000);
+  } else {
+    // Server/group call — join Livekit right away
+    joinLivekitRoom(lvRoom,chatRoom);
   }
-  // Join Livekit right away regardless
-  joinLivekitRoom(lvRoom,chatRoom);
 }
 
 function getDMPeer(room){
@@ -1786,6 +1786,7 @@ function cancelCall(){
   document.getElementById('callingOverlay').style.display='none';
   var peer=getDMPeer(currentRoom);
   if(peer) wsSend({type:'call_cancel',to:peer});
+  lk._pendingDMRoom=null;
   if(lk.room) lk.room.disconnect();
   cleanupCall();
 }
@@ -1793,7 +1794,14 @@ function cancelCall(){
 function handleCallAccepted(d){
   ringtone.stop();ringback.stop();
   document.getElementById('callingOverlay').style.display='none';
-  toast('✅ '+d.from+' joined the call');
+  // Now actually join Livekit (we waited until they accepted)
+  if(lk._pendingDMRoom){
+    var p=lk._pendingDMRoom;
+    lk._pendingDMRoom=null;
+    joinLivekitRoom(p.lvRoom, p.chatRoom);
+  } else {
+    toast('✅ '+d.from+' joined the call');
+  }
 }
 function handleCallDeclined(d){
   ringtone.stop();ringback.stop();
@@ -1907,6 +1915,7 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
 
   // Publish mic — let Livekit + browser handle noise suppression natively
   getMic(async function(stream){
+    lk.micStream = stream; // keep ref so we can stop tracks on cleanup
     setupVAD(stream); // VAD meter only — no audio gating
     await room.localParticipant.setMicrophoneEnabled(true);
     lk.micEnabled=true;
@@ -2240,10 +2249,18 @@ function updateCallBtn(){
 function cleanupCall(){
   stopVAD();
   if(lk.timerInterval){clearInterval(lk.timerInterval);lk.timerInterval=null;}
+  // Stop raw mic stream so the browser mic indicator goes off
+  if(lk.micStream){
+    lk.micStream.getTracks().forEach(function(t){try{t.stop();}catch(e){}});
+    lk.micStream=null;
+  }
   // Remove audio elements attached to body
-  document.querySelectorAll('audio[data-identity]').forEach(function(a){a.remove();});
+  document.querySelectorAll('audio[data-identity]').forEach(function(a){
+    try{a.pause();a.srcObject=null;}catch(e){}
+    a.remove();
+  });
   lk.room=null;lk.active=false;lk.micEnabled=false;lk.camEnabled=false;
-  lk.screenEnabled=false;lk.screenTrack=null;lk.timerSeconds=0;lk._micCb=null;
+  lk.screenEnabled=false;lk.screenTrack=null;lk.timerSeconds=0;lk._micCb=null;lk._pendingDMRoom=null;
   lk.participantVolumes={};lk.participantMuted={};
   document.getElementById('callWindow').style.display='none';
   document.getElementById('videoGrid').innerHTML='';
