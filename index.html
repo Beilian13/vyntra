@@ -1114,7 +1114,14 @@ function makeSrvIcon(text,title,active){
   var el=document.createElement('div');el.className='srv-icon'+(active?' active':'');el.textContent=text;el.title=title;return el;
 }
 function selectServer(sid){
-  activeServerId=sid;renderServerCol();renderChannelCol(sid);closeDiscovery();
+  activeServerId=sid;
+  closeDiscovery();
+  if(isMobileLayout()){
+    renderMobileServers();
+    renderMobileChannels(sid);
+  } else {
+    renderServerCol();renderChannelCol(sid);
+  }
 }
 function renderChannelCol(serverId){
   var hName=document.getElementById('chHeaderName'),hMeta=document.getElementById('chHeaderMeta'),hAct=document.getElementById('chHeaderActions'),list=document.getElementById('channelsList');
@@ -1240,7 +1247,8 @@ function joinChannel(ch,srv){
 }
 function openDM(user){
   var dmRoom='dm_'+[myName,user].sort().join('_');
-  activeServerId='__dm__';renderServerCol();renderChannelCol('__dm__');
+  activeServerId='__dm__';
+  if(isMobileLayout()){renderMobileServers();renderMobileChannels('__dm__');}else{renderServerCol();renderChannelCol('__dm__');}
   currentChannelId=dmRoom;currentRoom=dmRoom;
   document.getElementById('messages').innerHTML='';
   document.getElementById('roomTitle').textContent='💬 '+user;
