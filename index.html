@@ -1233,7 +1233,7 @@ function closeMobileSidebar(){document.getElementById('mobileSidebar').classList
 ══════════════════════════════════════════════ */
 (async function(){
   try{
-    var r=await fetch('https://unpkg.com/<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="caafa7a5a0a3e4a0b9a5a48afbf9e4fbe4fa">[email&#160;protected]</a>/emoji.json');
+    var r=await fetch('https://cdn.jsdelivr.net/npm/@emoji-mart/data/emojis.json');
     var j=await r.json();allEmojis=j.filter(function(e){return e.char&&e.name;}).map(function(e){return{c:e.char,n:e.name};});
   }catch(e){allEmojis=[{c:'😀',n:'grinning'},{c:'😂',n:'joy'},{c:'❤️',n:'heart'},{c:'🔥',n:'fire'},{c:'👍',n:'thumbsup'}];}
 })();
