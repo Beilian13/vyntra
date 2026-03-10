@@ -269,63 +269,95 @@ main{display:flex;flex:1;overflow:hidden}
 .ch-del{font-size:11px;opacity:0;color:var(--red);background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;margin-left:auto}
 .ch-item:hover .ch-del{opacity:1}
 /* ── MOBILE NAV (≤860px) ── */
+/* ══════════════════════════════════════════════
+   MOBILE — full-screen sliding views (≤860px)
+══════════════════════════════════════════════ */
 @media(max-width:860px){
-  #serverCol,#channelCol,.usersPanel{display:none}
-  #mobileMenuBtn{display:flex}
-  .rh-meta{display:none}
-  main{position:relative;overflow:hidden}
+  #serverCol,#channelCol,.usersPanel{display:none!important}
+  #mobileMenuBtn{display:none!important}
+  .rh-meta{font-size:11px}
 
-  /* Bottom server rail */
-  #mobileRail{
-    position:fixed;bottom:0;left:0;right:0;height:58px;
-    background:#080a12;border-top:1px solid rgba(255,255,255,.04);
-    display:flex;align-items:center;padding:0 8px;gap:6px;
-    overflow-x:auto;z-index:300;
-    scrollbar-width:none;
+  /* Viewport container */
+  #mobileViews{
+    display:flex;flex-direction:row;
+    position:fixed;inset:0;top:60px;
+    width:300vw; /* 3 panels side by side */
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    will-change:transform;
+    z-index:50;
   }
-  #mobileRail::-webkit-scrollbar{display:none}
-  #mobileRail .srv-icon{width:40px;height:40px;font-size:13px;flex-shrink:0}
-
-  /* Channel slide-up panel */
-  #mobileChannelPanel{
-    position:fixed;bottom:58px;left:0;right:0;
-    height:60vh;background:#0d0f1a;
-    border-top:1px solid rgba(255,255,255,.05);
-    border-radius:16px 16px 0 0;
-    z-index:200;
-    transform:translateY(100%);
-    transition:transform .25s ease;
+  /* Each panel is 100vw */
+  .mv-panel{
+    width:100vw;height:100%;
     display:flex;flex-direction:column;
-    box-shadow:0 -8px 32px rgba(0,0,0,.5);
+    overflow:hidden;flex-shrink:0;
+    background:var(--bg);
   }
-  #mobileChannelPanel.show{transform:translateY(0)}
-  #mobileChannelPanel .mcp-handle{
-    width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);
-    margin:10px auto 8px;flex-shrink:0;
-  }
-  #mobileChannelPanel .mcp-header{
-    padding:0 14px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;
-  }
-  #mobileChannelPanel .mcp-title{font-size:14px;font-weight:700}
-  #mobileChannelPanel .mcp-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
-  #mobileChannelPanel .mcp-list{overflow-y:auto;padding:6px 10px;flex:1}
+  /* Panel 0 — servers */
+  #mvServers{background:#080a12}
+  #mvServers .mv-list{flex:1;overflow-y:auto;padding:8px}
+  /* Panel 1 — channels */
+  #mvChannels{background:#0d0f1a}
+  #mvChannels .mv-ch-header{padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0}
+  #mvChannels .mv-ch-title{font-size:15px;font-weight:700}
+  #mvChannels .mv-ch-meta{font-size:11px;color:var(--muted);margin-top:2px}
+  #mvChannels .mv-ch-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  #mvChannels .mv-list{flex:1;overflow-y:auto;padding:6px 10px}
+  /* Panel 2 — chat (reuse existing chatArea) */
+  #mvChat{background:var(--bg)}
+  #mvChat .chatArea{flex:1;display:flex;flex-direction:column;min-height:0}
 
-  /* Push chat area up above rail */
-  #appShell main .chatArea{padding-bottom:58px}
-  .compose{padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)) !important}
+  /* Back button shown inside channel + chat panels */
+  .mv-back{
+    display:flex;align-items:center;gap:6px;
+    padding:8px 12px 4px;flex-shrink:0;
+    font-size:13px;color:var(--accent);cursor:pointer;
+    border:none;background:none;
+  }
+  .mv-back:active{opacity:.7}
+
+  /* Server list items in panel 0 */
+  .msrv-item{
+    display:flex;align-items:center;gap:12px;
+    padding:10px 12px;border-radius:10px;cursor:pointer;
+    margin-bottom:4px;
+  }
+  .msrv-item:active{background:rgba(255,255,255,.06)}
+  .msrv-item.active{background:rgba(108,124,255,.12)}
+  .msrv-avatar{
+    width:44px;height:44px;border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:800;flex-shrink:0;color:#fff;
+  }
+  .msrv-info{flex:1;overflow:hidden}
+  .msrv-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msrv-desc{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .msrv-arrow{color:var(--muted);font-size:16px;flex-shrink:0}
+
+  /* Hide desktop layout on mobile — chatArea gets DOM-moved to mvChatMount */
+  main{display:none!important}
+  header{display:none!important}
+  #mvChatMount .chatArea{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  #mvChatMount .messages{flex:1;overflow-y:auto;min-height:0}
+  #mobileRail,#mobileChannelPanel,#mobileSidebar{display:none!important}
+
+  /* Chat area fills panel */
+  #mvChat .compose{padding-bottom:env(safe-area-inset-bottom,0px)!important}
+
+  /* Active call window stays on top */
+  #callWindow{z-index:200}
 }
 @media(min-width:861px){
-  #mobileRail,#mobileChannelPanel,#mobileOverlay{display:none!important}
-  .sidebar,.usersPanel{display:none} /* legacy, replaced by serverCol/channelCol */
+  #mobileViews{display:none!important}
+  #mobileRail,#mobileChannelPanel,#mobileOverlay,#mobileSidebar{display:none!important}
+  .sidebar,.usersPanel{display:none}
 }
 
-
-#mobileMenuBtn{display:none;flex-shrink:0;margin-right:4px}
-#mobileSidebar{position:fixed;top:60px;left:0;width:220px;max-width:72vw;height:calc(100% - 60px);background:#0d0f1a;border-right:1px solid rgba(255,255,255,.02);z-index:999;box-shadow:4px 0 16px rgba(0,0,0,.4);transform:translateX(-100%);transition:transform .25s ease;display:flex;flex-direction:column}
-#mobileSidebar.show{transform:translateX(0)}
+#mobileMenuBtn{display:none}
+#mobileSidebar{display:none}
 #mobileOverlay{display:none;position:fixed;inset:0;top:60px;z-index:998;background:rgba(0,0,0,.35)}
 #mobileOverlay.show{display:block}
-@media(max-width:860px){#mobileMenuBtn{display:flex}.sidebar,.usersPanel{display:none}.rh-meta{display:none}}
+
 
 /* ── EMOJI PICKER ── */
 #emojiOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;align-items:center;justify-content:center}
@@ -409,17 +441,40 @@ main{display:flex;flex:1;overflow:hidden}
 
   <div id="mobileOverlay"></div>
 
-  <!-- Mobile: bottom server rail -->
-  <div id="mobileRail"></div>
-
-  <!-- Mobile: slide-up channel panel -->
-  <div id="mobileChannelPanel">
-    <div class="mcp-handle"></div>
-    <div class="mcp-header">
-      <div class="mcp-title" id="mcpTitle">Channels</div>
-      <div class="mcp-actions" id="mcpActions"></div>
+  <!-- Mobile: 3 full-screen sliding panels -->
+  <div id="mobileViews">
+    <!-- Panel 0: Servers -->
+    <div class="mv-panel" id="mvServers">
+      <div style="padding:14px 14px 4px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div>
+          <div style="font-size:16px;font-weight:700">Vyntra</div>
+          <div id="mvUsername" style="font-size:12px;color:var(--muted)"></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button id="mvReconnectBtn" class="hdr-btn" style="font-size:12px;padding:5px 10px">Reconnect</button>
+          <button onclick="doLogout()" class="hdr-btn" style="font-size:12px;padding:5px 10px">Logout</button>
+        </div>
+      </div>
+      <div style="padding:8px 14px 4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;flex-shrink:0">Servers</div>
+      <div class="mv-list" id="mvServerList"></div>
     </div>
-    <div class="mcp-list" id="mcpList"></div>
+
+    <!-- Panel 1: Channels -->
+    <div class="mv-panel" id="mvChannels">
+      <button class="mv-back" id="mvBackToServers" onclick="mobileGoTo(0)">‹ Servers</button>
+      <div class="mv-ch-header">
+        <div class="mv-ch-title" id="mvChTitle">Channels</div>
+        <div class="mv-ch-meta" id="mvChMeta"></div>
+        <div class="mv-ch-actions" id="mvChActions"></div>
+      </div>
+      <div class="mv-list" id="mvChannelList"></div>
+    </div>
+
+    <!-- Panel 2: Chat — mounts desktop chatArea here on mobile -->
+    <div class="mv-panel" id="mvChat">
+      <button class="mv-back" id="mvBackToChannels" onclick="mobileGoTo(1)">‹ <span id="mvBackLabel">Channels</span></button>
+      <div id="mvChatMount" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+    </div>
   </div>
 
   <main style="position:relative">
@@ -849,6 +904,13 @@ function launchApp(token,username,friends){
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
   document.getElementById('headerUsername').textContent='@'+username;
+  var mu=document.getElementById('mvUsername');if(mu) mu.textContent='@'+username;
+  if(isMobileLayout()){
+    var mount=document.getElementById('mvChatMount');
+    var chatArea=document.querySelector('main .chatArea');
+    if(mount&&chatArea&&!mount.contains(chatArea)) mount.appendChild(chatArea);
+    mobileGoTo(0);
+  }
   document.getElementById('watchBar').style.display='none';
   document.getElementById('composeBar') && (document.getElementById('composeBar').style.display='flex');
   connectWS(token);
@@ -976,11 +1038,10 @@ function initListeners(){
     for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){e.preventDefault();handleFileAttach(items[i].getAsFile());break;}}
   });
   document.getElementById('reconnectBtn').onclick=function(){var t=localStorage.getItem('vt');if(t)connectWS(t);};
+  var mvr=document.getElementById('mvReconnectBtn');if(mvr) mvr.onclick=function(){var t=localStorage.getItem('vt');if(t)connectWS(t);};
   document.getElementById('emojiBtn').onclick=function(){openEmoji('__c');};
   document.getElementById('mobileMenuBtn').onclick=toggleMobileSidebar;
   document.getElementById('mobileOverlay').onclick=closeMobilePanel;
-  var mcpEl=document.getElementById('mobileChannelPanel');
-  if(mcpEl){var _sy=0;mcpEl.addEventListener('touchstart',function(e){_sy=e.touches[0].clientY;},{passive:true});mcpEl.addEventListener('touchend',function(e){if(e.changedTouches[0].clientY-_sy>60)closeMobilePanel();},{passive:true});}
   document.getElementById('discSearch').addEventListener('input',function(){filterDisc(this.value);});
   document.getElementById('popupOverlay').onclick=closePopup;
   document.getElementById('emojiClose').onclick=closeEmoji;
@@ -1016,35 +1077,24 @@ function initListeners(){
    SERVER / CHANNEL SIDEBAR
 ══════════════════════════════════════════════ */
 function renderServerCol(){
-  ['serverCol','mobileRail'].forEach(function(id){
-    var col=document.getElementById(id);if(!col)return;col.innerHTML='';
-    var isRail=(id==='mobileRail');
-    // DM button
-    var dm=makeSrvIcon('💬','Direct Messages',activeServerId==='__dm__');
-    if(isRail) dm.style.fontSize='16px';
-    dm.onclick=function(){selectServer('__dm__');if(isRail)closeMobilePanel();};
-    col.appendChild(dm);
-    if(!isRail){var div=document.createElement('div');div.className='srv-divider';col.appendChild(div);}
-    myServers.forEach(function(s){
-      var el=makeSrvIcon(s.icon||s.name[0].toUpperCase(),s.name,activeServerId===s._id);
-      if(s.isOfficial) el.classList.add('official');
-      else el.style.background=s.color||'#6c7cff';
-      el.onclick=(function(sid){return function(){
-        if(isRail){
-          if(activeServerId===sid){toggleMobilePanel();}
-          else{selectServer(sid);openMobilePanel();}
-        } else {
-          selectServer(sid);
-        }
-      };})(s._id);
-      col.appendChild(el);
-    });
-    if(!isRail){var div2=document.createElement('div');div2.className='srv-divider';col.appendChild(div2);}
-    var add=makeSrvIcon('+','Create Server',false);add.classList.add('srv-add');
-    add.onclick=function(){isGuest?showAuth():openCreateServer();};col.appendChild(add);
-    var disc=makeSrvIcon('🔍','Discover',false);disc.classList.add('srv-discover');disc.style.fontSize='16px';
-    disc.onclick=function(){openDiscovery();if(isRail)closeMobilePanel();};col.appendChild(disc);
+  var col=document.getElementById('serverCol');if(!col)return;col.innerHTML='';
+  var dm=makeSrvIcon('💬','Direct Messages',activeServerId==='__dm__');
+  dm.onclick=function(){selectServer('__dm__');};
+  col.appendChild(dm);
+  var div=document.createElement('div');div.className='srv-divider';col.appendChild(div);
+  myServers.forEach(function(s){
+    var el=makeSrvIcon(s.icon||s.name[0].toUpperCase(),s.name,activeServerId===s._id);
+    if(s.isOfficial) el.classList.add('official');
+    else el.style.background=s.color||'#6c7cff';
+    el.onclick=(function(sid){return function(){selectServer(sid);};})(s._id);
+    col.appendChild(el);
   });
+  var div2=document.createElement('div');div2.className='srv-divider';col.appendChild(div2);
+  var add=makeSrvIcon('+','Create Server',false);add.classList.add('srv-add');
+  add.onclick=function(){isGuest?showAuth():openCreateServer();};col.appendChild(add);
+  var disc=makeSrvIcon('🔍','Discover',false);disc.classList.add('srv-discover');disc.style.fontSize='16px';
+  disc.onclick=openDiscovery;col.appendChild(disc);
+  if(isMobileLayout()) renderMobileServers();
 }
 function makeSrvIcon(text,title,active){
   var el=document.createElement('div');el.className='srv-icon'+(active?' active':'');el.textContent=text;el.title=title;return el;
@@ -1103,6 +1153,7 @@ function renderChannelCol(serverId){
   }
   if(list) buildList(list,false);
   if(mcpList) buildList(mcpList,true);
+  if(isMobileLayout()) renderMobileChannels(serverId);
 }
 function addHdrBtn(container,text,danger,cb){
   var b=document.createElement('button');b.className='ch-hdr-btn'+(danger?' danger':'');b.textContent=text;b.onclick=cb;container.appendChild(b);
@@ -1441,14 +1492,107 @@ function fillReactions(el,msg){
   pk.onclick=function(){openEmoji(msg.id);};el.appendChild(pk);
 }
 
-/* MOBILE CHANNEL PANEL */
-function openMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p)p.classList.add('show');document.getElementById('mobileOverlay').classList.add('show');}
-function closeMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p)p.classList.remove('show');document.getElementById('mobileOverlay').classList.remove('show');}
-function toggleMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p&&p.classList.contains('show'))closeMobilePanel();else openMobilePanel();}
-/* Keep old names as aliases so nothing breaks */
-function openMobileSidebar(){openMobilePanel();}
-function closeMobileSidebar(){closeMobilePanel();}
-function toggleMobileSidebar(){toggleMobilePanel();}
+/* ══════════════════════════════════════════════
+   MOBILE SLIDING VIEWS
+══════════════════════════════════════════════ */
+var _mobileView=0; // 0=servers, 1=channels, 2=chat
+function mobileGoTo(idx){
+  _mobileView=idx;
+  var views=document.getElementById('mobileViews');
+  if(views) views.style.transform='translateX(-'+(idx*100)+'vw)';
+}
+function isMobileLayout(){return window.innerWidth<=860;}
+
+function renderMobileServers(){
+  var list=document.getElementById('mvServerList');if(!list)return;
+  list.innerHTML='';
+  // DM item
+  var dm=document.createElement('div');dm.className='msrv-item'+(activeServerId==='__dm__'?' active':'');
+  dm.innerHTML='<div class="msrv-avatar" style="background:#1a1d30;font-size:20px">💬</div><div class="msrv-info"><div class="msrv-name">Direct Messages</div><div class="msrv-desc">Friends &amp; DMs</div></div><div class="msrv-arrow">›</div>';
+  dm.onclick=function(){selectServer('__dm__');mobileGoTo(1);};
+  list.appendChild(dm);
+  myServers.forEach(function(s){
+    var el=document.createElement('div');el.className='msrv-item'+(activeServerId===s._id?' active':'');
+    var bg=s.isOfficial?'linear-gradient(135deg,#6c7cff,#9b6cff)':(s.color||'#6c7cff');
+    el.innerHTML='<div class="msrv-avatar" style="background:'+bg+'">'+((s.icon||s.name[0]).toUpperCase())+'</div><div class="msrv-info"><div class="msrv-name">'+s.name+(s.isOfficial?' ⭐':'')+'</div><div class="msrv-desc">'+(s.description||'')+'</div></div><div class="msrv-arrow">›</div>';
+    el.onclick=(function(sid){return function(){selectServer(sid);mobileGoTo(1);};})(s._id);
+    list.appendChild(el);
+  });
+  // Divider + actions
+  var div=document.createElement('div');div.style.cssText='height:1px;background:rgba(255,255,255,.04);margin:8px 12px';list.appendChild(div);
+  var acts=document.createElement('div');acts.style.cssText='display:flex;gap:8px;padding:4px 12px 12px';
+  var addBtn=document.createElement('button');addBtn.style.cssText='flex:1;padding:10px;border-radius:10px;background:rgba(57,211,83,.08);color:var(--green);border:1.5px dashed rgba(57,211,83,.3);font-size:13px;cursor:pointer';addBtn.textContent='+ Create Server';
+  addBtn.onclick=function(){isGuest?showAuth():openCreateServer();};
+  var discBtn=document.createElement('button');discBtn.style.cssText='flex:1;padding:10px;border-radius:10px;background:rgba(108,124,255,.08);color:var(--accent);border:1.5px dashed rgba(108,124,255,.3);font-size:13px;cursor:pointer';discBtn.textContent='🔍 Discover';
+  discBtn.onclick=openDiscovery;
+  acts.appendChild(addBtn);acts.appendChild(discBtn);list.appendChild(acts);
+  // Username
+  var mu=document.getElementById('mvUsername');if(mu) mu.textContent=myName?('@'+myName):'';
+}
+
+function renderMobileChannels(serverId){
+  var title=document.getElementById('mvChTitle'),meta=document.getElementById('mvChMeta'),actions=document.getElementById('mvChActions'),list=document.getElementById('mvChannelList');
+  if(!list)return;
+  actions.innerHTML='';list.innerHTML='';
+  if(serverId==='__dm__'){
+    title.textContent='Direct Messages';meta.textContent='';
+    renderFriendsInCol(list);return;
+  }
+  var srv=myServers.find(function(s){return s._id===serverId;});if(!srv)return;
+  title.textContent=srv.name;meta.textContent=srv.description||'';
+  var isOwner=!isGuest&&srv.owner===myName;
+  if(!isGuest){
+    if(isOwner&&!srv.isOfficial){
+      addHdrBtn(actions,'🔗 Invite',false,function(){createInvite(serverId);});
+      addHdrBtn(actions,'+ Ch',false,function(){openAddChannel(serverId);});
+      addHdrBtn(actions,'Delete',true,function(){deleteServer(serverId);});
+    } else if(!srv.isOfficial){
+      addHdrBtn(actions,'🔗 Invite',false,function(){createInvite(serverId);});
+      addHdrBtn(actions,'Leave',true,function(){leaveServer(serverId);});
+    } else {
+      addHdrBtn(actions,'🔗 Invite',false,function(){createInvite(serverId);});
+    }
+  }
+  var channels=myChannels[serverId]||[];
+  var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 6px 4px';lbl.textContent='Text Channels';list.appendChild(lbl);
+  channels.forEach(function(ch){
+    var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
+    el.innerHTML='<span style="opacity:.7;flex-shrink:0">'+(ch.type==='announcement'?'📢':'#')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>';
+    if(isOwner&&!srv.isOfficial){var del=document.createElement('button');del.className='ch-del';del.textContent='✕';del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};el.appendChild(del);}
+    el.onclick=(function(c,s){return function(){
+      var bl=document.getElementById('mvBackLabel');if(bl)bl.textContent=s.name;
+      joinChannel(c,s);mobileGoTo(2);
+    };})(ch,srv);
+    list.appendChild(el);
+  });
+  if(!channels.length){var em=document.createElement('div');em.style.cssText='color:var(--muted);font-size:12px;padding:8px 6px';em.textContent='No channels yet';list.appendChild(em);}
+}
+
+/* Swipe detection on mobileViews */
+(function(){
+  var sx=0,sy=0,dragging=false;
+  document.addEventListener('touchstart',function(e){
+    var mv=document.getElementById('mobileViews');if(!mv||mv.style.display==='none')return;
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;dragging=true;
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(!dragging)return;dragging=false;
+    var mv=document.getElementById('mobileViews');if(!mv||mv.style.display==='none')return;
+    var dx=e.changedTouches[0].clientX-sx;
+    var dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)<Math.abs(dy)||Math.abs(dx)<40)return; // not horizontal
+    if(dx<0&&_mobileView<2) mobileGoTo(_mobileView+1); // swipe left → next
+    else if(dx>0&&_mobileView>0) mobileGoTo(_mobileView-1); // swipe right → back
+  },{passive:true});
+})();
+
+/* Aliases for old callers */
+function openMobileSidebar(){if(isMobileLayout())mobileGoTo(0);}
+function closeMobileSidebar(){}
+function toggleMobileSidebar(){if(isMobileLayout())mobileGoTo(_mobileView===0?1:0);}
+function openMobilePanel(){if(isMobileLayout())mobileGoTo(1);}
+function closeMobilePanel(){}
+function toggleMobilePanel(){if(isMobileLayout())mobileGoTo(_mobileView===1?0:1);}
 
 /* ══════════════════════════════════════════════
    EMOJI
