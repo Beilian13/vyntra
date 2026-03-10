@@ -432,7 +432,7 @@ main{display:flex;flex:1;overflow:hidden}
         <div id="chHeaderActions" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap"></div>
       </div>
       <div id="channelsList" style="flex:1;overflow-y:auto;padding:6px 8px"></div>
-      <div id="activityFeed" style="border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;max-height:220px;overflow-y:auto;padding-bottom:6px"></div>
+      <div id="onlinePanel" style="border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;padding:6px 0 8px"></div>
     </div>
 
     <section class="chatArea">
@@ -669,8 +669,7 @@ var myServers=[], myChannels={}, activeServerId=null;
 var isGuest=false, pendingInviteToken=null, pendingInviteServerToken=null;
 var COLORS=['#6c7cff','#9b6cff','#ff6cb4','#ff8c5a','#39d353','#28c8d4','#f5c842','#e03e3e'];
 var pendingFile=null;
-var onlineUsers=[], activityEvents=[];
-var typingUsers={}, typingTimers={}; // chanId -> Set of usernames
+var onlineUsers=[], typingUsers={}, typingTimers={};
 
 /* ══ LIVEKIT CALL STATE ══ */
 var lk={
@@ -902,20 +901,17 @@ function handleMsg(raw){
       myFriends=d.friends||[];
       myServers=d.servers||[];
       onlineUsers=d.onlineUsers||[];
-      activityEvents=d.activityLog||[];
+      renderOnlineUsers();
       (d.channels||[]).forEach(function(ch){
         if(!myChannels[ch.serverId]) myChannels[ch.serverId]=[];
         if(!myChannels[ch.serverId].find(function(c){return c._id===ch._id;}))
           myChannels[ch.serverId].push(ch);
       });
-      renderServerCol();renderFriends();renderActivityFeed();
+      renderServerCol();renderFriends();renderOnlineUsers();
       var off=myServers.find(function(s){return s.isOfficial;});
       if(off) selectServer(off._id);
-      // Refresh timestamps every minute
-      setInterval(renderActivityFeed, 60000);
       break;
-    case 'online_users':  onlineUsers=d.users||[];renderActivityFeed();break;
-    case 'activity_update': activityEvents=d.events||[];renderActivityFeed();break;
+    case 'online_users':  onlineUsers=d.users||[];renderOnlineUsers();break;
     case 'typing':
       if(d.channelId===currentChannelId){
         if(!typingUsers[d.channelId]) typingUsers[d.channelId]=new Set();
@@ -1118,32 +1114,21 @@ function renderTyping(){
   var txt=list.length===1?list[0]+' is typing…':list.length===2?list[0]+' and '+list[1]+' are typing…':list.slice(0,-1).join(', ')+' and '+list[list.length-1]+' are typing…';
   bar.textContent='✏️ '+txt;bar.style.display='block';
 }
-function renderActivityFeed(){
-  var el=document.getElementById('activityFeed');if(!el)return;
+function renderOnlineUsers(){
+  var el=document.getElementById('onlinePanel');if(!el)return;
   el.innerHTML='';
-  // Online users
-  var onDiv=document.createElement('div');onDiv.style.cssText='padding:6px 8px 4px;';
-  var onHdr=document.createElement('div');onHdr.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px';onHdr.textContent='Online — '+onlineUsers.length;onDiv.appendChild(onHdr);
+  if(!onlineUsers.length) return;
+  var hdr=document.createElement('div');
+  hdr.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 4px';
+  hdr.textContent='Online — '+onlineUsers.length;
+  el.appendChild(hdr);
   onlineUsers.slice(0,8).forEach(function(u){
-    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;color:var(--white)';
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:7px;padding:2px 10px;font-size:12px;color:var(--white)';
     row.innerHTML='<div style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span>'+u+'</span>';
-    onDiv.appendChild(row);
-  });
-  if(onlineUsers.length>8){var more=document.createElement('div');more.style.cssText='font-size:11px;color:var(--muted);padding:2px';more.textContent='+'+(onlineUsers.length-8)+' more';onDiv.appendChild(more);}
-  el.appendChild(onDiv);
-  // Divider
-  var div=document.createElement('div');div.style.cssText='height:1px;background:rgba(255,255,255,.04);margin:4px 8px';el.appendChild(div);
-  // Recent activity
-  var actHdr=document.createElement('div');actHdr.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 4px';actHdr.textContent='Recent Activity';el.appendChild(actHdr);
-  var events=[...activityEvents].reverse().slice(0,10);
-  if(!events.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 10px';em.textContent='No recent activity';el.appendChild(em);}
-  events.forEach(function(ev){
-    var row=document.createElement('div');row.style.cssText='padding:4px 10px;font-size:12px;display:flex;gap:6px;align-items:flex-start';
-    var icon=ev.type==='join'?'→':ev.type==='leave'?'←':ev.type==='message'?'💬':'•';
-    var age=Math.round((Date.now()-ev.ts)/60000);var ageStr=age<1?'now':age+'m ago';
-    row.innerHTML='<span style="opacity:.5;flex-shrink:0">'+icon+'</span><span style="flex:1;color:var(--muted)"><span style="color:var(--white)">'+ev.user+'</span> '+ev.text+'</span><span style="opacity:.4;font-size:10px;flex-shrink:0">'+ageStr+'</span>';
     el.appendChild(row);
   });
+  if(onlineUsers.length>8){var more=document.createElement('div');more.style.cssText='font-size:11px;color:var(--muted);padding:2px 10px';more.textContent='+'+(onlineUsers.length-8)+' more';el.appendChild(more);}
 }
 
 function renderFriendsInCol(container){
