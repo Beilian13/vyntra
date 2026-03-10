@@ -770,8 +770,20 @@ var ringtone=(function(){
     o.start(start);o.stop(start+dur);
   }
   return{
-    start:function(){if(on) return;on=true;try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}burst();tid=setInterval(burst,2200);},
-    stop:function(){on=false;clearInterval(tid);tid=null;if(ctx){try{ctx.close();}catch(e){}ctx=null;}}
+    start:function(){
+      if(on) return;on=true;
+      try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
+      burst();tid=setInterval(burst,2200);
+      // Safety: stop ringing after 60s regardless
+      if(window._ringtoneTimeout) clearTimeout(window._ringtoneTimeout);
+      window._ringtoneTimeout = setTimeout(function(){ ringtone.stop(); }, 60000);
+    },
+    stop:function(){
+      on=false;clearInterval(tid);tid=null;
+      if(ctx){try{ctx.close();}catch(e){}ctx=null;}
+      if(window._ringtoneTimeout){clearTimeout(window._ringtoneTimeout);window._ringtoneTimeout=null;}
+    },
+    isOn:function(){return on;}
   };
 })();
 
@@ -792,7 +804,9 @@ var ringback=(function(){
   }
   return{
     start:function(){if(on) return;on=true;try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}burst();tid=setInterval(burst,3000);},
-    stop:function(){on=false;clearInterval(tid);tid=null;if(ctx){try{ctx.close();}catch(e){}ctx=null;}}
+    stop:function(){on=false;clearInterval(tid);tid=null;if(ctx){try{ctx.close();}catch(e){}ctx=null;}
+      if(window._ringbackTimeout){clearTimeout(window._ringbackTimeout);window._ringbackTimeout=null;}},
+    isOn:function(){return on;}
   };
 })();
 
@@ -1724,6 +1738,14 @@ function startCallInRoom(chatRoom){
     document.getElementById('callingOverlay').style.display='flex';
     ringback.start();
     wsSend({type:'call_request',to:peer,lvRoom:lvRoom,chatRoom:chatRoom});
+    // Auto-cancel if no answer in 30s
+    if(window._ringbackTimeout) clearTimeout(window._ringbackTimeout);
+    window._ringbackTimeout = setTimeout(function(){
+      if(ringback.isOn()){
+        cancelCall();
+        toast('No answer');
+      }
+    }, 30000);
   }
   // Join Livekit right away regardless
   joinLivekitRoom(lvRoom,chatRoom);
@@ -2457,33 +2479,45 @@ function sbPlayBuiltin(id, btnEl){
   sbRouteToMic(id, dur);
 }
 
-/* Route soundboard audio through the mic track so call participants hear it */
+/* Route soundboard audio through the mic track so call participants hear it.
+   The trick: create a routeCtx, swap sbCtx to it, then intercept its
+   destination property so sbGenerate's master node wires into our
+   MediaStreamDestination instead of the speakers. */
 function sbRouteToMic(id, dur){
   if(!lk.active || !lk.room) return;
-  // We create a separate AudioContext, generate the sound, capture it as a
-  // MediaStream destination, then mix it into the published mic track via Livekit
   try{
     var AC = window.AudioContext||window.webkitAudioContext;
     var routeCtx = new AC();
     var dest = routeCtx.createMediaStreamDestination();
-    var master = routeCtx.createGain();
-    master.gain.value = 0.9;
-    master.connect(dest);
-    // Re-generate into routeCtx (same logic, different ctx)
+
+    // Override destination so sbGenerate's internal master.connect(ctx.destination)
+    // actually connects to our MediaStreamDestination node
+    var _realDest = routeCtx.destination;
+    Object.defineProperty(routeCtx, 'destination', {
+      get: function(){ return dest; },
+      configurable: true
+    });
+
     var sbOld = sbCtx;
     sbCtx = routeCtx;
     sbGenerate(id);
     sbCtx = sbOld;
-    master.connect(routeCtx.destination);
 
-    // Publish as an additional audio track for the duration
+    // Restore (good practice)
+    Object.defineProperty(routeCtx, 'destination', {
+      get: function(){ return _realDest; },
+      configurable: true
+    });
+
     var track = dest.stream.getAudioTracks()[0];
     if(track){
       lk.room.localParticipant.publishTrack(track, {name:'soundboard',source:LivekitClient.Track.Source.Unknown});
       setTimeout(function(){
         try{lk.room.localParticipant.unpublishTrack(track);}catch(e){}
-        routeCtx.close();
-      }, (dur+0.3)*1000);
+        try{routeCtx.close();}catch(e){}
+      }, (dur+0.5)*1000);
+    } else {
+      try{routeCtx.close();}catch(e){}
     }
   } catch(e){ console.warn('Soundboard mic route failed:', e); }
 }
