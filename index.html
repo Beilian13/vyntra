@@ -267,7 +267,56 @@ main{display:flex;flex:1;overflow:hidden}
 .ch-item.active{background:linear-gradient(90deg,#1b1d33,#151629);color:var(--white)}
 .ch-del{font-size:11px;opacity:0;color:var(--red);background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;margin-left:auto}
 .ch-item:hover .ch-del{opacity:1}
-@media(max-width:860px){#serverCol,#channelCol,.usersPanel{display:none}}
+/* ── MOBILE NAV (≤860px) ── */
+@media(max-width:860px){
+  #serverCol,#channelCol,.usersPanel{display:none}
+  #mobileMenuBtn{display:flex}
+  .rh-meta{display:none}
+  main{position:relative;overflow:hidden}
+
+  /* Bottom server rail */
+  #mobileRail{
+    position:fixed;bottom:0;left:0;right:0;height:58px;
+    background:#080a12;border-top:1px solid rgba(255,255,255,.04);
+    display:flex;align-items:center;padding:0 8px;gap:6px;
+    overflow-x:auto;z-index:300;
+    scrollbar-width:none;
+  }
+  #mobileRail::-webkit-scrollbar{display:none}
+  #mobileRail .srv-icon{width:40px;height:40px;font-size:13px;flex-shrink:0}
+
+  /* Channel slide-up panel */
+  #mobileChannelPanel{
+    position:fixed;bottom:58px;left:0;right:0;
+    height:60vh;background:#0d0f1a;
+    border-top:1px solid rgba(255,255,255,.05);
+    border-radius:16px 16px 0 0;
+    z-index:200;
+    transform:translateY(100%);
+    transition:transform .25s ease;
+    display:flex;flex-direction:column;
+    box-shadow:0 -8px 32px rgba(0,0,0,.5);
+  }
+  #mobileChannelPanel.show{transform:translateY(0)}
+  #mobileChannelPanel .mcp-handle{
+    width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);
+    margin:10px auto 8px;flex-shrink:0;
+  }
+  #mobileChannelPanel .mcp-header{
+    padding:0 14px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;
+  }
+  #mobileChannelPanel .mcp-title{font-size:14px;font-weight:700}
+  #mobileChannelPanel .mcp-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  #mobileChannelPanel .mcp-list{overflow-y:auto;padding:6px 10px;flex:1}
+
+  /* Push chat area up above rail */
+  #appShell main .chatArea{padding-bottom:58px}
+  .compose{padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)) !important}
+}
+@media(min-width:861px){
+  #mobileRail,#mobileChannelPanel,#mobileOverlay{display:none!important}
+  .sidebar,.usersPanel{display:none} /* legacy, replaced by serverCol/channelCol */
+}
 
 
 #mobileMenuBtn{display:none;flex-shrink:0;margin-right:4px}
@@ -358,10 +407,18 @@ main{display:flex;flex:1;overflow:hidden}
   </div>
 
   <div id="mobileOverlay"></div>
-  <!-- Mobile sidebar: server icons + channel list side by side -->
-  <div id="mobileSidebar" style="display:flex;flex-direction:row">
-    <div id="mServerCol" style="width:60px;background:#080a12;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
-    <div id="mChannelCol" style="flex:1;background:#0d0f1a;display:flex;flex-direction:column;overflow:hidden"></div>
+
+  <!-- Mobile: bottom server rail -->
+  <div id="mobileRail"></div>
+
+  <!-- Mobile: slide-up channel panel -->
+  <div id="mobileChannelPanel">
+    <div class="mcp-handle"></div>
+    <div class="mcp-header">
+      <div class="mcp-title" id="mcpTitle">Channels</div>
+      <div class="mcp-actions" id="mcpActions"></div>
+    </div>
+    <div class="mcp-list" id="mcpList"></div>
   </div>
 
   <main style="position:relative">
@@ -875,7 +932,10 @@ function initListeners(){
   document.getElementById('reconnectBtn').onclick=function(){var t=localStorage.getItem('vt');if(t)connectWS(t);};
   document.getElementById('emojiBtn').onclick=function(){openEmoji('__c');};
   document.getElementById('mobileMenuBtn').onclick=toggleMobileSidebar;
-  document.getElementById('mobileOverlay').onclick=closeMobileSidebar;
+  document.getElementById('mobileOverlay').onclick=closeMobilePanel;
+  var mcpEl=document.getElementById('mobileChannelPanel');
+  if(mcpEl){var _sy=0;mcpEl.addEventListener('touchstart',function(e){_sy=e.touches[0].clientY;},{passive:true});mcpEl.addEventListener('touchend',function(e){if(e.changedTouches[0].clientY-_sy>60)closeMobilePanel();},{passive:true});}
+  document.getElementById('discSearch').addEventListener('input',function(){filterDisc(this.value);});
   document.getElementById('popupOverlay').onclick=closePopup;
   document.getElementById('emojiClose').onclick=closeEmoji;
   document.getElementById('emojiSearch').oninput=function(e){fillEmojiGrid(e.target.value);};
@@ -910,24 +970,34 @@ function initListeners(){
    SERVER / CHANNEL SIDEBAR
 ══════════════════════════════════════════════ */
 function renderServerCol(){
-  ['serverCol','mServerCol'].forEach(function(id){
+  ['serverCol','mobileRail'].forEach(function(id){
     var col=document.getElementById(id);if(!col)return;col.innerHTML='';
+    var isRail=(id==='mobileRail');
     // DM button
-    var dm=makeSrvIcon('💬','Direct Messages',activeServerId==='__dm__');dm.style.fontSize='18px';
-    dm.onclick=function(){selectServer('__dm__');closeMobileSidebar();};col.appendChild(dm);
-    var div=document.createElement('div');div.className='srv-divider';col.appendChild(div);
+    var dm=makeSrvIcon('💬','Direct Messages',activeServerId==='__dm__');
+    if(isRail) dm.style.fontSize='16px';
+    dm.onclick=function(){selectServer('__dm__');if(isRail)closeMobilePanel();};
+    col.appendChild(dm);
+    if(!isRail){var div=document.createElement('div');div.className='srv-divider';col.appendChild(div);}
     myServers.forEach(function(s){
       var el=makeSrvIcon(s.icon||s.name[0].toUpperCase(),s.name,activeServerId===s._id);
       if(s.isOfficial) el.classList.add('official');
       else el.style.background=s.color||'#6c7cff';
-      el.onclick=(function(sid){return function(){selectServer(sid);closeMobileSidebar();};})(s._id);
+      el.onclick=(function(sid){return function(){
+        if(isRail){
+          if(activeServerId===sid){toggleMobilePanel();}
+          else{selectServer(sid);openMobilePanel();}
+        } else {
+          selectServer(sid);
+        }
+      };})(s._id);
       col.appendChild(el);
     });
-    var div2=document.createElement('div');div2.className='srv-divider';col.appendChild(div2);
+    if(!isRail){var div2=document.createElement('div');div2.className='srv-divider';col.appendChild(div2);}
     var add=makeSrvIcon('+','Create Server',false);add.classList.add('srv-add');
     add.onclick=function(){isGuest?showAuth():openCreateServer();};col.appendChild(add);
-    var disc=makeSrvIcon('🔍','Discover',false);disc.classList.add('srv-discover');disc.style.fontSize='18px';
-    disc.onclick=openDiscovery;col.appendChild(disc);
+    var disc=makeSrvIcon('🔍','Discover',false);disc.classList.add('srv-discover');disc.style.fontSize='16px';
+    disc.onclick=function(){openDiscovery();if(isRail)closeMobilePanel();};col.appendChild(disc);
   });
 }
 function makeSrvIcon(text,title,active){
@@ -937,31 +1007,42 @@ function selectServer(sid){
   activeServerId=sid;renderServerCol();renderChannelCol(sid);closeDiscovery();
 }
 function renderChannelCol(serverId){
-  var hName=document.getElementById('chHeaderName'),hMeta=document.getElementById('chHeaderMeta'),hAct=document.getElementById('chHeaderActions'),list=document.getElementById('channelsList'),mCol=document.getElementById('mChannelCol');
-  hAct.innerHTML='';list.innerHTML='';if(mCol){mCol.innerHTML='';}
+  var hName=document.getElementById('chHeaderName'),hMeta=document.getElementById('chHeaderMeta'),hAct=document.getElementById('chHeaderActions'),list=document.getElementById('channelsList');
+  var mcpTitle=document.getElementById('mcpTitle'),mcpActions=document.getElementById('mcpActions'),mcpList=document.getElementById('mcpList');
+  if(hAct) hAct.innerHTML=''; if(list) list.innerHTML='';
+  if(mcpActions) mcpActions.innerHTML=''; if(mcpList) mcpList.innerHTML='';
 
   if(serverId==='__dm__'){
-    hName.textContent='Direct Messages';hMeta.textContent='Your conversations';
-    renderFriendsInCol(list);if(mCol){var mList=document.createElement('div');mList.style.cssText='padding:6px 8px;overflow-y:auto';renderFriendsInCol(mList);mCol.appendChild(mList);}
+    if(hName) hName.textContent='Direct Messages';
+    if(hMeta) hMeta.textContent='Your conversations';
+    if(list) renderFriendsInCol(list);
+    if(mcpTitle) mcpTitle.textContent='Direct Messages';
+    if(mcpList) renderFriendsInCol(mcpList);
     return;
   }
   var srv=myServers.find(function(s){return s._id===serverId;});if(!srv)return;
-  hName.textContent=srv.name;hMeta.textContent=srv.description||'';
+  if(hName) hName.textContent=srv.name;
+  if(hMeta) hMeta.textContent=srv.description||'';
+  if(mcpTitle) mcpTitle.textContent=srv.name;
   var isOwner=!isGuest&&srv.owner===myName;
-  if(!isGuest){
-    if(isOwner&&!srv.isOfficial){
-      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
-      addHdrBtn(hAct,'+ Ch',false,function(){openAddChannel(serverId);});
-      addHdrBtn(hAct,'Delete',true,function(){deleteServer(serverId);});
-    } else if(!srv.isOfficial){
-      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
-      addHdrBtn(hAct,'Leave',true,function(){leaveServer(serverId);});
-    } else {
-      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
+  function addBtns(container){
+    if(!isGuest){
+      if(isOwner&&!srv.isOfficial){
+        addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
+        addHdrBtn(container,'+ Ch',false,function(){openAddChannel(serverId);});
+        addHdrBtn(container,'Delete',true,function(){deleteServer(serverId);});
+      } else if(!srv.isOfficial){
+        addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
+        addHdrBtn(container,'Leave',true,function(){leaveServer(serverId);});
+      } else {
+        addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
+      }
     }
   }
+  if(hAct) addBtns(hAct);
+  if(mcpActions) addBtns(mcpActions);
   var channels=myChannels[serverId]||[];
-  function buildList(container){
+  function buildList(container,mobile){
     var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 6px 4px;display:flex;align-items:center;justify-content:space-between';lbl.textContent='Text Channels';
     if(isOwner&&!srv.isOfficial){var ab=document.createElement('button');ab.style.cssText='font-size:16px;cursor:pointer;color:var(--muted);background:none;border:none;padding:0 2px';ab.textContent='+';ab.onclick=function(){openAddChannel(serverId);};lbl.appendChild(ab);}
     container.appendChild(lbl);
@@ -969,13 +1050,13 @@ function renderChannelCol(serverId){
       var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
       el.innerHTML='<span style="opacity:.7;flex-shrink:0">#</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>';
       if(isOwner&&!srv.isOfficial){var del=document.createElement('button');del.className='ch-del';del.textContent='✕';del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};el.appendChild(del);}
-      el.onclick=(function(c,s){return function(){joinChannel(c,s);closeMobileSidebar();};})(ch,srv);
+      el.onclick=(function(c,s){return function(){joinChannel(c,s);if(mobile)closeMobilePanel();};})(ch,srv);
       container.appendChild(el);
     });
     if(!channels.length){var em=document.createElement('div');em.style.cssText='color:var(--muted);font-size:12px;padding:8px 6px';em.textContent='No channels yet';container.appendChild(em);}
   }
-  buildList(list);
-  if(mCol){var mHdr=document.createElement('div');mHdr.style.cssText='padding:12px 10px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;font-weight:700';mHdr.textContent=srv.name;mCol.appendChild(mHdr);var mList=document.createElement('div');mList.style.cssText='padding:6px 8px;overflow-y:auto;flex:1';buildList(mList);mCol.appendChild(mList);}
+  if(list) buildList(list,false);
+  if(mcpList) buildList(mcpList,true);
 }
 function addHdrBtn(container,text,danger,cb){
   var b=document.createElement('button');b.className='ch-hdr-btn'+(danger?' danger':'');b.textContent=text;b.onclick=cb;container.appendChild(b);
@@ -1223,10 +1304,14 @@ function fillReactions(el,msg){
   pk.onclick=function(){openEmoji(msg.id);};el.appendChild(pk);
 }
 
-/* MOBILE SIDEBAR */
-function toggleMobileSidebar(){document.getElementById('mobileSidebar').classList.contains('show')?closeMobileSidebar():openMobileSidebar();}
-function openMobileSidebar(){document.getElementById('mobileSidebar').classList.add('show');document.getElementById('mobileOverlay').classList.add('show');}
-function closeMobileSidebar(){document.getElementById('mobileSidebar').classList.remove('show');document.getElementById('mobileOverlay').classList.remove('show');}
+/* MOBILE CHANNEL PANEL */
+function openMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p)p.classList.add('show');document.getElementById('mobileOverlay').classList.add('show');}
+function closeMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p)p.classList.remove('show');document.getElementById('mobileOverlay').classList.remove('show');}
+function toggleMobilePanel(){var p=document.getElementById('mobileChannelPanel');if(p&&p.classList.contains('show'))closeMobilePanel();else openMobilePanel();}
+/* Keep old names as aliases so nothing breaks */
+function openMobileSidebar(){openMobilePanel();}
+function closeMobileSidebar(){closeMobilePanel();}
+function toggleMobileSidebar(){toggleMobilePanel();}
 
 /* ══════════════════════════════════════════════
    EMOJI
