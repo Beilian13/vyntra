@@ -448,6 +448,12 @@ main{display:flex;flex:1;overflow:hidden}
       </div>
       <div class="compose" id="composeBar">
         <button class="icon-btn" id="emojiBtn">✦</button>
+        <button class="icon-btn" id="attachBtn" title="Attach file">📎</button>
+        <input type="file" id="fileInput" accept="image/*,video/mp4,application/pdf,text/plain" style="display:none"/>
+        <div id="filePreview" style="display:none;position:absolute;bottom:64px;left:12px;right:12px;background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;display:none;align-items:center;gap:10px;z-index:10">
+          <div id="filePreviewContent" style="flex:1;overflow:hidden"></div>
+          <button onclick="clearFileAttach()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>
         <input class="msg-input" id="msgInput" placeholder="Type a message…"/>
         <button class="send-btn" id="sendBtn">Send</button>
       </div>
@@ -656,6 +662,7 @@ var isMobile=isIOS||isAndroid||/Mobile/i.test(navigator.userAgent);
 var myServers=[], myChannels={}, activeServerId=null;
 var isGuest=false, pendingInviteToken=null, pendingInviteServerToken=null;
 var COLORS=['#6c7cff','#9b6cff','#ff6cb4','#ff8c5a','#39d353','#28c8d4','#f5c842','#e03e3e'];
+var pendingFile=null; // {url, fileName, fileType}
 
 /* ══ LIVEKIT CALL STATE ══ */
 var lk={
@@ -928,7 +935,15 @@ function handleMsg(raw){
 function initListeners(){
   listenersReady=true;
   document.getElementById('sendBtn').onclick=sendMessage;
-  document.getElementById('msgInput').onkeypress=function(e){if(e.key==='Enter')sendMessage();};
+  document.getElementById('msgInput').onkeypress=function(e){if(e.key==='Enter'&&!e.shiftKey)sendMessage();};
+  document.getElementById('attachBtn').onclick=function(){document.getElementById('fileInput').click();};
+  document.getElementById('fileInput').onchange=function(){if(this.files[0])handleFileAttach(this.files[0]);this.value='';};
+  // Paste image
+  document.getElementById('msgInput').addEventListener('paste',function(e){
+    var items=e.clipboardData&&e.clipboardData.items;
+    if(!items)return;
+    for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){e.preventDefault();handleFileAttach(items[i].getAsFile());break;}}
+  });
   document.getElementById('reconnectBtn').onclick=function(){var t=localStorage.getItem('vt');if(t)connectWS(t);};
   document.getElementById('emojiBtn').onclick=function(){openEmoji('__c');};
   document.getElementById('mobileMenuBtn').onclick=toggleMobileSidebar;
@@ -1244,14 +1259,43 @@ function toast(msg){
 /* ══════════════════════════════════════════════
    CHAT
 ══════════════════════════════════════════════ */
+/* ── FILE ATTACH ── */
+function handleFileAttach(file){
+  if(file.size>8*1024*1024){toast('❌ File too large (max 8MB)');return;}
+  var preview=document.getElementById('filePreview');
+  var content=document.getElementById('filePreviewContent');
+  // Show local preview
+  if(file.type.startsWith('image/')){
+    var url=URL.createObjectURL(file);
+    content.innerHTML='<img src="'+url+'" style="max-height:80px;max-width:200px;border-radius:6px;object-fit:cover"/> <span style="font-size:12px;color:var(--muted);margin-left:8px">'+file.name+'</span>';
+  } else {
+    content.innerHTML='<span style="font-size:20px">📄</span><span style="font-size:13px;margin-left:8px;color:var(--muted)">'+file.name+'</span>';
+  }
+  preview.style.display='flex';
+  // Upload immediately
+  var fd=new FormData();fd.append('file',file);
+  var token=localStorage.getItem('vt');
+  fetch('/upload',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.url){pendingFile={url:d.url,fileName:d.fileName,fileType:d.fileType};content.innerHTML+='<span style="color:var(--green);font-size:12px;margin-left:8px">✓ Ready</span>';}
+      else{toast('❌ Upload failed');clearFileAttach();}
+    }).catch(function(){toast('❌ Upload failed');clearFileAttach();});
+}
+function clearFileAttach(){
+  pendingFile=null;
+  document.getElementById('filePreview').style.display='none';
+  document.getElementById('filePreviewContent').innerHTML='';
+}
 function sendMessage(){
   var inp=document.getElementById('msgInput'),txt=inp.value.trim();
-  if(!txt) return;
+  if(!txt&&!pendingFile) return;
   if(!connected){toast('❌ Not connected — try Reconnect');return;}
   if(!currentRoom){toast('❌ Join a room first');return;}
-  wsSend({type:'message',text:txt,channelId:currentChannelId});
-  inp.value='';
-  inp.focus();
+  var msg={type:'message',text:txt,channelId:currentChannelId};
+  if(pendingFile){msg.fileUrl=pendingFile.url;msg.fileName=pendingFile.fileName;msg.fileType=pendingFile.fileType;}
+  wsSend(msg);
+  inp.value='';clearFileAttach();inp.focus();
 }
 function populateUsers(list){
   var c=document.getElementById('usersList');c.innerHTML='';
@@ -1287,9 +1331,28 @@ function renderMsg(msg){
   var ts=document.createElement('span');ts.style.opacity='.6';
   ts.textContent=' • '+new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString();
   meta.appendChild(ns);meta.appendChild(ts);
-  var tx=document.createElement('div');tx.className='text';tx.textContent=msg.text;
+  w.appendChild(meta);
+  // Text
+  if(msg.text){var tx=document.createElement('div');tx.className='text';tx.textContent=msg.text;w.appendChild(tx);}
+  // File/image attachment
+  if(msg.fileUrl){
+    var ft=msg.fileType||'';
+    if(ft.startsWith('image/')){
+      var img=document.createElement('img');
+      img.src=msg.fileUrl;img.style.cssText='max-width:min(320px,80vw);max-height:280px;border-radius:10px;display:block;margin-top:6px;cursor:pointer;object-fit:contain;background:#0b0d16';
+      img.onclick=function(){window.open(msg.fileUrl,'_blank');};
+      img.onerror=function(){this.style.display='none';};
+      w.appendChild(img);
+    } else {
+      var fc=document.createElement('a');fc.href=msg.fileUrl;fc.target='_blank';fc.download=msg.fileName||'file';
+      fc.style.cssText='display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);color:var(--white);text-decoration:none;font-size:13px;max-width:260px';
+      var icon=ft.includes('pdf')?'📄':ft.includes('video')?'🎬':'📎';
+      fc.innerHTML='<span style="font-size:18px">'+icon+'</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(msg.fileName||'file')+'</span><span style="margin-left:auto;opacity:.5;font-size:11px">↓</span>';
+      w.appendChild(fc);
+    }
+  }
   var rx=document.createElement('div');rx.className='reactions';fillReactions(rx,msg);
-  w.appendChild(meta);w.appendChild(tx);w.appendChild(rx);
+  w.appendChild(rx);
   c.appendChild(w);c.scrollTop=c.scrollHeight;
 }
 function fillReactions(el,msg){
