@@ -91,6 +91,43 @@ main{display:flex;flex:1;overflow:hidden}
 .msg.me .meta{color:rgba(255,255,255,.6)}
 .msg .text{font-size:14px;line-height:1.4}
 .msg .reactions{margin-top:8px;display:flex;gap:5px;flex-wrap:wrap}
+.msg .reply-quote{
+  margin-bottom:6px;padding:6px 10px;border-radius:6px;
+  border-left:3px solid rgba(108,124,255,.6);
+  background:rgba(255,255,255,.04);
+  font-size:12px;cursor:pointer;
+  display:flex;flex-direction:column;gap:1px;
+  transition:background .15s;
+}
+.msg .reply-quote:hover{background:rgba(108,124,255,.12)}
+.msg.me .reply-quote{border-left-color:rgba(255,255,255,.5);background:rgba(0,0,0,.15)}
+.msg .reply-quote .rq-user{font-weight:700;color:var(--accent);font-size:11px}
+.msg.me .reply-quote .rq-user{color:rgba(255,255,255,.8)}
+.msg .reply-quote .rq-text{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+.msg-actions{
+  display:none;position:absolute;right:8px;top:-14px;
+  background:#1a1d2e;border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;padding:3px 4px;gap:2px;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:5;
+}
+.msg:hover .msg-actions{display:flex}
+.msg-actions button{
+  background:none;border:none;cursor:pointer;
+  font-size:15px;padding:3px 6px;border-radius:5px;
+  color:var(--muted);transition:background .12s,color .12s;
+}
+.msg-actions button:hover{background:rgba(255,255,255,.08);color:var(--white)}
+/* Reply preview bar above compose */
+#replyBar{
+  display:none;align-items:center;gap:10px;
+  padding:7px 14px;background:#0b0d1e;
+  border-top:1px solid rgba(108,124,255,.2);
+  flex-shrink:0;
+}
+#replyBar .rb-quote{flex:1;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#replyBar .rb-user{font-weight:700;color:var(--accent);margin-right:4px}
+#replyBar .rb-cancel{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;flex-shrink:0;padding:0 2px}
+#replyBar .rb-cancel:hover{color:var(--white)}
 .reaction{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.03);font-size:13px;cursor:pointer;border:1px solid transparent}
 .reaction.you{border-color:rgba(108,124,255,.3);background:rgba(108,124,255,.08)}
 .ulink{cursor:pointer;font-weight:600}
@@ -501,6 +538,11 @@ main{display:flex;flex:1;overflow:hidden}
       </div>
       <div class="messages" id="messages"><div class="center-note">← Pick a server and channel</div></div>
       <div id="typingBar" style="display:none;padding:4px 14px;font-size:12px;color:var(--muted);flex-shrink:0;background:#0e1020;border-top:1px solid rgba(255,255,255,.02)"></div>
+      <div id="replyBar">
+        <span style="font-size:13px;color:var(--muted);flex-shrink:0">↩ Replying to</span>
+        <div class="rb-quote"><span class="rb-user" id="rbUser"></span><span id="rbText"></span></div>
+        <button class="rb-cancel" onclick="clearReply()">✕</button>
+      </div>
       <div id="watchBar" style="display:none;padding:8px 14px;background:rgba(108,124,255,.08);border-top:1px solid rgba(108,124,255,.15);flex-shrink:0;align-items:center;gap:10px;font-size:13px;color:var(--muted)">
         👀 Watching as guest. <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth()">Log in</a> or <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth('register')">register</a> to chat.
       </div>
@@ -725,6 +767,7 @@ var myServers=[], myChannels={}, activeServerId=null;
 var isGuest=false, pendingInviteToken=null, pendingInviteServerToken=null;
 var COLORS=['#6c7cff','#9b6cff','#ff6cb4','#ff8c5a','#39d353','#28c8d4','#f5c842','#e03e3e'];
 var pendingFile=null;
+var pendingReply=null; // {id, user, text}
 var onlineUsers=[], typingUsers={}, typingTimers={};
 
 /* ══ LIVEKIT CALL STATE ══ */
@@ -1240,7 +1283,7 @@ function joinChannel(ch,srv){
   // Clear typing
   typingUsers[ch._id]=new Set();renderTyping();
   if(isGuest){
-    fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
+    fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,replyTo:m.replyTo||null,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
   } else {
     wsSend({type:'join',channelId:ch._id});
   }
@@ -1434,6 +1477,19 @@ function clearFileAttach(){
   document.getElementById('filePreview').style.display='none';
   document.getElementById('filePreviewContent').innerHTML='';
 }
+function setReply(id, user, text){
+  pendingReply={id:id,user:user,text:text};
+  document.getElementById('rbUser').textContent=user;
+  document.getElementById('rbText').textContent=text||(user ? '' : '');
+  document.getElementById('replyBar').style.display='flex';
+  document.getElementById('msgInput').focus();
+}
+function clearReply(){
+  pendingReply=null;
+  document.getElementById('replyBar').style.display='none';
+  document.getElementById('rbUser').textContent='';
+  document.getElementById('rbText').textContent='';
+}
 function sendMessage(){
   var inp=document.getElementById('msgInput'),txt=inp.value.trim();
   if(!txt&&!pendingFile) return;
@@ -1441,9 +1497,10 @@ function sendMessage(){
   if(!currentRoom){toast('❌ Join a room first');return;}
   var msg={type:'message',text:txt,channelId:currentChannelId};
   if(pendingFile){msg.fileUrl=pendingFile.url;msg.fileName=pendingFile.fileName;msg.fileType=pendingFile.fileType;}
+  if(pendingReply){msg.replyTo={id:pendingReply.id,user:pendingReply.user,text:pendingReply.text};}
   wsSend(msg);
   wsSend({type:'typing_stop'});
-  inp.value='';clearFileAttach();inp.focus();
+  inp.value='';clearFileAttach();clearReply();inp.focus();
 }
 function populateUsers(list){
   var c=document.getElementById('usersList');c.innerHTML='';
@@ -1473,6 +1530,15 @@ function renderMsg(msg){
   if(ex){fillReactions(ex.querySelector('.reactions'),msg);return;}
   var ph=c.querySelector('.center-note');if(ph) ph.remove();
   var w=document.createElement('div');w.className='msg'+(msg.user===myName?' me':'');w.id='m-'+msg.id;
+  w.style.position='relative';
+  // Hover action buttons
+  var acts=document.createElement('div');acts.className='msg-actions';
+  var replyBtn=document.createElement('button');replyBtn.title='Reply';replyBtn.textContent='↩';
+  replyBtn.onclick=(function(m){return function(e){e.stopPropagation();
+    setReply(m.id, m.user, m.text||(m.fileName||''));
+  };})(msg);
+  acts.appendChild(replyBtn);
+  w.appendChild(acts);
   var meta=document.createElement('div');meta.className='meta';
   var ns=document.createElement('span');ns.className='ulink';ns.textContent=msg.user;
   ns.onclick=function(e){openPopup(msg.user,e);};
@@ -1480,6 +1546,23 @@ function renderMsg(msg){
   ts.textContent=' • '+new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString();
   meta.appendChild(ns);meta.appendChild(ts);
   w.appendChild(meta);
+  // Reply quote block
+  if(msg.replyTo){
+    var rq=document.createElement('div');rq.className='reply-quote';
+    var rqUser=document.createElement('div');rqUser.className='rq-user';rqUser.textContent='↩ '+msg.replyTo.user;
+    var rqText=document.createElement('div');rqText.className='rq-text';rqText.textContent=msg.replyTo.text||(msg.replyTo.fileName||'📎 attachment');
+    rq.appendChild(rqUser);rq.appendChild(rqText);
+    // Click to scroll to original message
+    rq.onclick=(function(rid){return function(){
+      var orig=document.getElementById('m-'+rid);
+      if(orig){orig.scrollIntoView({behavior:'smooth',block:'center'});
+        orig.style.transition='background .2s';
+        orig.style.background='rgba(108,124,255,.18)';
+        setTimeout(function(){orig.style.background='';},1200);
+      }
+    };})(msg.replyTo.id);
+    w.appendChild(rq);
+  }
   // Text
   if(msg.text){var tx=document.createElement('div');tx.className='text';tx.textContent=msg.text;w.appendChild(tx);}
   // File/image attachment
