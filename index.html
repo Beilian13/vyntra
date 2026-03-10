@@ -248,7 +248,28 @@ main{display:flex;flex:1;overflow:hidden}
 .calling-status{color:var(--muted);font-size:14px;margin-bottom:28px}
 .calling-cancel{padding:12px 32px;border-radius:12px;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700}
 
-/* ── MOBILE ── */
+/* ── SERVER / CHANNEL SIDEBAR ── */
+.srv-icon{width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;cursor:pointer;transition:border-radius .15s;flex-shrink:0;background:#13152a;color:var(--white);border:2px solid transparent}
+.srv-icon:hover{border-radius:12px}
+.srv-icon.active{border-radius:12px;border-color:var(--accent)}
+.srv-icon.official{background:linear-gradient(135deg,#6c7cff,#9b6cff)}
+.srv-divider{width:30px;height:1px;background:rgba(255,255,255,.06);margin:4px 0;flex-shrink:0}
+.srv-add{background:rgba(57,211,83,.08);color:var(--green)!important;border:1.5px dashed rgba(57,211,83,.3)!important}
+.srv-add:hover{background:rgba(57,211,83,.15);border-radius:12px}
+.srv-discover{background:rgba(108,124,255,.08);color:var(--accent)!important;border:1.5px dashed rgba(108,124,255,.3)!important}
+.srv-discover:hover{background:rgba(108,124,255,.15);border-radius:12px}
+.ch-hdr-btn{font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);color:var(--muted);cursor:pointer;white-space:nowrap}
+.ch-hdr-btn:hover{color:var(--white);background:rgba(255,255,255,.08)}
+.ch-hdr-btn.danger{color:#ff7070}
+.ch-hdr-btn.danger:hover{background:rgba(255,80,80,.12)}
+.ch-item{padding:6px 8px;border-radius:6px;margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.ch-item:hover{background:rgba(255,255,255,.04);color:var(--white)}
+.ch-item.active{background:linear-gradient(90deg,#1b1d33,#151629);color:var(--white)}
+.ch-del{font-size:11px;opacity:0;color:var(--red);background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;margin-left:auto}
+.ch-item:hover .ch-del{opacity:1}
+@media(max-width:860px){#serverCol,#channelCol,.usersPanel{display:none}}
+
+
 #mobileMenuBtn{display:none;flex-shrink:0;margin-right:4px}
 #mobileSidebar{position:fixed;top:60px;left:0;width:220px;max-width:72vw;height:calc(100% - 60px);background:#0d0f1a;border-right:1px solid rgba(255,255,255,.02);z-index:999;box-shadow:4px 0 16px rgba(0,0,0,.4);transform:translateX(-100%);transition:transform .25s ease;display:flex;flex-direction:column}
 #mobileSidebar.show{transform:translateX(0)}
@@ -337,35 +358,38 @@ main{display:flex;flex:1;overflow:hidden}
   </div>
 
   <div id="mobileOverlay"></div>
-  <div id="mobileSidebar">
-    <div class="sidebar-tabs">
-      <button class="stab active" onclick="mobileTab('rooms',this)">Rooms</button>
-      <button class="stab" onclick="mobileTab('friends',this)">Friends</button>
-    </div>
-    <div id="mRooms" class="sidebar-panel active"></div>
-    <div id="mFriends" class="sidebar-panel"></div>
+  <!-- Mobile sidebar: server icons + channel list side by side -->
+  <div id="mobileSidebar" style="display:flex;flex-direction:row">
+    <div id="mServerCol" style="width:60px;background:#080a12;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
+    <div id="mChannelCol" style="flex:1;background:#0d0f1a;display:flex;flex-direction:column;overflow:hidden"></div>
   </div>
 
-  <main>
-    <div class="sidebar">
-      <div class="sidebar-tabs">
-        <button class="stab active" onclick="sideTab('rooms',this)">Rooms</button>
-        <button class="stab" onclick="sideTab('friends',this)">Friends</button>
+  <main style="position:relative">
+    <!-- Server column -->
+    <div id="serverCol" style="width:60px;background:#080a12;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
+    <!-- Channel column -->
+    <div id="channelCol" style="width:220px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden">
+      <div id="chHeader" style="padding:14px 12px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0">
+        <div id="chHeaderName" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Vyntra</div>
+        <div id="chHeaderMeta" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
+        <div id="chHeaderActions" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap"></div>
       </div>
-      <div id="roomsList" class="sidebar-panel active"></div>
-      <div id="friendsList" class="sidebar-panel"></div>
+      <div id="channelsList" style="flex:1;overflow-y:auto;padding:6px 8px"></div>
     </div>
 
     <section class="chatArea">
       <div class="roomHeader">
         <div class="rh-left">
-          <div class="rh-title" id="roomTitle">Select a room</div>
-          <div class="rh-meta" id="roomMeta">Join a room to start chatting</div>
+          <div class="rh-title" id="roomTitle">Select a channel</div>
+          <div class="rh-meta" id="roomMeta">Pick a server and channel</div>
         </div>
         <div class="rh-right" id="roomUsersCount"></div>
       </div>
-      <div class="messages" id="messages"><div class="center-note">Join a room to see messages</div></div>
-      <div class="compose">
+      <div class="messages" id="messages"><div class="center-note">← Pick a server and channel</div></div>
+      <div id="watchBar" style="display:none;padding:8px 14px;background:rgba(108,124,255,.08);border-top:1px solid rgba(108,124,255,.15);flex-shrink:0;align-items:center;gap:10px;font-size:13px;color:var(--muted)">
+        👀 Watching as guest. <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth()">Log in</a> or <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth('register')">register</a> to chat.
+      </div>
+      <div class="compose" id="composeBar">
         <button class="icon-btn" id="emojiBtn">✦</button>
         <input class="msg-input" id="msgInput" placeholder="Type a message…"/>
         <button class="send-btn" id="sendBtn">Send</button>
@@ -373,10 +397,24 @@ main{display:flex;flex:1;overflow:hidden}
     </section>
 
     <aside class="usersPanel">
-      <h4>In room</h4>
+      <h4>In channel</h4>
       <div id="usersList"></div>
     </aside>
+
+    <!-- Discovery panel overlays chat area -->
+    <div id="discoveryScreen" style="display:none;flex-direction:column;position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:10">
+      <div style="padding:20px 24px 14px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-size:18px;font-weight:700;margin-bottom:4px">🔍 Discover Servers</div>
+          <div style="color:var(--muted);font-size:13px">Find and join public communities</div>
+          <input id="discSearch" style="margin-top:10px;width:min(320px,100%);padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);outline:none;font-size:14px" placeholder="Search servers…"/>
+        </div>
+        <button onclick="closeDiscovery()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--muted);font-size:13px;padding:6px 12px;cursor:pointer;flex-shrink:0;margin-top:4px">✕ Close</button>
+      </div>
+      <div id="discGrid" style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;overflow-y:auto;flex:1"></div>
+    </div>
   </main>
+
 </div>
 
 <!-- POPUPS / OVERLAYS -->
@@ -461,7 +499,7 @@ main{display:flex;flex:1;overflow:hidden}
     <button class="ctrl-btn" id="ctrlCam">
       <span class="ctrl-icon">📷</span><span>Camera</span>
     </button>
-    <button class="ctrl-btn" id="ctrlScreen">
+    <button class="ctrl-btn" id="ctrlScreen" style="display:none">
       <span class="ctrl-icon">🖥️</span><span>Share</span>
     </button>
     <button class="ctrl-btn" id="ctrlPeople" onclick="toggleParticipantsPanel()">
@@ -498,19 +536,68 @@ main{display:flex;flex:1;overflow:hidden}
   </div>
 </div>
 
-<script>
+<!-- INVITE LANDING -->
+<div id="inviteScreen" style="display:none;align-items:center;justify-content:center;height:100%;position:fixed;inset:0;background:radial-gradient(ellipse at 50% 40%,#1a1c35,var(--bg));z-index:2000">
+  <div style="width:min(420px,92vw);background:#13152a;border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.04);text-align:center">
+    <div id="invIcon" style="width:72px;height:72px;border-radius:20px;background:#6c7cff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;margin:0 auto 16px">V</div>
+    <div id="invName" style="font-size:22px;font-weight:700;margin-bottom:6px">Loading…</div>
+    <div id="invDesc" style="color:var(--muted);font-size:14px;margin-bottom:8px"></div>
+    <div id="invMeta" style="color:var(--muted);font-size:13px;margin-bottom:24px"></div>
+    <div id="invActions">
+      <button onclick="inviteJoin()" style="width:100%;padding:12px;border-radius:10px;background:var(--accent);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px">Join Server</button>
+      <button onclick="inviteWatch()" style="width:100%;padding:11px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--white);border:1px solid rgba(255,255,255,.08);font-size:14px;cursor:pointer;margin-bottom:10px">👀 Watch without account</button>
+      <div style="color:var(--muted);font-size:13px">Have an account? <a onclick="inviteLogin()" style="color:var(--accent);cursor:pointer">Log in to join</a></div>
+    </div>
+    <div id="invError" style="color:#ff6b6b;font-size:13px;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- CREATE SERVER MODAL -->
+<div id="createServerModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:28px;width:min(400px,90vw)">
+    <h3 style="font-size:17px;font-weight:700;margin-bottom:18px">Create a Server</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Server name *</label><input id="csmName" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none" placeholder="My awesome server"/></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Description</label><textarea id="csmDesc" rows="2" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;resize:none" placeholder="What's this server about?"></textarea></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Color:</div>
+    <div id="csmColors" style="display:flex;gap:6px;margin-bottom:14px"></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:16px"><input type="checkbox" id="csmPublic" checked style="accent-color:var(--accent)"/> Public (appears in discovery)</label>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeCreateServer()" style="flex:1;padding:10px;border-radius:8px;background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
+      <button id="csmSubmit" onclick="doCreateServer()" style="flex:1;padding:10px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">Create</button>
+    </div>
+    <div id="csmError" style="color:#ff6b6b;font-size:13px;margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ADD CHANNEL MODAL -->
+<div id="addChannelModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px;width:min(340px,90vw)">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:14px">Add Channel</h3>
+    <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;margin-bottom:14px" placeholder="channel-name"/>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
+      <button onclick="doAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">Add</button>
+    </div>
+  </div>
+</div>
+
+
 'use strict';
 
 /* ══════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════ */
-var ws, connected=false, myName='', currentRoom=null;
+var ws, connected=false, myName='', currentRoom=null, currentChannelId=null;
 var myFriends=[], mutedUsers=[], msgCache={}, allRooms=[];
 var listenersReady=false, pendingFR=null, pendingUser=null;
 var allEmojis=[], pickerFor=null;
 var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
 var isAndroid=/Android/i.test(navigator.userAgent);
 var isMobile=isIOS||isAndroid||/Mobile/i.test(navigator.userAgent);
+/* Servers/channels */
+var myServers=[], myChannels={}, activeServerId=null;
+var isGuest=false, pendingInviteToken=null, pendingInviteServerToken=null;
+var COLORS=['#6c7cff','#9b6cff','#ff6cb4','#ff8c5a','#39d353','#28c8d4','#f5c842','#e03e3e'];
 
 /* ══ LIVEKIT CALL STATE ══ */
 var lk={
@@ -625,7 +712,7 @@ async function doLogin(){
     if(!d.secretQuestion){
       var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
       var d2=await r2.json();
-      if(r2.ok){saveSession(d2.token,d2.username);launchApp(d2.token,d2.username,d2.friends);return;}
+      if(r2.ok){saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;}
     }
     document.getElementById('secretQuestionText').textContent=d.secretQuestion;
     document.getElementById('stepTabs').style.display='none';
@@ -646,7 +733,7 @@ async function doRegister(){
     var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e||undefined,password:p,secretQuestion:q,secretAnswer:a})});
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Registration failed');
-    saveSession(d.token,d.username);launchApp(d.token,d.username,d.friends);
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
   }catch(e){setErr('Network error');}
   finally{setBusy('registerBtn',false,'Create account');}
 }
@@ -658,7 +745,7 @@ async function doVerify(){
     var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Wrong answer');
-    saveSession(d.token,d.username);launchApp(d.token,d.username,d.friends);
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
   }catch(e){setErr('Network error');}
   finally{setBusy('verifyBtn',false,'Verify');}
 }
@@ -674,6 +761,7 @@ function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');
 
 document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('secretAnswerInput').addEventListener('keypress',function(e){if(e.key==='Enter')doVerify();});
+  if(checkInviteRoute()) return;
   var t=localStorage.getItem('vt'),u=localStorage.getItem('vu');
   if(t&&u) launchApp(t,u);
 });
@@ -682,14 +770,40 @@ document.addEventListener('DOMContentLoaded',function(){
    LAUNCH
 ══════════════════════════════════════════════ */
 function launchApp(token,username,friends){
+  isGuest=false;
   myName=username;myFriends=friends||[];
   mutedUsers=JSON.parse(localStorage.getItem('vm')||'[]');
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
   document.getElementById('headerUsername').textContent='@'+username;
+  document.getElementById('watchBar').style.display='none';
+  document.getElementById('composeBar') && (document.getElementById('composeBar').style.display='flex');
   connectWS(token);
   if(!listenersReady) initListeners();
   initNotifications();
+  if(!isMobile) document.getElementById('ctrlScreen').style.display='flex';
+  // Build color swatches
+  var cc=document.getElementById('csmColors');
+  if(cc&&!cc.children.length) COLORS.forEach(function(c,i){var d=document.createElement('div');d.style.cssText='width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid '+(i===0?'#fff':'transparent')+';background:'+c;d.dataset.color=c;d.onclick=function(){cc.querySelectorAll('div').forEach(function(x){x.style.borderColor='transparent';});this.style.borderColor='#fff';};cc.appendChild(d);});
+}
+function showAuth(tab){
+  if(tab) switchTab(tab);
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('authScreen').style.display='flex';
+}
+function launchGuestApp(){
+  isGuest=true; myName='Guest';
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('appShell').style.display='flex';
+  document.getElementById('headerUsername').textContent='(guest)';
+  document.getElementById('watchBar').style.display='flex';
+  if(!listenersReady) initListeners();
+  fetch('/servers').then(function(r){return r.json();}).then(async function(servers){
+    myServers=servers;
+    for(var i=0;i<servers.length;i++){var cr=await fetch('/servers/'+servers[i]._id+'/channels');myChannels[servers[i]._id]=await cr.json();}
+    renderServerCol();
+    var off=myServers.find(function(s){return s.isOfficial;});if(off) selectServer(off._id);
+  }).catch(function(e){console.warn('guest load failed',e);});
 }
 
 /* ══════════════════════════════════════════════
@@ -711,21 +825,39 @@ function wsSend(o){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(
 function handleMsg(raw){
   var d=sp(raw);if(!d) return;
   switch(d.type){
-    case 'rooms':         populateRooms(d.rooms||[]);break;
-    case 'users':         if(d.room===currentRoom) populateUsers(d.users||[]);break;
+    case 'auth_ok':
+      myFriends=d.friends||[];
+      myServers=d.servers||[];
+      (d.channels||[]).forEach(function(ch){
+        if(!myChannels[ch.serverId]) myChannels[ch.serverId]=[];
+        if(!myChannels[ch.serverId].find(function(c){return c._id===ch._id;}))
+          myChannels[ch.serverId].push(ch);
+      });
+      renderServerCol();renderFriends();
+      var off=myServers.find(function(s){return s.isOfficial;});
+      if(off) selectServer(off._id);
+      break;
+    case 'auth_err':      doLogout();break;
+    case 'users':         if(d.channelId===currentChannelId||d.room===currentRoom) populateUsers(d.users||[]);break;
     case 'system':        pushSys(d.text);break;
     case 'chat':          cacheMsg(d);break;
-    case 'auth_ok':       myFriends=d.friends||[];renderFriends();break;
-    case 'auth_err':      doLogout();break;
     case 'friends_update':myFriends=d.friends||[];renderFriends();break;
     case 'friend_request':showFR(d.from);break;
     case 'friend_accepted':toast('🎉 '+d.by+' accepted your request!');break;
     case 'friend_declined':toast('❌ '+d.by+' declined your request.');break;
     case 'unfriended':    myFriends=myFriends.filter(function(f){return f!==d.by;});renderFriends();break;
     case 'friend_request_sent':toast('📨 Request sent to '+d.to+'!');break;
-    /* ── CALL SIGNALING ── */
+    case 'channel_added':
+      if(!myChannels[d.serverId]) myChannels[d.serverId]=[];
+      myChannels[d.serverId].push(d.channel);
+      if(d.serverId===activeServerId) renderChannelCol(activeServerId);
+      break;
+    case 'channel_removed':
+      if(myChannels[d.serverId]) myChannels[d.serverId]=myChannels[d.serverId].filter(function(c){return c._id!==d.channelId;});
+      if(d.serverId===activeServerId) renderChannelCol(activeServerId);
+      break;
     case 'call_incoming': handleCallIncoming(d);break;
-    case 'call_ringing':  break; // caller just waits
+    case 'call_ringing':  break;
     case 'call_accepted': handleCallAccepted(d);break;
     case 'call_declined': handleCallDeclined(d);break;
     case 'call_ended':    handleCallEnded(d);break;
@@ -774,53 +906,204 @@ function initListeners(){
 }
 
 /* ══════════════════════════════════════════════
-   SIDEBAR / ROOMS
+   SERVER / CHANNEL SIDEBAR
 ══════════════════════════════════════════════ */
-function sideTab(tab,btn){
-  document.querySelectorAll('.sidebar .stab').forEach(function(t){t.classList.remove('active');});
-  btn.classList.add('active');
-  document.getElementById('roomsList').classList.toggle('active',tab==='rooms');
-  document.getElementById('friendsList').classList.toggle('active',tab==='friends');
-}
-function mobileTab(tab,btn){
-  document.querySelectorAll('#mobileSidebar .stab').forEach(function(t){t.classList.remove('active');});
-  btn.classList.add('active');
-  document.getElementById('mRooms').classList.toggle('active',tab==='rooms');
-  document.getElementById('mFriends').classList.toggle('active',tab==='friends');
-}
-function populateRooms(list){
-  allRooms=list;
-  var desks=[document.getElementById('roomsList'),document.getElementById('mRooms')];
-  desks.forEach(function(c){c.innerHTML='';});
-  list.forEach(function(r){
-    desks.forEach(function(c){
-      var el=document.createElement('div');el.className='room-item';el.dataset.room=r;
-      el.innerHTML='<div class="room-icon">'+r.slice(0,2).toUpperCase()+'</div><span>'+r+'</span>';
-      el.onclick=function(){joinRoom(r);closeMobileSidebar();};
-      c.appendChild(el);
+function renderServerCol(){
+  ['serverCol','mServerCol'].forEach(function(id){
+    var col=document.getElementById(id);if(!col)return;col.innerHTML='';
+    // DM button
+    var dm=makeSrvIcon('💬','Direct Messages',activeServerId==='__dm__');dm.style.fontSize='18px';
+    dm.onclick=function(){selectServer('__dm__');closeMobileSidebar();};col.appendChild(dm);
+    var div=document.createElement('div');div.className='srv-divider';col.appendChild(div);
+    myServers.forEach(function(s){
+      var el=makeSrvIcon(s.icon||s.name[0].toUpperCase(),s.name,activeServerId===s._id);
+      if(s.isOfficial) el.classList.add('official');
+      else el.style.background=s.color||'#6c7cff';
+      el.onclick=(function(sid){return function(){selectServer(sid);closeMobileSidebar();};})(s._id);
+      col.appendChild(el);
     });
+    var div2=document.createElement('div');div2.className='srv-divider';col.appendChild(div2);
+    var add=makeSrvIcon('+','Create Server',false);add.classList.add('srv-add');
+    add.onclick=function(){isGuest?showAuth():openCreateServer();};col.appendChild(add);
+    var disc=makeSrvIcon('🔍','Discover',false);disc.classList.add('srv-discover');disc.style.fontSize='18px';
+    disc.onclick=openDiscovery;col.appendChild(disc);
   });
 }
-function joinRoom(room){
-  if(!connected) return alert('Not connected');
-  currentRoom=room;
-  document.getElementById('messages').innerHTML='';
-  var isDM=room.startsWith('dm_');
-  document.getElementById('roomTitle').textContent=isDM?'💬 '+room.replace('dm_','').replace(/_/g,' & '):room;
-  document.getElementById('roomMeta').textContent='';
-  document.querySelectorAll('.room-item').forEach(function(r){r.classList.toggle('active',r.dataset.room===room);});
-  var cb=document.getElementById('callBtn');
-  cb.style.display=isDM?'flex':'none';
-  updateCallBtn();
-  wsSend({type:'join',room:room});
+function makeSrvIcon(text,title,active){
+  var el=document.createElement('div');el.className='srv-icon'+(active?' active':'');el.textContent=text;el.title=title;return el;
 }
-function openDM(user){joinRoom('dm_'+[myName,user].sort().join('_'));}
+function selectServer(sid){
+  activeServerId=sid;renderServerCol();renderChannelCol(sid);closeDiscovery();
+}
+function renderChannelCol(serverId){
+  var hName=document.getElementById('chHeaderName'),hMeta=document.getElementById('chHeaderMeta'),hAct=document.getElementById('chHeaderActions'),list=document.getElementById('channelsList'),mCol=document.getElementById('mChannelCol');
+  hAct.innerHTML='';list.innerHTML='';if(mCol){mCol.innerHTML='';}
+
+  if(serverId==='__dm__'){
+    hName.textContent='Direct Messages';hMeta.textContent='Your conversations';
+    renderFriendsInCol(list);if(mCol){var mList=document.createElement('div');mList.style.cssText='padding:6px 8px;overflow-y:auto';renderFriendsInCol(mList);mCol.appendChild(mList);}
+    return;
+  }
+  var srv=myServers.find(function(s){return s._id===serverId;});if(!srv)return;
+  hName.textContent=srv.name;hMeta.textContent=srv.description||'';
+  var isOwner=!isGuest&&srv.owner===myName;
+  if(!isGuest){
+    if(isOwner&&!srv.isOfficial){
+      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
+      addHdrBtn(hAct,'+ Ch',false,function(){openAddChannel(serverId);});
+      addHdrBtn(hAct,'Delete',true,function(){deleteServer(serverId);});
+    } else if(!srv.isOfficial){
+      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
+      addHdrBtn(hAct,'Leave',true,function(){leaveServer(serverId);});
+    } else {
+      addHdrBtn(hAct,'🔗 Invite',false,function(){createInvite(serverId);});
+    }
+  }
+  var channels=myChannels[serverId]||[];
+  function buildList(container){
+    var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 6px 4px;display:flex;align-items:center;justify-content:space-between';lbl.textContent='Text Channels';
+    if(isOwner&&!srv.isOfficial){var ab=document.createElement('button');ab.style.cssText='font-size:16px;cursor:pointer;color:var(--muted);background:none;border:none;padding:0 2px';ab.textContent='+';ab.onclick=function(){openAddChannel(serverId);};lbl.appendChild(ab);}
+    container.appendChild(lbl);
+    channels.forEach(function(ch){
+      var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
+      el.innerHTML='<span style="opacity:.7;flex-shrink:0">#</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>';
+      if(isOwner&&!srv.isOfficial){var del=document.createElement('button');del.className='ch-del';del.textContent='✕';del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};el.appendChild(del);}
+      el.onclick=(function(c,s){return function(){joinChannel(c,s);closeMobileSidebar();};})(ch,srv);
+      container.appendChild(el);
+    });
+    if(!channels.length){var em=document.createElement('div');em.style.cssText='color:var(--muted);font-size:12px;padding:8px 6px';em.textContent='No channels yet';container.appendChild(em);}
+  }
+  buildList(list);
+  if(mCol){var mHdr=document.createElement('div');mHdr.style.cssText='padding:12px 10px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;font-weight:700';mHdr.textContent=srv.name;mCol.appendChild(mHdr);var mList=document.createElement('div');mList.style.cssText='padding:6px 8px;overflow-y:auto;flex:1';buildList(mList);mCol.appendChild(mList);}
+}
+function addHdrBtn(container,text,danger,cb){
+  var b=document.createElement('button');b.className='ch-hdr-btn'+(danger?' danger':'');b.textContent=text;b.onclick=cb;container.appendChild(b);
+}
+function renderFriendsInCol(container){
+  if(!myFriends.length){var em=document.createElement('div');em.className='no-friends';em.innerHTML='No friends yet!<br>Click a username to add one.';container.appendChild(em);return;}
+  myFriends.forEach(function(f){
+    var el=document.createElement('div');el.className='friend-item';
+    el.innerHTML='<div class="friend-avatar">'+f[0].toUpperCase()+'</div><div class="friend-name">'+f+'</div><div class="friend-actions"><button class="fbtn" data-a="call">📞</button><button class="fbtn" data-a="dm">💬</button><button class="fbtn" data-a="rm" style="color:#ff5050">✕</button></div>';
+    el.querySelector('[data-a=dm]').onclick=function(){openDM(f);closeMobileSidebar();};
+    el.querySelector('[data-a=call]').onclick=function(){openDM(f);setTimeout(function(){startCallInRoom('dm_'+[myName,f].sort().join('_'));},300);closeMobileSidebar();};
+    el.querySelector('[data-a=rm]').onclick=function(){if(confirm('Unfriend '+f+'?'))wsSend({type:'unfriend',username:f});};
+    container.appendChild(el);
+  });
+}
+function joinChannel(ch,srv){
+  if(!connected&&!isGuest){toast('❌ Not connected');return;}
+  currentChannelId=ch._id;currentRoom=ch._id;
+  document.getElementById('messages').innerHTML='';
+  document.getElementById('roomTitle').textContent='# '+ch.name;
+  document.getElementById('roomMeta').textContent=srv?srv.name:'';
+  document.querySelectorAll('.ch-item').forEach(function(el){el.classList.toggle('active',el.dataset.chId===ch._id);});
+  document.getElementById('callBtn').style.display='none';updateCallBtn();
+  if(isGuest){
+    fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
+  } else {
+    wsSend({type:'join',channelId:ch._id});
+  }
+}
+function openDM(user){
+  var dmRoom='dm_'+[myName,user].sort().join('_');
+  activeServerId='__dm__';renderServerCol();renderChannelCol('__dm__');
+  currentChannelId=dmRoom;currentRoom=dmRoom;
+  document.getElementById('messages').innerHTML='';
+  document.getElementById('roomTitle').textContent='💬 '+user;
+  document.getElementById('roomMeta').textContent='Direct message';
+  document.getElementById('callBtn').style.display='flex';updateCallBtn();
+  wsSend({type:'join',room:dmRoom});
+}
+
+/* ══════════════════════════════════════════════
+   SERVER MANAGEMENT
+══════════════════════════════════════════════ */
+function openCreateServer(){document.getElementById('csmName').value='';document.getElementById('csmDesc').value='';document.getElementById('csmError').textContent='';document.getElementById('csmPublic').checked=true;document.getElementById('createServerModal').style.display='flex';setTimeout(function(){document.getElementById('csmName').focus();},80);}
+function closeCreateServer(){document.getElementById('createServerModal').style.display='none';}
+async function doCreateServer(){
+  var name=document.getElementById('csmName').value.trim();if(!name){document.getElementById('csmError').textContent='Name required';return;}
+  var color=document.querySelector('#csmColors div[style*="border-color: white"], #csmColors div[style*="border-color:#fff"], #csmColors div[style*="border-color: rgb"]');
+  var c=color?color.dataset.color:'#6c7cff';
+  document.getElementById('csmSubmit').disabled=true;
+  try{var r=await fetch('/servers',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:name,description:document.getElementById('csmDesc').value.trim(),color:c,isPublic:document.getElementById('csmPublic').checked})});var d=await r.json();if(!r.ok){document.getElementById('csmError').textContent=d.error||'Failed';return;}myServers.push(d.server);myChannels[d.server._id]=d.channels;closeCreateServer();renderServerCol();selectServer(d.server._id);toast('✅ Server created!');}catch(e){document.getElementById('csmError').textContent='Network error';}
+  finally{document.getElementById('csmSubmit').disabled=false;}
+}
+var _addChanServerId=null;
+function openAddChannel(sid){_addChanServerId=sid;document.getElementById('acmName').value='';document.getElementById('addChannelModal').style.display='flex';setTimeout(function(){document.getElementById('acmName').focus();},80);}
+function closeAddChannel(){document.getElementById('addChannelModal').style.display='none';}
+async function doAddChannel(){
+  var name=document.getElementById('acmName').value.trim();if(!name)return;
+  try{var r=await fetch('/servers/'+_addChanServerId+'/channels',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:name})});var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}closeAddChannel();}catch(e){toast('❌ Network error');}
+}
+async function deleteChannel(sid,cid){if(!confirm('Delete this channel?'))return;try{await fetch('/servers/'+sid+'/channels/'+cid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});}catch(e){toast('❌ Network error');}}
+async function deleteServer(sid){if(!confirm('Delete this server? This cannot be undone.'))return;try{var r=await fetch('/servers/'+sid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});if(!r.ok){toast('❌ Failed');return;}myServers=myServers.filter(function(s){return s._id!==sid;});delete myChannels[sid];activeServerId=null;renderServerCol();var off=myServers.find(function(s){return s.isOfficial;});if(off)selectServer(off._id);toast('Server deleted');}catch(e){toast('❌ Network error');}}
+async function leaveServer(sid){if(!confirm('Leave this server?'))return;try{var r=await fetch('/servers/'+sid+'/leave',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});if(!r.ok){toast('❌ Failed');return;}myServers=myServers.filter(function(s){return s._id!==sid;});delete myChannels[sid];activeServerId=null;renderServerCol();var off=myServers.find(function(s){return s.isOfficial;});if(off)selectServer(off._id);toast('Left server');}catch(e){toast('❌ Network error');}}
+async function createInvite(sid){
+  try{var r=await fetch('/servers/'+sid+'/invite',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}var url=location.origin+'/invite/'+d.token;
+    if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){toast('✅ Invite link copied!\n(single-use, expires on first click)');}).catch(function(){prompt('Copy invite link (single-use):',url);});}else{prompt('Copy invite link (single-use):',url);}}catch(e){toast('❌ Network error');}
+}
+
+/* ══════════════════════════════════════════════
+   INVITE FLOW
+══════════════════════════════════════════════ */
+function checkInviteRoute(){var m=location.pathname.match(/^\/invite\/([a-f0-9]+)$/i);if(!m)return false;pendingInviteToken=m[1];loadInvitePage(m[1]);return true;}
+async function loadInvitePage(token){
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('inviteScreen').style.display='flex';
+  try{var r=await fetch('/api/invite/'+token);var d=await r.json();
+    if(!r.ok){document.getElementById('invName').textContent='Invite invalid';document.getElementById('invDesc').textContent=d.error||'Link may have expired or already been used.';document.getElementById('invActions').innerHTML='<button onclick="location.href=\'/\'" style="width:100%;padding:11px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--white);border:1px solid rgba(255,255,255,.08);font-size:14px;cursor:pointer">← Back to Vyntra</button>';return;}
+    var s=d.server;document.getElementById('invIcon').textContent=(s.icon||s.name[0]).toUpperCase();document.getElementById('invIcon').style.background=s.color||'#6c7cff';document.getElementById('invName').textContent=s.name;document.getElementById('invDesc').textContent=s.description||'';document.getElementById('invMeta').textContent=(s.memberCount||0)+' members';}catch(e){document.getElementById('invName').textContent='Error loading invite';}
+}
+async function inviteJoin(){
+  var t=localStorage.getItem('vt');
+  if(t){var r=await fetch('/api/invite/'+pendingInviteToken+'/accept',{method:'POST',headers:{'Authorization':'Bearer '+t}});if(!r.ok){var d=await r.json();document.getElementById('invError').textContent=d.error||'Failed';return;}history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';launchApp(t,localStorage.getItem('vu'));return;}
+  pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='flex';
+}
+function inviteWatch(){isGuest=true;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';launchGuestApp();}
+function inviteLogin(){pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='flex';}
+async function postLoginInvite(token){if(!pendingInviteServerToken)return;try{await fetch('/api/invite/'+pendingInviteServerToken+'/accept',{method:'POST',headers:{'Authorization':'Bearer '+token}});pendingInviteServerToken=null;}catch(e){}}
+
+/* ══════════════════════════════════════════════
+   DISCOVERY
+══════════════════════════════════════════════ */
+var _discServers=[];
+async function openDiscovery(){
+  var ds=document.getElementById('discoveryScreen');ds.style.display='flex';
+  document.getElementById('discSearch').value='';
+  try{var r=await fetch('/servers');_discServers=await r.json();filterDisc('');}catch(e){document.getElementById('discGrid').innerHTML='<div style="color:var(--muted);padding:20px">Failed to load</div>';}
+}
+function closeDiscovery(){document.getElementById('discoveryScreen').style.display='none';}
+function filterDisc(q){
+  var fl=(q||'').toLowerCase();
+  var list=_discServers.filter(function(s){return !fl||s.name.toLowerCase().includes(fl)||(s.description||'').toLowerCase().includes(fl);});
+  var grid=document.getElementById('discGrid');grid.innerHTML='';
+  list.forEach(function(s){
+    var joined=!!myServers.find(function(ms){return ms._id===s._id;});
+    var card=document.createElement('div');
+    card.style.cssText='background:#13152a;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,.04);cursor:pointer;transition:border-color .15s';
+    card.onmouseenter=function(){this.style.borderColor='rgba(108,124,255,.3)';};card.onmouseleave=function(){this.style.borderColor='rgba(255,255,255,.04)';};
+    var iconBg=s.isOfficial?'linear-gradient(135deg,#6c7cff,#9b6cff)':(s.color||'#6c7cff');
+    card.innerHTML='<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:44px;height:44px;border-radius:12px;background:'+iconBg+';display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0">'+((s.icon||s.name[0]).toUpperCase())+'</div><div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+(s.isOfficial?' ⭐':'')+'</div></div><div style="font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px">'+(s.description||'No description')+'</div><div style="font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between"><span>👥 '+(s.memberCount||0)+'</span><button class="disc-join-btn" style="font-size:12px;font-weight:600;padding:4px 12px;border-radius:6px;background:'+(joined?'#1a1d30':' var(--accent)')+';color:'+(joined?'var(--muted)':'#fff')+';border:none;cursor:'+(joined?'default':'pointer')+'">'+( joined?'Joined':'Join')+'</button></div>';
+    var btn=card.querySelector('button');
+    if(!joined) btn.onclick=function(e){e.stopPropagation();joinServerFromDisc(s._id);};
+    if(joined) card.onclick=function(){closeDiscovery();selectServer(s._id);};
+    grid.appendChild(card);
+  });
+  if(!list.length) grid.innerHTML='<div style="color:var(--muted);padding:20px">No servers found</div>';
+}
+async function joinServerFromDisc(sid){
+  if(isGuest){showAuth();return;}
+  try{var r=await fetch('/servers/'+sid+'/join',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});var d=await r.json();if(!r.ok){toast('❌ '+(d.error||'Failed'));return;}myServers.push(d.server);myChannels[d.server._id]=d.channels;renderServerCol();filterDisc(document.getElementById('discSearch').value);toast('✅ Joined '+d.server.name+'!');}catch(e){toast('❌ Network error');}
+}
+
 
 /* ══════════════════════════════════════════════
    FRIENDS
 ══════════════════════════════════════════════ */
 function renderFriends(){
+  if(activeServerId==='__dm__') renderChannelCol('__dm__');
   var cs=[document.getElementById('friendsList'),document.getElementById('mFriends')];
+  if(!cs[0]) return;
   cs.forEach(function(c){
     c.innerHTML='';
     if(!myFriends.length){c.innerHTML='<div class="no-friends">No friends yet!<br>Click a username to add one.</div>';return;}
@@ -884,7 +1167,7 @@ function sendMessage(){
   if(!txt) return;
   if(!connected){toast('❌ Not connected — try Reconnect');return;}
   if(!currentRoom){toast('❌ Join a room first');return;}
-  wsSend({type:'message',text:txt});
+  wsSend({type:'message',text:txt,channelId:currentChannelId});
   inp.value='';
   inp.focus();
 }
@@ -898,11 +1181,12 @@ function populateUsers(list){
   document.getElementById('roomUsersCount').textContent=list.length+' online';
 }
 function cacheMsg(msg){
-  if(!msg||!msg.room) return;
-  if(!msgCache[msg.room]) msgCache[msg.room]=[];
-  var idx=msgCache[msg.room].findIndex(function(m){return m.id===msg.id;});
-  if(idx>=0) msgCache[msg.room][idx]=msg; else msgCache[msg.room].push(msg);
-  if(msg.room===currentRoom) renderMsg(msg);
+  var key=msg.channelId||msg.room;
+  if(!key) return;
+  if(!msgCache[key]) msgCache[key]=[];
+  var idx=msgCache[key].findIndex(function(m){return m.id===msg.id;});
+  if(idx>=0) msgCache[key][idx]=msg; else msgCache[key].push(msg);
+  if(key===currentChannelId||key===currentRoom) renderMsg(msg);
 }
 function pushSys(text){
   var el=document.createElement('div');el.className='sys';el.textContent=text;
@@ -1348,6 +1632,10 @@ async function toggleCam(){
 
 async function toggleScreen(){
   if(!lk.room) return;
+  if(isMobile){
+    toast('📵 Screen share is not supported on mobile browsers');
+    return;
+  }
   if(lk.screenEnabled){
     // Stop screen share
     await lk.room.localParticipant.setScreenShareEnabled(false);
