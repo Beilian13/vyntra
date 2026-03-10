@@ -101,6 +101,7 @@ const msgSchema = new mongoose.Schema({
   reactions: { type: Map, of: [String], default: {} },
   replyTo:   { type: Object, default: null }, // {id, user, text}
   id:        String,
+  editedAt:  { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
 });
 const Message = mongoose.model('Message', msgSchema);
@@ -461,6 +462,23 @@ app.get('/channels/:id/messages', async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
 
+/* ── MESSAGE SEARCH ── */
+app.get('/channels/:id/search', authMiddleware, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+    const msgs = await Message.find({
+      channelId: req.params.id,
+      text: { $regex: q, $options: 'i' }
+    }).sort({ createdAt: -1 }).limit(40).lean();
+    res.json(msgs.map(m => {
+      const reactions = {};
+      if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
+      return { ...m, reactions };
+    }));
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
 /* ══════════════════════════════════════════════
    LIVEKIT TOKEN
 ══════════════════════════════════════════════ */
@@ -645,6 +663,44 @@ wss.on('connection', ws => {
       r.forEach((v,k) => { reactions[k] = v; });
       const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
       if (activeChannels[chanId]) activeChannels[chanId].forEach(u => sendTo(u, { type: 'chat', channelId: chanId, room: chanId, user: msg.user, text: msg.text, fileUrl: msg.fileUrl, fileName: msg.fileName, fileType: msg.fileType, id: msg.id, reactions }));
+      return;
+    }
+
+    /* EDIT MESSAGE */
+    if (data.type === 'msg_edit') {
+      const msg = await Message.findOne({ id: data.messageId });
+      if (!msg || msg.user !== username) return;
+      const newText = (data.text || '').trim();
+      if (!newText) return;
+      msg.text = newText;
+      msg.editedAt = new Date();
+      await msg.save();
+      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
+      if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
+        sendTo(u, { type: 'msg_edited', id: msg.id, text: newText, chanId })
+      );
+      return;
+    }
+
+    /* DELETE MESSAGE */
+    if (data.type === 'msg_delete') {
+      const msg = await Message.findOne({ id: data.messageId });
+      if (!msg) return;
+      // Allow: own message, or server owner/admin
+      let allowed = msg.user === username;
+      if (!allowed && msg.channelId) {
+        const ch = await Channel.findById(msg.channelId).lean();
+        if (ch) {
+          const srv = await VyntraServer.findById(ch.serverId).lean();
+          if (srv && (srv.owner === username || (srv.admins||[]).includes(username))) allowed = true;
+        }
+      }
+      if (!allowed) return;
+      await Message.deleteOne({ id: data.messageId });
+      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
+      if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
+        sendTo(u, { type: 'msg_deleted', id: data.messageId, chanId })
+      );
       return;
     }
 
