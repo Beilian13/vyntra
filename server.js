@@ -77,6 +77,7 @@ const VyntraServer = mongoose.model('VyntraServer', serverSchema);
 
 const channelSchema = new mongoose.Schema({
   name:      { type: String, required: true },
+  type:      { type: String, default: 'text' }, // 'text' | 'announcement'
   serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
   createdAt: { type: Date, default: Date.now },
 });
@@ -265,9 +266,10 @@ app.post('/servers/:id/channels', authMiddleware, async (req, res) => {
     if (!srv) return res.status(404).json({ error: 'Not found' });
     if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
       return res.status(403).json({ error: 'Forbidden' });
-    const { name } = req.body;
+    const { name, type } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
-    const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), serverId: srv._id });
+    const chType = ['text','announcement'].includes(type) ? type : 'text';
+    const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), type: chType, serverId: srv._id });
     // Notify all members online
     (srv.members||[]).forEach(m => sendTo(m, { type: 'channel_added', serverId: srv._id.toString(), channel: ch }));
     res.json(ch);
@@ -395,6 +397,18 @@ app.post('/livekit/token', authMiddleware, async (req, res) => {
 ══════════════════════════════════════════════ */
 const activeChannels = {};
 const clients = {};
+const typingTimers = {}; // chanId -> { username -> timer }
+const activityLog = []; // last 20 events [{type,user,text,ts}]
+
+function addActivity(type, user, text) {
+  activityLog.push({ type, user, text, ts: Date.now() });
+  if (activityLog.length > 20) activityLog.shift();
+  broadcastAll({ type: 'activity_update', events: activityLog });
+}
+function broadcastAll(data) {
+  const msg = JSON.stringify(data);
+  Object.values(clients).forEach(ws => { if (ws.readyState === WebSocket.OPEN) ws.send(msg); });
+}
 
 function sendTo(username, data) {
   const ws = clients[username];
@@ -441,7 +455,10 @@ wss.on('connection', ws => {
           friends: user ? user.friends : [],
           servers: myServers,
           channels: allChannels,
+          activityLog,
+          onlineUsers: Object.keys(clients),
         }));
+        broadcastAll({ type: 'online_users', users: Object.keys(clients) });
       } catch(e) {
         ws.send(JSON.stringify({ type: 'auth_err' }));
       }
@@ -463,6 +480,9 @@ wss.on('connection', ws => {
       currentChan = chanId;
       broadcastChannelUsers(chanId);
       broadcastChannel(chanId, { type: 'system', text: `${username} joined` }, username);
+      // Activity
+      const chanDoc = mongoose.Types.ObjectId.isValid(chanId) ? await Channel.findById(chanId).lean() : null;
+      addActivity('join', username, chanDoc ? `joined #${chanDoc.name}` : 'joined a room');
       const query = mongoose.Types.ObjectId.isValid(chanId) ? { channelId: chanId } : { room: chanId };
       const recent = await Message.find(query).sort({ createdAt: -1 }).limit(50).lean();
       recent.reverse().forEach(m => {
@@ -475,6 +495,17 @@ wss.on('connection', ws => {
 
     /* MESSAGE */
     if (data.type === 'message' && currentChan) {
+      // Block non-owner/admin posting in announcement channels
+      if (mongoose.Types.ObjectId.isValid(currentChan)) {
+        const ch = await Channel.findById(currentChan).lean();
+        if (ch && ch.type === 'announcement') {
+          const srv = await VyntraServer.findById(ch.serverId).lean();
+          if (srv && srv.owner !== username && !srv.admins.includes(username)) {
+            sendTo(username, { type: 'system', text: '❌ Only admins can post in announcement channels' });
+            return;
+          }
+        }
+      }
       const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const isChannel = mongoose.Types.ObjectId.isValid(currentChan);
       const msgData = isChannel
@@ -483,6 +514,26 @@ wss.on('connection', ws => {
       await Message.create(msgData);
       const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {} };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
+      // Activity
+      const preview = data.text ? (data.text.slice(0,40)+(data.text.length>40?'…':'')) : (data.fileUrl?'sent a file':'');
+      addActivity('message', username, preview);
+      return;
+    }
+
+    /* TYPING */
+    if (data.type === 'typing' && currentChan) {
+      broadcastChannel(currentChan, { type: 'typing', user: username, channelId: currentChan }, username);
+      // Auto-stop after 3s server-side (client also sends stop)
+      if (!typingTimers[currentChan]) typingTimers[currentChan] = {};
+      clearTimeout(typingTimers[currentChan][username]);
+      typingTimers[currentChan][username] = setTimeout(() => {
+        broadcastChannel(currentChan, { type: 'typing_stop', user: username, channelId: currentChan }, username);
+      }, 3000);
+      return;
+    }
+    if (data.type === 'typing_stop' && currentChan) {
+      broadcastChannel(currentChan, { type: 'typing_stop', user: username, channelId: currentChan }, username);
+      if (typingTimers[currentChan]) clearTimeout(typingTimers[currentChan][username]);
       return;
     }
 
@@ -543,6 +594,8 @@ wss.on('connection', ws => {
       activeChannels[currentChan].delete(username);
       broadcastChannelUsers(currentChan);
     }
+    addActivity('leave', username, 'went offline');
+    broadcastAll({ type: 'online_users', users: Object.keys(clients) });
   });
 });
 
