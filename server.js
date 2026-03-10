@@ -14,6 +14,7 @@ const path       = require('path');
 const fs         = require('fs');
 const multer     = require('multer');
 const { AccessToken } = require('livekit-server-sdk');
+const webpush = require('web-push');
 
 const app    = express();
 const server = http.createServer(app);
@@ -46,6 +47,12 @@ const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
 const PORT               = process.env.PORT               || 3000;
+const VAPID_PUBLIC_KEY   = process.env.VAPID_PUBLIC_KEY   || '';
+const VAPID_PRIVATE_KEY  = process.env.VAPID_PRIVATE_KEY  || '';
+const VAPID_EMAIL        = process.env.VAPID_EMAIL        || 'mailto:admin@vyntra.app';
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 /* ══════════════════════════════════════════════
    SCHEMAS
@@ -106,6 +113,31 @@ const inviteSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 const Invite = mongoose.model('Invite', inviteSchema);
+
+/* ══════════════════════════════════════════════
+   DB MODEL — PushSubscription
+══════════════════════════════════════════════ */
+const pushSubSchema = new mongoose.Schema({
+  username:     { type: String, required: true },
+  subscription: { type: Object, required: true },
+  createdAt:    { type: Date, default: Date.now },
+});
+pushSubSchema.index({ username: 1 });
+const PushSub = mongoose.model('PushSub', pushSubSchema);
+
+async function pushToUser(username, payload) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  const subs = await PushSub.find({ username }).lean();
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
+    } catch (e) {
+      if (e.statusCode === 410 || e.statusCode === 404) {
+        await PushSub.deleteOne({ _id: sub._id });
+      }
+    }
+  }
+}
 
 /* ══════════════════════════════════════════════
    SEED
@@ -183,6 +215,31 @@ function authMiddleware(req, res, next) {
 /* ── STATIC / PWA ── */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+
+/* ── PUSH NOTIFICATIONS ── */
+app.get('/push/vapid-public-key', (req, res) => {
+  res.json({ key: VAPID_PUBLIC_KEY || null });
+});
+app.post('/push/subscribe', authMiddleware, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid' });
+    await PushSub.findOneAndUpdate(
+      { username: req.user.username, 'subscription.endpoint': subscription.endpoint },
+      { username: req.user.username, subscription, createdAt: new Date() },
+      { upsert: true }
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/push/unsubscribe', authMiddleware, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) await PushSub.deleteMany({ username: req.user.username, 'subscription.endpoint': endpoint });
+    else await PushSub.deleteMany({ username: req.user.username });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
 
 /* ── FILE UPLOAD ── */
 app.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
@@ -531,6 +588,28 @@ wss.on('connection', ws => {
       bufferMessage(doc);
       const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {} };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
+      // Push-notify offline channel members
+      if (mongoose.Types.ObjectId.isValid(currentChan)) {
+        (async () => {
+          try {
+            const ch = await Channel.findById(currentChan).lean();
+            if (!ch) return;
+            const srv = await VyntraServer.findById(ch.serverId).lean();
+            if (!srv) return;
+            const allMembers = [...new Set([srv.owner, ...(srv.admins||[]), ...(srv.members||[])])];
+            const online = new Set(activeChannels[currentChan] || []);
+            const snippet = data.text ? data.text.slice(0,100) : (data.fileName || '📎 attachment');
+            for (const member of allMembers) {
+              if (member !== username && !online.has(member)) {
+                pushToUser(member, {
+                  type: 'message', title: `${username} · #${ch.name}`,
+                  body: snippet, channelId: currentChan, url: '/',
+                }).catch(()=>{});
+              }
+            }
+          } catch(e) {}
+        })();
+      }
       return;
     }
 
@@ -595,7 +674,13 @@ wss.on('connection', ws => {
     }
 
     /* CALL SIGNALING */
-    if (data.type === 'call_request') { sendTo(data.to, { type: 'call_incoming', from: username, lvRoom: data.lvRoom, chatRoom: data.chatRoom }); return; }
+    if (data.type === 'call_request') {
+      sendTo(data.to, { type: 'call_incoming', from: username, lvRoom: data.lvRoom, chatRoom: data.chatRoom });
+      if (!onlineUsers.has(data.to)) {
+        pushToUser(data.to, { type:'call', title:`📞 ${username} is calling`, body:'Tap to answer on Vyntra', url:'/' }).catch(()=>{});
+      }
+      return;
+    }
     if (data.type === 'call_accept')  { sendTo(data.to, { type: 'call_accepted', from: username }); return; }
     if (data.type === 'call_decline') { sendTo(data.to, { type: 'call_declined', from: username }); return; }
     if (data.type === 'call_cancel')  { sendTo(data.to, { type: 'call_ended',    from: username }); return; }
