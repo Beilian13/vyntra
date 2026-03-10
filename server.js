@@ -11,6 +11,8 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const crypto     = require('crypto');
 const path       = require('path');
+const fs         = require('fs');
+const multer     = require('multer');
 const { AccessToken } = require('livekit-server-sdk');
 
 const app    = express();
@@ -19,6 +21,23 @@ const wss    = new WebSocket.Server({ server });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
+
+/* ── FILE UPLOADS ── */
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+app.use('/uploads', express.static(UPLOADS_DIR));
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename:    (req, file, cb) => cb(null, `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: (req, file, cb) => {
+    const ok = /image\/(jpeg|png|gif|webp)|video\/mp4|application\/pdf|text\/plain/.test(file.mimetype);
+    cb(null, ok);
+  },
+});
 
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
@@ -68,6 +87,9 @@ const msgSchema = new mongoose.Schema({
   room:      String,
   user:      String,
   text:      String,
+  fileUrl:   String,
+  fileName:  String,
+  fileType:  String,
   reactions: { type: Map, of: [String], default: {} },
   id:        String,
   createdAt: { type: Date, default: Date.now },
@@ -134,6 +156,16 @@ function authMiddleware(req, res, next) {
 /* ── STATIC / PWA ── */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+
+/* ── FILE UPLOAD ── */
+app.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  res.json({
+    url:      `/uploads/${req.file.filename}`,
+    fileName: req.file.originalname,
+    fileType: req.file.mimetype,
+  });
+});
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Service-Worker-Allowed', '/');
@@ -436,7 +468,7 @@ wss.on('connection', ws => {
       recent.reverse().forEach(m => {
         const reactions = {};
         if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, id: m.id, reactions }));
+        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, id: m.id, reactions }));
       });
       return;
     }
@@ -445,10 +477,11 @@ wss.on('connection', ws => {
     if (data.type === 'message' && currentChan) {
       const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const isChannel = mongoose.Types.ObjectId.isValid(currentChan);
-      await Message.create(isChannel
-        ? { channelId: currentChan, user: username, text: data.text, id }
-        : { room: currentChan,     user: username, text: data.text, id });
-      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, id, reactions: {} };
+      const msgData = isChannel
+        ? { channelId: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id }
+        : { room: currentChan,     user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id };
+      await Message.create(msgData);
+      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {} };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
       return;
     }
@@ -467,7 +500,7 @@ wss.on('connection', ws => {
       const reactions = {};
       r.forEach((v,k) => { reactions[k] = v; });
       const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
-      if (activeChannels[chanId]) activeChannels[chanId].forEach(u => sendTo(u, { type: 'chat', channelId: chanId, room: chanId, user: msg.user, text: msg.text, id: msg.id, reactions }));
+      if (activeChannels[chanId]) activeChannels[chanId].forEach(u => sendTo(u, { type: 'chat', channelId: chanId, room: chanId, user: msg.user, text: msg.text, fileUrl: msg.fileUrl, fileName: msg.fileName, fileType: msg.fileType, id: msg.id, reactions }));
       return;
     }
 
