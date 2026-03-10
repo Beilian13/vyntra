@@ -92,6 +92,7 @@ const msgSchema = new mongoose.Schema({
   fileName:  String,
   fileType:  String,
   reactions: { type: Map, of: [String], default: {} },
+  replyTo:   { type: Object, default: null }, // {id, user, text}
   id:        String,
   createdAt: { type: Date, default: Date.now },
 });
@@ -505,7 +506,7 @@ wss.on('connection', ws => {
       recent.reverse().forEach(m => {
         const reactions = {};
         if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, id: m.id, reactions }));
+        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, replyTo: m.replyTo||null, id: m.id, reactions }));
       });
       return;
     }
@@ -525,10 +526,10 @@ wss.on('connection', ws => {
       const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const isChannel = mongoose.Types.ObjectId.isValid(currentChan);
       const doc = isChannel
-        ? { channelId: new mongoose.Types.ObjectId(currentChan), user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {}, createdAt: new Date() }
-        : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {}, createdAt: new Date() };
+        ? { channelId: new mongoose.Types.ObjectId(currentChan), user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() }
+        : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() };
       bufferMessage(doc);
-      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {} };
+      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {} };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
       return;
     }
