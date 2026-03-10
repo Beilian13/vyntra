@@ -142,8 +142,33 @@ async function seedOfficialServer() {
 
 mongoose.connect(MONGO_URI).then(async () => {
   try { await mongoose.connection.collection('messages').dropIndex('msgId_1'); } catch(e) {}
+  try {
+    await mongoose.connection.collection('messages').createIndex({ channelId: 1, createdAt: -1 });
+    await mongoose.connection.collection('messages').createIndex({ room: 1, createdAt: -1 });
+  } catch(e) {}
+  // Seed announcement channel cache
+  const annChans = await Channel.find({ type: 'announcement' }).lean();
+  annChans.forEach(c => announcementChannels.add(c._id.toString()));
   await seedOfficialServer();
 }).catch(console.error);
+
+/* ── MESSAGE WRITE BUFFER ──
+   Batches rapid message writes to reduce Mongo round-trips.
+   Flushes every 200ms or when buffer hits 20 messages.          */
+const msgBuffer = [];
+let msgFlushTimer = null;
+function bufferMessage(doc) {
+  msgBuffer.push(doc);
+  if (msgBuffer.length >= 20) flushMessages();
+  else if (!msgFlushTimer) msgFlushTimer = setTimeout(flushMessages, 200);
+}
+async function flushMessages() {
+  clearTimeout(msgFlushTimer); msgFlushTimer = null;
+  if (!msgBuffer.length) return;
+  const batch = msgBuffer.splice(0, msgBuffer.length);
+  try { await mongoose.connection.collection('messages').insertMany(batch, { ordered: false }); }
+  catch(e) { console.error('Message flush error:', e.message); }
+}
 
 /* ══════════════════════════════════════════════
    AUTH MIDDLEWARE
@@ -270,6 +295,7 @@ app.post('/servers/:id/channels', authMiddleware, async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Name required' });
     const chType = ['text','announcement'].includes(type) ? type : 'text';
     const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), type: chType, serverId: srv._id });
+    if (chType === 'announcement') announcementChannels.add(ch._id.toString());
     // Notify all members online
     (srv.members||[]).forEach(m => sendTo(m, { type: 'channel_added', serverId: srv._id.toString(), channel: ch }));
     res.json(ch);
@@ -397,14 +423,9 @@ app.post('/livekit/token', authMiddleware, async (req, res) => {
 ══════════════════════════════════════════════ */
 const activeChannels = {};
 const clients = {};
-const typingTimers = {}; // chanId -> { username -> timer }
-const activityLog = []; // last 20 events [{type,user,text,ts}]
+const typingTimers = {};
+const announcementChannels = new Set();
 
-function addActivity(type, user, text) {
-  activityLog.push({ type, user, text, ts: Date.now() });
-  if (activityLog.length > 20) activityLog.shift();
-  broadcastAll({ type: 'activity_update', events: activityLog });
-}
 function broadcastAll(data) {
   const msg = JSON.stringify(data);
   Object.values(clients).forEach(ws => { if (ws.readyState === WebSocket.OPEN) ws.send(msg); });
@@ -455,7 +476,6 @@ wss.on('connection', ws => {
           friends: user ? user.friends : [],
           servers: myServers,
           channels: allChannels,
-          activityLog,
           onlineUsers: Object.keys(clients),
         }));
         broadcastAll({ type: 'online_users', users: Object.keys(clients) });
@@ -480,9 +500,6 @@ wss.on('connection', ws => {
       currentChan = chanId;
       broadcastChannelUsers(chanId);
       broadcastChannel(chanId, { type: 'system', text: `${username} joined` }, username);
-      // Activity
-      const chanDoc = mongoose.Types.ObjectId.isValid(chanId) ? await Channel.findById(chanId).lean() : null;
-      addActivity('join', username, chanDoc ? `joined #${chanDoc.name}` : 'joined a room');
       const query = mongoose.Types.ObjectId.isValid(chanId) ? { channelId: chanId } : { room: chanId };
       const recent = await Message.find(query).sort({ createdAt: -1 }).limit(50).lean();
       recent.reverse().forEach(m => {
@@ -495,12 +512,11 @@ wss.on('connection', ws => {
 
     /* MESSAGE */
     if (data.type === 'message' && currentChan) {
-      // Block non-owner/admin posting in announcement channels
-      if (mongoose.Types.ObjectId.isValid(currentChan)) {
+      if (announcementChannels.has(currentChan)) {
         const ch = await Channel.findById(currentChan).lean();
-        if (ch && ch.type === 'announcement') {
-          const srv = await VyntraServer.findById(ch.serverId).lean();
-          if (srv && srv.owner !== username && !srv.admins.includes(username)) {
+        if (ch) {
+          const s = await VyntraServer.findById(ch.serverId).lean();
+          if (s && s.owner !== username && !(s.admins||[]).includes(username)) {
             sendTo(username, { type: 'system', text: '❌ Only admins can post in announcement channels' });
             return;
           }
@@ -508,15 +524,12 @@ wss.on('connection', ws => {
       }
       const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const isChannel = mongoose.Types.ObjectId.isValid(currentChan);
-      const msgData = isChannel
-        ? { channelId: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id }
-        : { room: currentChan,     user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id };
-      await Message.create(msgData);
+      const doc = isChannel
+        ? { channelId: new mongoose.Types.ObjectId(currentChan), user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {}, createdAt: new Date() }
+        : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {}, createdAt: new Date() };
+      bufferMessage(doc);
       const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, id, reactions: {} };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
-      // Activity
-      const preview = data.text ? (data.text.slice(0,40)+(data.text.length>40?'…':'')) : (data.fileUrl?'sent a file':'');
-      addActivity('message', username, preview);
       return;
     }
 
@@ -594,7 +607,6 @@ wss.on('connection', ws => {
       activeChannels[currentChan].delete(username);
       broadcastChannelUsers(currentChan);
     }
-    addActivity('leave', username, 'went offline');
     broadcastAll({ type: 'online_users', users: Object.keys(clients) });
   });
 });
