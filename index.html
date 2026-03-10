@@ -157,7 +157,8 @@ main{display:flex;flex:1;overflow:hidden}
   background:#060810;min-height:160px;
   grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
 }
-.video-tile{position:relative;border-radius:12px;overflow:hidden;background:#0d0f1a;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.video-tile{position:relative;border-radius:12px;overflow:hidden;background:#0d0f1a;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:border-color .15s,box-shadow .15s}
+.video-tile.speaking{border-color:var(--green);box-shadow:0 0 0 3px rgba(57,211,83,.25)}
 .video-tile video{width:100%;height:100%;object-fit:cover;display:block}
 .video-tile .tile-label{position:absolute;bottom:6px;left:8px;font-size:12px;font-weight:600;color:#fff;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:99px;pointer-events:none}
 .video-tile .tile-muted{position:absolute;top:6px;right:8px;font-size:14px;opacity:.7}
@@ -1651,95 +1652,101 @@ function handleCallEnded(d){
    LIVEKIT — join room, publish tracks
 ══════════════════════════════════════════════ */
 async function joinLivekitRoom(lvRoomName, chatRoom){
-  // Fetch token from our server
   var authToken=localStorage.getItem('vt');
   var resp=await fetch('/livekit/token',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},
     body:JSON.stringify({room:lvRoomName}),
   });
-  if(!resp.ok){
-    var err=await resp.json();
-    toast('❌ Could not start call: '+(err.error||'Server error'));
-    return;
-  }
-  var {token, url}=await resp.json();
+  if(!resp.ok){toast('❌ Could not start call: '+((await resp.json()).error||'Server error'));return;}
+  var data=await resp.json();
 
-  // Create Livekit Room
   var room=new LivekitClient.Room({
-    adaptiveStream:true,
-    dynacast:true,
-    // Low-latency settings
+    adaptiveStream: true,
+    dynacast:       true,
+    stopLocalTrackOnUnpublish: true,
+    reconnectPolicy: { maxRetries: 10, retryDelayMs: 1000 },
     publishDefaults:{
-      dtx:true,
-      red:false,
-      simulcast:false,
+      dtx:           true,   // discontinuous transmission — silence = no packets
+      red:           true,   // redundant encoding — fixes packet loss artifacts
+      simulcast:     false,
+      audioPreset:   LivekitClient.AudioPresets.speech,
+      forceStereo:   false,
     },
     audioCaptureDefaults:{
-      echoCancellation:true,
-      noiseSuppression:true,
-      autoGainControl:true,
-      sampleRate:48000,
-      channelCount:1,
+      echoCancellation:   true,
+      noiseSuppression:   true,
+      autoGainControl:    true,
+      sampleRate:         48000,
+      channelCount:       1,
+      // Use high-quality constraints for voice
+      googNoiseSuppression:       true,
+      googHighpassFilter:         true,
+      googAudioMirroring:         false,
     },
     videoCaptureDefaults:{
-      resolution:LivekitClient.VideoPresets.h360.resolution,
+      resolution: LivekitClient.VideoPresets.h360.resolution,
     },
   });
-  lk.room=room;
-  lk.lvRoomName=lvRoomName;
-  lk.active=true;
+  lk.room=room;lk.lvRoomName=lvRoomName;lk.active=true;
 
-  // Room events
+  // ── Speaking indicator ──
+  room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, function(speakers){
+    // Reset all tiles
+    document.querySelectorAll('.video-tile').forEach(function(t){t.classList.remove('speaking');});
+    speakers.forEach(function(p){
+      var tileId=p.isLocal?'tile-local':'tile-'+p.sid;
+      var tile=document.getElementById(tileId);
+      if(tile) tile.classList.add('speaking');
+    });
+  });
+
   room.on(LivekitClient.RoomEvent.ParticipantConnected,function(p){
-    toast('👋 '+p.identity+' joined the call');
-    renderVideoGrid();
-    updateParticipantCount();
-    refreshParticipantsPanel();
+    toast('👋 '+p.identity+' joined');renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
   });
   room.on(LivekitClient.RoomEvent.ParticipantDisconnected,function(p){
-    toast('👋 '+p.identity+' left the call');
-    renderVideoGrid();
-    updateParticipantCount();
-    refreshParticipantsPanel();
-    var tile=document.getElementById('tile-'+p.sid);if(tile) tile.remove();
-    var audio=document.getElementById('audio-'+p.sid);if(audio) audio.remove();
+    toast('👋 '+p.identity+' left');
+    var tile=document.getElementById('tile-'+p.sid);if(tile)tile.remove();
+    var audio=document.getElementById('audio-'+p.sid);if(audio)audio.remove();
+    renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
   });
   room.on(LivekitClient.RoomEvent.TrackSubscribed,function(track,pub,participant){
-    renderVideoGrid();
-    attachTrack(track,pub,participant);
+    attachTrack(track,pub,participant);renderVideoGrid();
   });
   room.on(LivekitClient.RoomEvent.TrackUnsubscribed,function(track,pub,participant){
+    var tile=document.getElementById('tile-'+participant.sid+'-'+pub.trackSid);if(tile)tile.remove();
     renderVideoGrid();
-    var tile=document.getElementById('tile-'+participant.sid+'-'+pub.trackSid);
-    if(tile) tile.remove();
   });
-  room.on(LivekitClient.RoomEvent.Disconnected,function(){
+  room.on(LivekitClient.RoomEvent.TrackMuted,function(pub,participant){
+    var tileId=participant.isLocal?'tile-local':'tile-'+participant.sid;
+    var tile=document.getElementById(tileId);
+    if(tile){var m=tile.querySelector('.tile-muted');if(m)m.textContent='🔇';}
+  });
+  room.on(LivekitClient.RoomEvent.TrackUnmuted,function(pub,participant){
+    if(pub.source!==LivekitClient.Track.Source.Microphone) return;
+    var tileId=participant.isLocal?'tile-local':'tile-'+participant.sid;
+    var tile=document.getElementById(tileId);
+    if(tile){var m=tile.querySelector('.tile-muted');if(m)m.textContent='';}
+  });
+  room.on(LivekitClient.RoomEvent.Disconnected,function(reason){
+    if(reason!==LivekitClient.DisconnectReason.CLIENT_INITIATED) toast('⚠️ Call disconnected — reconnecting…');
     cleanupCall();
   });
-  room.on(LivekitClient.RoomEvent.LocalTrackPublished,function(){
-    renderVideoGrid();
-  });
-  room.on(LivekitClient.RoomEvent.LocalTrackUnpublished,function(){
-    renderVideoGrid();
-  });
+  room.on(LivekitClient.RoomEvent.Reconnecting,function(){toast('🔄 Reconnecting…');});
+  room.on(LivekitClient.RoomEvent.Reconnected,function(){toast('✅ Reconnected!');});
+  room.on(LivekitClient.RoomEvent.LocalTrackPublished,function(){renderVideoGrid();});
+  room.on(LivekitClient.RoomEvent.LocalTrackUnpublished,function(){renderVideoGrid();});
 
-  // Connect
-  await room.connect(url, token);
+  await room.connect(data.url, data.token, { autoSubscribe: true });
 
-  // Auto-publish mic (camera off by default)
+  // Publish mic — let Livekit + browser handle noise suppression natively
   getMic(async function(stream){
-    // Setup VAD pipeline
-    setupVAD(stream);
-    // Publish mic via Livekit
+    setupVAD(stream); // VAD meter only — no audio gating
     await room.localParticipant.setMicrophoneEnabled(true);
     lk.micEnabled=true;
     updateCtrl('ctrlMic',true);
-    // Show call window
     showCallWindow(chatRoom||lvRoomName);
-    renderVideoGrid();
-    updateParticipantCount();
-    startTimer();
+    renderVideoGrid();updateParticipantCount();startTimer();
   });
 }
 
@@ -1923,88 +1930,37 @@ function leaveCall(){
    VAD — Web Audio pipeline for volume gating
 ══════════════════════════════════════════════ */
 function setupVAD(rawStream){
+  // VAD is now meter-only — Livekit handles noise suppression + DTX natively.
+  // We just drive the visual meter and the vadStatus indicator.
   var AC=window.AudioContext||window.webkitAudioContext;
-  var ctx=new AC();
-  lk.audioCtx=ctx;
+  try{ var ctx=new AC(); lk.audioCtx=ctx; } catch(e){ return; }
   var src=ctx.createMediaStreamSource(rawStream);
-
-  // ── Voice frequency filter (300Hz–3400Hz) ──
-  // Cuts everything outside the human voice range
-  // Background TV, music, distant family = attenuated
-  var highpass=ctx.createBiquadFilter();
-  highpass.type='highpass';
-  highpass.frequency.value=300;  // cut below 300Hz (rumble, bass, thuds)
-  highpass.Q.value=0.7;
-
-  var lowpass=ctx.createBiquadFilter();
-  lowpass.type='lowpass';
-  lowpass.frequency.value=3400;  // cut above 3400Hz (hiss, high-freq noise)
-  lowpass.Q.value=0.7;
-
-  // ── Analyser reads ONLY the filtered voice band ──
   var analyser=ctx.createAnalyser();
-  analyser.fftSize=512;analyser.smoothingTimeConstant=0.7;
+  analyser.fftSize=256;
+  analyser.smoothingTimeConstant=0.6;
+  src.connect(analyser);
+  lk.analyser=analyser;
 
-  // ── Pre-gain: removed — was causing clipping on quiet signals ──
-
-  // ── Compressor: normalize volume, catches both quiet and loud speakers ──
-  var compressor=ctx.createDynamicsCompressor();
-  compressor.threshold.value=-40; // lower threshold catches quiet voices too
-  compressor.knee.value=20;       // wider knee = smoother, less aggressive
-  compressor.ratio.value=4;       // gentler 4:1 ratio avoids over-compression
-  compressor.attack.value=0.005;  // 5ms — fast but not harsh
-  compressor.release.value=0.35;  // 350ms — natural release
-
-  // ── Limiter: hard brick-wall at -1dB, prevents any distortion peaks ──
-  var limiter=ctx.createDynamicsCompressor();
-  limiter.threshold.value=-1;
-  limiter.knee.value=0;
-  limiter.ratio.value=20;   // 20:1 ≈ hard limiter
-  limiter.attack.value=0.001;
-  limiter.release.value=0.1;
-
-  // ── VAD gate: cuts mic during non-voice ──
-  var gain=ctx.createGain();
-  gain.gain.value=1;
-
-  // Chain: mic → highpass → lowpass → analyser → compressor → limiter → gate → output
-  src.connect(highpass);
-  highpass.connect(lowpass);
-  lowpass.connect(analyser);
-  analyser.connect(compressor);
-  compressor.connect(limiter);
-  limiter.connect(gain);
-
-  lk.analyser=analyser;lk.gainNode=gain;
-
-  var buf=new Uint8Array(analyser.fftSize),lastVoice=0;
-  // Voice hold time — 400ms so words don't get clipped at the end
-  var HOLD_MS=400;
+  var buf=new Uint8Array(analyser.fftSize);
+  var SPEAK_THRESH=0.015, HOLD_MS=300, lastSpeak=0;
 
   lk.vadInterval=setInterval(function(){
-    if(!lk.active) return;
+    if(!lk.active){ clearInterval(lk.vadInterval); return; }
     analyser.getByteTimeDomainData(buf);
     var sum=0;
     for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
     var rms=Math.sqrt(sum/buf.length);
-
-    // Slider 1–100. Low value = very sensitive (opens easily).
-    // High value = needs loud voice to open gate.
-    // Map slider to threshold: slider 1 → 0.002, slider 100 → 0.15
-    var thresh=0.002+((lk.vadThreshold-1)/99)*0.148;
-
     var now=Date.now();
-    if(rms>thresh) lastVoice=now;
-    var open=(now-lastVoice)<HOLD_MS;
-    if(lk.micEnabled) gain.gain.setTargetAtTime(open?1:0,ctx.currentTime,0.025);
-
-    // Meter: scale so mid-voice fills ~70% of bar
+    if(rms>SPEAK_THRESH) lastSpeak=now;
+    var speaking=(now-lastSpeak)<HOLD_MS;
+    // Meter
     var pct=Math.min(100,(rms/0.08)*100);
-    document.getElementById('vadBar').style.width=pct+'%';
-    // Status icon shows whether gate is open
-    var stEl=document.getElementById('vadStatus');
-    if(stEl) stEl.textContent=open?'🟢':'🔇';
-  },30);
+    var vb=document.getElementById('vadBar');if(vb) vb.style.width=pct+'%';
+    var vs=document.getElementById('vadStatus');if(vs) vs.textContent=speaking?'🟢':'🔇';
+    // Speaking glow on local tile
+    var lt=document.getElementById('tile-local');
+    if(lt) lt.classList.toggle('speaking',speaking&&lk.micEnabled);
+  },40);
 }
 
 function stopVAD(){
