@@ -47,6 +47,8 @@ const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
 const PORT               = process.env.PORT               || 3000;
+const ADMIN_USER         = process.env.ADMIN_USER         || 'benrrava';
+const ADMIN_EMAIL        = process.env.ADMIN_EMAIL        || 'beilian.alvarenga@gmail.com';
 const VAPID_PUBLIC_KEY   = process.env.VAPID_PUBLIC_KEY   || '';
 const VAPID_PRIVATE_KEY  = process.env.VAPID_PRIVATE_KEY  || '';
 const VAPID_EMAIL        = process.env.VAPID_EMAIL        || 'mailto:admin@vyntra.app';
@@ -207,6 +209,19 @@ async function flushMessages() {
 /* ══════════════════════════════════════════════
    AUTH MIDDLEWARE
 ══════════════════════════════════════════════ */
+function adminMiddleware(req, res, next) {
+  authMiddleware(req, res, async function() {
+    try {
+      if (req.user.username !== ADMIN_USER) return res.status(403).json({ error: 'Forbidden' });
+      // Double-check: verify email matches in DB — prevents impersonation via username alone
+      const u = await User.findOne({ username: ADMIN_USER }).lean();
+      if (!u || (u.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase())
+        return res.status(403).json({ error: 'Forbidden' });
+      next();
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+  });
+}
+
 function authMiddleware(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
@@ -216,6 +231,84 @@ function authMiddleware(req, res, next) {
 /* ── STATIC / PWA ── */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+
+/* ── ADMIN ROUTES (benrrava only) ── */
+
+// List all users
+app.get('/admin/users', adminMiddleware, async (req, res) => {
+  try {
+    const users = await User.find({}, 'username email createdAt friends').sort({ createdAt: -1 }).lean();
+    const online = Object.keys(clients);
+    res.json(users.map(u => ({ ...u, online: online.includes(u.username) })));
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete a user account + clean up all their data
+app.delete('/admin/users/:username', adminMiddleware, async (req, res) => {
+  try {
+    const target = req.params.username;
+    // Protect the real admin account (must match both username AND email)
+    const targetUser = await User.findOne({ username: target }).lean();
+    if (target === ADMIN_USER && targetUser && (targetUser.email||'').toLowerCase() === ADMIN_EMAIL.toLowerCase())
+      return res.status(400).json({ error: 'Cannot delete the admin account' });
+    // Force disconnect WS
+    if (clients[target]) {
+      try { clients[target].close(); } catch(e) {}
+    }
+    // Remove from all friends lists
+    await User.updateMany({ friends: target }, { $pull: { friends: target } });
+    // Transfer owned servers to nobody (delete them) or just remove member
+    const ownedServers = await VyntraServer.find({ owner: target }).lean();
+    for (const srv of ownedServers) {
+      await Channel.deleteMany({ serverId: srv._id });
+      await Message.deleteMany({ channelId: { $in: (await Channel.find({ serverId: srv._id }).lean()).map(c => c._id) } });
+      await VyntraServer.deleteOne({ _id: srv._id });
+    }
+    // Remove from member/admin lists on other servers
+    await VyntraServer.updateMany({}, { $pull: { members: target, admins: target } });
+    // Delete their messages (optional — keeps chat history by default, just deletes account)
+    // await Message.deleteMany({ user: target });
+    // Delete their push subs
+    await PushSub.deleteMany({ username: target });
+    // Delete user
+    await User.deleteOne({ username: target });
+    res.json({ ok: true });
+  } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Force-kick (disconnect WS session without deleting account)
+app.post('/admin/users/:username/kick', adminMiddleware, async (req, res) => {
+  try {
+    const target = req.params.username;
+    if (clients[target]) {
+      sendTo(target, { type: 'system', text: '🚫 You have been disconnected by an admin.' });
+      setTimeout(() => { try { clients[target].close(); } catch(e) {} }, 300);
+    }
+    res.json({ ok: true, wasOnline: target in clients });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Reset a user's password
+app.post('/admin/users/:username/reset-password', adminMiddleware, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'Password too short' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await User.updateOne({ username: req.params.username }, { password: hash, secretAnswer: null });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get user details
+app.get('/admin/users/:username', adminMiddleware, async (req, res) => {
+  try {
+    const u = await User.findOne({ username: req.params.username }, '-password').lean();
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    const servers = await VyntraServer.find({ $or: [{ owner: u.username }, { members: u.username }] }, 'name owner isOfficial').lean();
+    const msgCount = await Message.countDocuments({ user: u.username });
+    res.json({ ...u, servers, msgCount, online: u.username in clients });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
 
 /* ── PUSH NOTIFICATIONS ── */
 app.get('/push/vapid-public-key', (req, res) => {
@@ -547,12 +640,17 @@ wss.on('connection', ws => {
           $or: [{ members: username }, { owner: username }, { isOfficial: true }]
         }).lean();
         const allChannels = await Channel.find({ serverId: { $in: myServers.map(s=>s._id) } }).lean();
+        const isAdmin = (
+          username === ADMIN_USER &&
+          user && (user.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase()
+        );
         ws.send(JSON.stringify({
           type: 'auth_ok',
           friends: user ? user.friends : [],
           servers: myServers,
           channels: allChannels,
           onlineUsers: Object.keys(clients),
+          isAdmin,
         }));
         broadcastAll({ type: 'online_users', users: Object.keys(clients) });
       } catch(e) {
@@ -732,7 +830,7 @@ wss.on('connection', ws => {
     /* CALL SIGNALING */
     if (data.type === 'call_request') {
       sendTo(data.to, { type: 'call_incoming', from: username, lvRoom: data.lvRoom, chatRoom: data.chatRoom });
-      if (!onlineUsers.has(data.to)) {
+      if (!(data.to in clients)) {
         pushToUser(data.to, { type:'call', title:`📞 ${username} is calling`, body:'Tap to answer on Vyntra', url:'/' }).catch(()=>{});
       }
       return;
