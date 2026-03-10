@@ -170,6 +170,20 @@ main{display:flex;flex:1;overflow:hidden}
 .msg-edit-save{background:var(--accent);color:#fff}
 .msg-edit-cancel{background:rgba(255,255,255,.08);color:var(--muted)}
 .msg .edited-tag{font-size:10px;color:var(--muted);margin-left:5px;opacity:.7}
+/* Admin panel */
+.admin-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.04);margin-bottom:6px;background:rgba(255,255,255,.02)}
+.admin-row:hover{background:rgba(255,255,255,.04)}
+.admin-avatar{width:36px;height:36px;border-radius:10px;background:#1a1d30;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;color:var(--white)}
+.admin-info{flex:1;overflow:hidden}
+.admin-name{font-size:13px;font-weight:600}
+.admin-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-actions{display:flex;gap:5px;flex-shrink:0}
+.admin-btn{padding:4px 9px;border-radius:6px;font-size:11px;cursor:pointer;border:none;font-weight:600}
+.admin-btn.kick{background:rgba(255,165,0,.12);color:#ffa500}
+.admin-btn.delete{background:rgba(255,50,50,.12);color:#ff5050}
+.admin-btn.reset{background:rgba(108,124,255,.12);color:var(--accent)}
+.admin-btn.detail{background:rgba(255,255,255,.06);color:var(--muted)}
+.online-badge{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:4px}
 .reaction{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.03);font-size:13px;cursor:pointer;border:1px solid transparent}
 .reaction.you{border-color:rgba(108,124,255,.3);background:rgba(108,124,255,.08)}
 .ulink{cursor:pointer;font-weight:600}
@@ -640,7 +654,21 @@ main{display:flex;flex:1;overflow:hidden}
   <button class="popup-btn" id="pupCall">📞 Call</button>
   <button class="popup-btn" id="pupFriend">👤 Add Friend</button>
   <button class="popup-btn danger" id="pupMute">🔇 Mute</button>
+  <button class="popup-btn danger" id="pupAdminDelete" style="display:none">🗑️ Delete Account</button>
+  <button class="popup-btn" style="background:rgba(108,124,255,.12);color:var(--accent)" id="pupAdminPanel" style="display:none">🛡️ Admin Panel</button>
   <button class="popup-btn" onclick="closePopup()">✕ Close</button>
+</div>
+
+<!-- Admin panel modal -->
+<div id="adminModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:800;align-items:center;justify-content:center">
+  <div style="background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:16px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-size:16px;font-weight:700">🛡️ Admin Panel</div>
+      <input id="adminSearch" placeholder="Search users…" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);outline:none;font-size:13px;width:200px"/>
+      <button onclick="closeAdminPanel()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--muted);font-size:13px;padding:6px 12px;cursor:pointer">✕</button>
+    </div>
+    <div id="adminUserList" style="flex:1;overflow-y:auto;padding:10px 14px"></div>
+  </div>
 </div>
 
 <!-- Friend request toast -->
@@ -1131,6 +1159,7 @@ function handleMsg(raw){
   var d=sp(raw);if(!d) return;
   switch(d.type){
     case 'auth_ok':
+      window._isAdmin=!!d.isAdmin;
       myFriends=d.friends||[];
       myServers=d.servers||[];
       onlineUsers=d.onlineUsers||[];
@@ -1539,6 +1568,7 @@ function renderFriends(){
 function openPopup(user,ev){
   if(user===myName) return;
   var isFriend=myFriends.indexOf(user)>=0,isMuted=mutedUsers.indexOf(user)>=0;
+  var isAdmin=!!window._isAdmin;
   document.getElementById('popupName').textContent=user;
   var fb=document.getElementById('pupFriend');fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
   document.getElementById('pupMute').textContent=isMuted?'🔊 Unmute':'🔇 Mute';
@@ -1546,6 +1576,17 @@ function openPopup(user,ev){
   document.getElementById('pupCall').onclick=function(){openDM(user);setTimeout(function(){startCallInRoom('dm_'+[myName,user].sort().join('_'));},300);closePopup();if(isMobileLayout())mobileGoTo(2);};
   document.getElementById('pupFriend').onclick=function(){if(!isFriend){wsSend({type:'friend_request',to:user});closePopup();}};
   document.getElementById('pupMute').onclick=function(){toggleMuteUser(user);closePopup();};
+  var adDel=document.getElementById('pupAdminDelete');
+  var adPanel=document.getElementById('pupAdminPanel');
+  if(isAdmin){
+    adDel.style.display='';
+    adDel.onclick=function(){closePopup();adminDeleteUser(user);};
+    adPanel.style.display='';
+    adPanel.onclick=function(){closePopup();openAdminPanel(user);};
+  } else {
+    adDel.style.display='none';
+    adPanel.style.display='none';
+  }
   var x=Math.min(ev.clientX,window.innerWidth-200),y=Math.min(ev.clientY,window.innerHeight-250);
   var p=document.getElementById('userPopup');p.style.left=x+'px';p.style.top=y+'px';p.style.display='block';
   document.getElementById('popupOverlay').style.display='block';
@@ -1834,7 +1875,8 @@ function renderSearchResults(msgs,q){
   msgs.forEach(function(m){
     var item=document.createElement('div');item.className='sr-item';
     var time=new Date(parseInt(String(m.id||'0').split('_')[0])).toLocaleString();
-    var highlighted=escHtml(m.text||'').replace(new RegExp('('+escHtml(q).replace(/[.*+?^${}()|[\]\]/g,'\$&')+')','gi'),'<mark>$1</mark>');
+    var escaped=escHtml(q).replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&');
+    var highlighted=escHtml(m.text||'').replace(new RegExp('('+escaped+')','gi'),'<mark>$1</mark>');
     item.innerHTML='<div class="sr-meta"><b>'+escHtml(m.user)+'</b> · '+time+(m.editedAt?' · <span style="opacity:.6">(edited)</span>':'')+'</div><div class="sr-text">'+highlighted+'</div>';
     item.onclick=function(){
       closeSearch();
@@ -3013,6 +3055,105 @@ function sbLoadCustom(){
     var raw = localStorage.getItem('vyntra_sb');
     if(raw) sbCustomSounds = JSON.parse(raw);
   }catch(e){}
+}
+
+/* ══════════════════════════════════════════════
+   ADMIN PANEL (benrrava only)
+══════════════════════════════════════════════ */
+var _adminAllUsers=[];
+
+async function openAdminPanel(focusUser){
+  if(!window._isAdmin) return;
+  document.getElementById('adminModal').style.display='flex';
+  document.getElementById('adminUserList').innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">Loading…</div>';
+  var token=localStorage.getItem('vt');
+  try{
+    var r=await fetch('/admin/users',{headers:{Authorization:'Bearer '+token}});
+    _adminAllUsers=await r.json();
+    renderAdminUsers(_adminAllUsers, focusUser||'');
+  }catch(e){document.getElementById('adminUserList').innerHTML='<div style="color:#ff5050;padding:20px">Failed to load users</div>';}
+  document.getElementById('adminSearch').oninput=function(){
+    var q=this.value.toLowerCase();
+    renderAdminUsers(_adminAllUsers.filter(function(u){return u.username.toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q);}));
+  };
+  if(focusUser){document.getElementById('adminSearch').value=focusUser;renderAdminUsers(_adminAllUsers.filter(function(u){return u.username===focusUser;}));}
+}
+
+function closeAdminPanel(){
+  document.getElementById('adminModal').style.display='none';
+  document.getElementById('adminSearch').value='';
+}
+
+function renderAdminUsers(users){
+  var list=document.getElementById('adminUserList');
+  if(!users.length){list.innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">No users found</div>';return;}
+  list.innerHTML='';
+  users.forEach(function(u){
+    var row=document.createElement('div');row.className='admin-row';
+    var joined=u.createdAt?new Date(u.createdAt).toLocaleDateString():'?';
+    row.innerHTML=
+      '<div class="admin-avatar">'+u.username[0].toUpperCase()+'</div>'+
+      '<div class="admin-info">'+
+        '<div class="admin-name">'+(u.online?'<span class="online-badge"></span>':'')+u.username+'</div>'+
+        '<div class="admin-meta">'+(u.email||'no email')+' · joined '+joined+' · '+u.friends.length+' friends</div>'+
+      '</div>'+
+      '<div class="admin-actions" data-u="'+u.username+'">'+
+        '<button class="admin-btn detail" onclick="adminViewUser(this.closest(\'.admin-actions\').dataset.u)">🔍</button>'+
+        '<button class="admin-btn reset" onclick="adminResetPw(this.closest(\'.admin-actions\').dataset.u)">🔑</button>'+
+        '<button class="admin-btn kick" onclick="adminKick(this.closest(\'.admin-actions\').dataset.u)">⚡ Kick</button>'+
+        '<button class="admin-btn delete" onclick="adminDeleteUser(this.closest(\'.admin-actions\').dataset.u)">🗑️ Delete</button>'+
+      '</div>';
+    list.appendChild(row);
+  });
+}
+
+async function adminViewUser(username){
+  var token=localStorage.getItem('vt');
+  try{
+    var r=await fetch('/admin/users/'+username,{headers:{Authorization:'Bearer '+token}});
+    var u=await r.json();
+    var info='User: '+u.username+'\nEmail: '+(u.email||'none')+'\nMessages sent: '+u.msgCount+'\nFriends: '+u.friends.join(', ')+'\nServers: '+u.servers.map(function(s){return s.name+(s.owner===username?' (owner)':'');}).join(', ')+'\nOnline: '+u.online;
+    alert(info);
+  }catch(e){toast('❌ Failed to load user details');}
+}
+
+async function adminKick(username){
+  if(!confirm('Force-disconnect '+username+'? (Account stays, just kicks their session)')) return;
+  var token=localStorage.getItem('vt');
+  try{
+    var r=await fetch('/admin/users/'+username+'/kick',{method:'POST',headers:{Authorization:'Bearer '+token}});
+    var d=await r.json();
+    toast(d.wasOnline?'⚡ '+username+' kicked':'ℹ️ '+username+' was already offline');
+    openAdminPanel();
+  }catch(e){toast('❌ Kick failed');}
+}
+
+async function adminResetPw(username){
+  var newPw=prompt('New password for '+username+' (min 4 chars):');
+  if(!newPw||newPw.length<4){toast('❌ Password too short');return;}
+  var token=localStorage.getItem('vt');
+  try{
+    var r=await fetch('/admin/users/'+username+'/reset-password',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:newPw})});
+    var d=await r.json();
+    if(d.ok) toast('✅ Password reset for '+username);
+    else toast('❌ '+(d.error||'Failed'));
+  }catch(e){toast('❌ Reset failed');}
+}
+
+async function adminDeleteUser(username){
+  if(!confirm('⚠️ Permanently delete account "'+username+'"?\n\nThis will:\n• Delete their account\n• Remove them from all friend lists\n• Delete their owned servers\n\nThis CANNOT be undone.')) return;
+  var token=localStorage.getItem('vt');
+  try{
+    var r=await fetch('/admin/users/'+username,{method:'DELETE',headers:{Authorization:'Bearer '+token}});
+    var d=await r.json();
+    if(d.ok){
+      toast('🗑️ Account "'+username+'" deleted');
+      _adminAllUsers=_adminAllUsers.filter(function(u){return u.username!==username;});
+      renderAdminUsers(_adminAllUsers);
+    } else {
+      toast('❌ '+(d.error||'Failed'));
+    }
+  }catch(e){toast('❌ Delete failed');}
 }
 
 sbLoadCustom();
