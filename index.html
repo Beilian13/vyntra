@@ -1146,6 +1146,7 @@ function renderActivityFeed(){
   });
 }
 
+function renderFriendsInCol(container){
   if(!myFriends.length){var em=document.createElement('div');em.className='no-friends';em.innerHTML='No friends yet!<br>Click a username to add one.';container.appendChild(em);return;}
   myFriends.forEach(function(f){
     var el=document.createElement('div');el.className='friend-item';
