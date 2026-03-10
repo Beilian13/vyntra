@@ -1469,8 +1469,21 @@ function toggleMobileSidebar(){toggleMobilePanel();}
 (async function(){
   try{
     var r=await fetch('https://cdn.jsdelivr.net/npm/@emoji-mart/data');
-    var j=await r.json();allEmojis=j.filter(function(e){return e.char&&e.name;}).map(function(e){return{c:e.char,n:e.name};});
-  }catch(e){allEmojis=[{c:'😀',n:'grinning'},{c:'😂',n:'joy'},{c:'❤️',n:'heart'},{c:'🔥',n:'fire'},{c:'👍',n:'thumbsup'}];}
+    var j=await r.json();
+    // @emoji-mart/data format: { emojis: { id: { skins:[{native}], name, keywords } } }
+    var emojis=j.emojis||{};
+    allEmojis=Object.values(emojis).map(function(e){
+      return{c:(e.skins&&e.skins[0]&&e.skins[0].native)||'',n:(e.name||'')+(e.keywords?' '+e.keywords.join(' '):'')};
+    }).filter(function(e){return e.c;});
+  }catch(e){
+    allEmojis=[
+      {c:'😀',n:'grinning'},{c:'😂',n:'joy'},{c:'❤️',n:'heart'},{c:'🔥',n:'fire'},
+      {c:'👍',n:'thumbsup'},{c:'😭',n:'crying'},{c:'😍',n:'heart eyes'},{c:'🙏',n:'pray'},
+      {c:'💀',n:'skull'},{c:'😎',n:'sunglasses'},{c:'🤣',n:'rofl'},{c:'😊',n:'blush'},
+      {c:'🎉',n:'party'},{c:'💯',n:'hundred'},{c:'🤔',n:'thinking'},{c:'👀',n:'eyes'},
+      {c:'😢',n:'sad'},{c:'😡',n:'angry'},{c:'🥶',n:'cold'},{c:'🤯',n:'exploding head'},
+    ];
+  }
 })();
 function openEmoji(id){pickerFor=id;document.getElementById('emojiOverlay').style.display='flex';fillEmojiGrid('');setTimeout(function(){document.getElementById('emojiSearch').focus();},60);}
 function closeEmoji(){pickerFor=null;document.getElementById('emojiOverlay').style.display='none';document.getElementById('emojiSearch').value='';}
