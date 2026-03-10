@@ -128,6 +128,48 @@ main{display:flex;flex:1;overflow:hidden}
 #replyBar .rb-user{font-weight:700;color:var(--accent);margin-right:4px}
 #replyBar .rb-cancel{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;flex-shrink:0;padding:0 2px}
 #replyBar .rb-cancel:hover{color:var(--white)}
+
+/* ── Search overlay ── */
+#searchOverlay{
+  display:none;position:absolute;inset:0;background:var(--bg);
+  z-index:40;flex-direction:column;
+}
+#searchOverlay.open{display:flex}
+#searchHeader{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;
+}
+#searchInput{
+  flex:1;padding:9px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.06);
+  background:#0b0d16;color:var(--white);outline:none;font-size:14px;
+}
+#searchInput:focus{border-color:rgba(108,124,255,.35)}
+#searchResults{flex:1;overflow-y:auto;padding:8px 10px}
+.sr-item{
+  padding:9px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;
+  border:1px solid rgba(255,255,255,.04);
+}
+.sr-item:hover{background:rgba(108,124,255,.08)}
+.sr-meta{font-size:11px;color:var(--muted);margin-bottom:3px}
+.sr-text{font-size:13px;line-height:1.4}
+.sr-text mark{background:rgba(108,124,255,.35);color:var(--white);border-radius:2px;padding:0 1px}
+.sr-empty{color:var(--muted);font-size:13px;text-align:center;padding:32px 0}
+
+/* ── Edit mode inline ── */
+.msg-edit-area{
+  width:100%;margin-top:4px;padding:7px 10px;
+  border-radius:8px;border:1px solid rgba(108,124,255,.4);
+  background:#0b0d16;color:var(--white);outline:none;
+  font-size:14px;resize:none;font-family:inherit;line-height:1.4;
+  box-sizing:border-box;
+}
+.msg-edit-btns{display:flex;gap:6px;margin-top:5px}
+.msg-edit-btns button{
+  padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:none;
+}
+.msg-edit-save{background:var(--accent);color:#fff}
+.msg-edit-cancel{background:rgba(255,255,255,.08);color:var(--muted)}
+.msg .edited-tag{font-size:10px;color:var(--muted);margin-left:5px;opacity:.7}
 .reaction{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.03);font-size:13px;cursor:pointer;border:1px solid transparent}
 .reaction.you{border-color:rgba(108,124,255,.3);background:rgba(108,124,255,.08)}
 .ulink{cursor:pointer;font-weight:600}
@@ -529,12 +571,22 @@ main{display:flex;flex:1;overflow:hidden}
     </div>
 
     <section class="chatArea">
+      <div id="searchOverlay">
+        <div id="searchHeader">
+          <input id="searchInput" placeholder="Search messages…" autocomplete="off"/>
+          <button onclick="closeSearch()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--muted);font-size:13px;padding:6px 12px;cursor:pointer;flex-shrink:0">✕ Close</button>
+        </div>
+        <div id="searchResults"></div>
+      </div>
       <div class="roomHeader">
         <div class="rh-left">
           <div class="rh-title" id="roomTitle">Select a channel</div>
           <div class="rh-meta" id="roomMeta">Pick a server and channel</div>
         </div>
-        <div class="rh-right" id="roomUsersCount"></div>
+        <div class="rh-right" style="display:flex;align-items:center;gap:6px">
+          <button id="searchBtn" onclick="openSearch()" title="Search" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:15px;padding:4px 8px;cursor:pointer">🔍</button>
+          <div id="roomUsersCount"></div>
+        </div>
       </div>
       <div class="messages" id="messages"><div class="center-note">← Pick a server and channel</div></div>
       <div id="typingBar" style="display:none;padding:4px 14px;font-size:12px;color:var(--muted);flex-shrink:0;background:#0e1020;border-top:1px solid rgba(255,255,255,.02)"></div>
@@ -1110,6 +1162,8 @@ function handleMsg(raw){
     case 'users':         if(d.channelId===currentChannelId||d.room===currentRoom) populateUsers(d.users||[]);break;
     case 'system':        pushSys(d.text);break;
     case 'chat':          cacheMsg(d);break;
+    case 'msg_edited':    applyEdit(d);break;
+    case 'msg_deleted':   applyDelete(d);break;
     case 'friends_update':myFriends=d.friends||[];renderFriends();break;
     case 'friend_request':showFR(d.from);break;
     case 'friend_accepted':toast('🎉 '+d.by+' accepted your request!');break;
@@ -1139,6 +1193,7 @@ function handleMsg(raw){
 function initListeners(){
   listenersReady=true;
   document.getElementById('sendBtn').onclick=sendMessage;
+  document.getElementById('searchInput').oninput=function(){doSearch(this.value.trim());};
   document.getElementById('msgInput').onkeypress=function(e){if(e.key==='Enter'&&!e.shiftKey)sendMessage();};
   var _typingDebounce=null;
   document.getElementById('msgInput').addEventListener('input',function(){
@@ -1352,6 +1407,7 @@ function joinChannel(ch,srv){
     fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,replyTo:m.replyTo||null,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
   } else {
     wsSend({type:'join',channelId:ch._id});
+    var sb=document.getElementById('searchBtn');if(sb) sb.style.display=''
   }
 }
 function openDM(user){
@@ -1593,7 +1649,18 @@ function renderMsg(msg){
   if(mutedUsers.indexOf(msg.user)>=0) return;
   var c=document.getElementById('messages');
   var ex=document.getElementById('m-'+msg.id);
-  if(ex){fillReactions(ex.querySelector('.reactions'),msg);return;}
+  if(ex){
+    // Update text if edited
+    var txEl=ex.querySelector('.text');
+    if(txEl&&msg.text!==undefined) txEl.textContent=msg.text;
+    // Update edited tag
+    var metaEl=ex.querySelector('.meta span:last-child');
+    if(metaEl&&msg.editedAt&&!metaEl.querySelector('.edited-tag')){
+      var etag2=document.createElement('span');etag2.className='edited-tag';etag2.textContent='(edited)';metaEl.appendChild(etag2);
+    }
+    fillReactions(ex.querySelector('.reactions'),msg);
+    return;
+  }
   var ph=c.querySelector('.center-note');if(ph) ph.remove();
   var w=document.createElement('div');w.className='msg'+(msg.user===myName?' me':'');w.id='m-'+msg.id;
   w.style.position='relative';
@@ -1604,12 +1671,25 @@ function renderMsg(msg){
     setReply(m.id, m.user, m.text||(m.fileName||''));
   };})(msg);
   acts.appendChild(replyBtn);
+  if(msg.user===myName){
+    var editBtn=document.createElement('button');editBtn.title='Edit';editBtn.textContent='✏️';
+    editBtn.onclick=(function(m){return function(e){e.stopPropagation();startEdit(m.id,m.text||'');};})(msg);
+    acts.appendChild(editBtn);
+  }
+  if(msg.user===myName){
+    var delBtn=document.createElement('button');delBtn.title='Delete';delBtn.textContent='🗑️';
+    delBtn.onclick=(function(m){return function(e){e.stopPropagation();
+      if(confirm('Delete this message?')) wsSend({type:'msg_delete',messageId:m.id});
+    };})(msg);
+    acts.appendChild(delBtn);
+  }
   w.appendChild(acts);
   var meta=document.createElement('div');meta.className='meta';
   var ns=document.createElement('span');ns.className='ulink';ns.textContent=msg.user;
   ns.onclick=function(e){openPopup(msg.user,e);};
   var ts=document.createElement('span');ts.style.opacity='.6';
   ts.textContent=' • '+new Date(parseInt(String(msg.id).split('_')[0])).toLocaleTimeString();
+  if(msg.editedAt){var etag=document.createElement('span');etag.className='edited-tag';etag.textContent='(edited)';ts.appendChild(etag);}
   meta.appendChild(ns);meta.appendChild(ts);
   w.appendChild(meta);
   // Reply quote block
@@ -1663,6 +1743,113 @@ function fillReactions(el,msg){
   var pk=document.createElement('button');pk.className='reaction';pk.textContent='✦';pk.style.background='transparent';
   pk.onclick=function(){openEmoji(msg.id);};el.appendChild(pk);
 }
+
+/* ── Edit ── */
+function startEdit(msgId, currentText){
+  var w=document.getElementById('m-'+msgId);if(!w) return;
+  var txEl=w.querySelector('.text');if(!txEl) return;
+  if(w.querySelector('.msg-edit-area')) return; // already editing
+  txEl.style.display='none';
+  var ta=document.createElement('textarea');ta.className='msg-edit-area';
+  ta.value=currentText;ta.rows=Math.max(2,currentText.split('\n').length);
+  var btns=document.createElement('div');btns.className='msg-edit-btns';
+  var save=document.createElement('button');save.className='msg-edit-save';save.textContent='Save';
+  var cancel=document.createElement('button');cancel.className='msg-edit-cancel';cancel.textContent='Cancel';
+  save.onclick=function(){
+    var newText=ta.value.trim();
+    if(!newText) return;
+    wsSend({type:'msg_edit',messageId:msgId,text:newText});
+    cancelEdit(msgId);
+  };
+  cancel.onclick=function(){cancelEdit(msgId);};
+  ta.onkeydown=function(e){
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();save.onclick();}
+    if(e.key==='Escape'){cancelEdit(msgId);}
+  };
+  btns.appendChild(save);btns.appendChild(cancel);
+  w.appendChild(ta);w.appendChild(btns);
+  ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
+}
+function cancelEdit(msgId){
+  var w=document.getElementById('m-'+msgId);if(!w) return;
+  var txEl=w.querySelector('.text');if(txEl) txEl.style.display='';
+  var ta=w.querySelector('.msg-edit-area');if(ta) ta.remove();
+  var btns=w.querySelector('.msg-edit-btns');if(btns) btns.remove();
+}
+function applyEdit(d){
+  // Update cache
+  Object.keys(msgCache).forEach(function(k){
+    msgCache[k]=msgCache[k].map(function(m){return m.id===d.id?Object.assign({},m,{text:d.text,editedAt:true}):m;});
+  });
+  var w=document.getElementById('m-'+d.id);if(!w) return;
+  cancelEdit(d.id);
+  var txEl=w.querySelector('.text');
+  if(txEl) txEl.textContent=d.text;
+  var metaSpan=w.querySelector('.meta span:last-child');
+  if(metaSpan&&!metaSpan.querySelector('.edited-tag')){
+    var etag=document.createElement('span');etag.className='edited-tag';etag.textContent='(edited)';metaSpan.appendChild(etag);
+  }
+}
+function applyDelete(d){
+  // Remove from cache
+  Object.keys(msgCache).forEach(function(k){
+    msgCache[k]=msgCache[k].filter(function(m){return m.id!==d.id;});
+  });
+  var w=document.getElementById('m-'+d.id);if(w) w.remove();
+}
+
+/* ── Search ── */
+var _searchDebounce=null;
+function openSearch(){
+  if(!currentChannelId) return toast('Join a channel first');
+  document.getElementById('searchOverlay').classList.add('open');
+  document.getElementById('searchBtn').style.display='none';
+  setTimeout(function(){document.getElementById('searchInput').focus();},80);
+}
+function closeSearch(){
+  document.getElementById('searchOverlay').classList.remove('open');
+  if(currentChannelId) document.getElementById('searchBtn').style.display='';
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchResults').innerHTML='';
+}
+function doSearch(q){
+  var res=document.getElementById('searchResults');
+  if(!q){res.innerHTML='';return;}
+  res.innerHTML='<div class="sr-empty">Searching…</div>';
+  clearTimeout(_searchDebounce);
+  _searchDebounce=setTimeout(async function(){
+    var token=localStorage.getItem('vt');
+    var url='/channels/'+currentChannelId+'/search?q='+encodeURIComponent(q);
+    try{
+      var r=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+      var msgs=await r.json();
+      renderSearchResults(msgs,q);
+    }catch(e){res.innerHTML='<div class="sr-empty">Search failed</div>';}
+  },350);
+}
+function renderSearchResults(msgs,q){
+  var res=document.getElementById('searchResults');
+  if(!msgs.length){res.innerHTML='<div class="sr-empty">No messages found for "'+escHtml(q)+'"</div>';return;}
+  res.innerHTML='';
+  msgs.forEach(function(m){
+    var item=document.createElement('div');item.className='sr-item';
+    var time=new Date(parseInt(String(m.id||'0').split('_')[0])).toLocaleString();
+    var highlighted=escHtml(m.text||'').replace(new RegExp('('+escHtml(q).replace(/[.*+?^${}()|[\]\]/g,'\$&')+')','gi'),'<mark>$1</mark>');
+    item.innerHTML='<div class="sr-meta"><b>'+escHtml(m.user)+'</b> · '+time+(m.editedAt?' · <span style="opacity:.6">(edited)</span>':'')+'</div><div class="sr-text">'+highlighted+'</div>';
+    item.onclick=function(){
+      closeSearch();
+      var el=document.getElementById('m-'+m.id);
+      if(el){el.scrollIntoView({behavior:'smooth',block:'center'});
+        el.style.transition='background .2s';el.style.background='rgba(108,124,255,.18)';
+        setTimeout(function(){el.style.background='';},1400);
+      } else {
+        toast('Message not in current view');
+      }
+    };
+    res.appendChild(item);
+  });
+}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 /* ══════════════════════════════════════════════
    MOBILE SLIDING VIEWS
