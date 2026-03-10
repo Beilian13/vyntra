@@ -432,6 +432,7 @@ main{display:flex;flex:1;overflow:hidden}
         <div id="chHeaderActions" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap"></div>
       </div>
       <div id="channelsList" style="flex:1;overflow-y:auto;padding:6px 8px"></div>
+      <div id="activityFeed" style="border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;max-height:220px;overflow-y:auto;padding-bottom:6px"></div>
     </div>
 
     <section class="chatArea">
@@ -443,6 +444,7 @@ main{display:flex;flex:1;overflow:hidden}
         <div class="rh-right" id="roomUsersCount"></div>
       </div>
       <div class="messages" id="messages"><div class="center-note">← Pick a server and channel</div></div>
+      <div id="typingBar" style="display:none;padding:4px 14px;font-size:12px;color:var(--muted);flex-shrink:0;background:#0e1020;border-top:1px solid rgba(255,255,255,.02)"></div>
       <div id="watchBar" style="display:none;padding:8px 14px;background:rgba(108,124,255,.08);border-top:1px solid rgba(108,124,255,.15);flex-shrink:0;align-items:center;gap:10px;font-size:13px;color:var(--muted)">
         👀 Watching as guest. <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth()">Log in</a> or <a style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="showAuth('register')">register</a> to chat.
       </div>
@@ -636,7 +638,11 @@ main{display:flex;flex:1;overflow:hidden}
 <div id="addChannelModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:center;justify-content:center">
   <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px;width:min(340px,90vw)">
     <h3 style="font-size:16px;font-weight:700;margin-bottom:14px">Add Channel</h3>
-    <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;margin-bottom:14px" placeholder="channel-name"/>
+    <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;margin-bottom:10px" placeholder="channel-name"/>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="text" checked style="accent-color:var(--accent);margin-right:5px"/> # Text</label>
+      <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="announcement" style="accent-color:var(--accent);margin-right:5px"/> 📢 Announcement</label>
+    </div>
     <div style="display:flex;gap:10px">
       <button onclick="closeAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
       <button onclick="doAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">Add</button>
@@ -662,7 +668,9 @@ var isMobile=isIOS||isAndroid||/Mobile/i.test(navigator.userAgent);
 var myServers=[], myChannels={}, activeServerId=null;
 var isGuest=false, pendingInviteToken=null, pendingInviteServerToken=null;
 var COLORS=['#6c7cff','#9b6cff','#ff6cb4','#ff8c5a','#39d353','#28c8d4','#f5c842','#e03e3e'];
-var pendingFile=null; // {url, fileName, fileType}
+var pendingFile=null;
+var onlineUsers=[], activityEvents=[];
+var typingUsers={}, typingTimers={}; // chanId -> Set of usernames
 
 /* ══ LIVEKIT CALL STATE ══ */
 var lk={
@@ -893,14 +901,33 @@ function handleMsg(raw){
     case 'auth_ok':
       myFriends=d.friends||[];
       myServers=d.servers||[];
+      onlineUsers=d.onlineUsers||[];
+      activityEvents=d.activityLog||[];
       (d.channels||[]).forEach(function(ch){
         if(!myChannels[ch.serverId]) myChannels[ch.serverId]=[];
         if(!myChannels[ch.serverId].find(function(c){return c._id===ch._id;}))
           myChannels[ch.serverId].push(ch);
       });
-      renderServerCol();renderFriends();
+      renderServerCol();renderFriends();renderActivityFeed();
       var off=myServers.find(function(s){return s.isOfficial;});
       if(off) selectServer(off._id);
+      // Refresh timestamps every minute
+      setInterval(renderActivityFeed, 60000);
+      break;
+    case 'online_users':  onlineUsers=d.users||[];renderActivityFeed();break;
+    case 'activity_update': activityEvents=d.events||[];renderActivityFeed();break;
+    case 'typing':
+      if(d.channelId===currentChannelId){
+        if(!typingUsers[d.channelId]) typingUsers[d.channelId]=new Set();
+        typingUsers[d.channelId].add(d.user);
+        renderTyping();
+        clearTimeout(typingTimers[d.channelId+'_'+d.user]);
+        typingTimers[d.channelId+'_'+d.user]=setTimeout(function(){if(typingUsers[d.channelId])typingUsers[d.channelId].delete(d.user);renderTyping();},4000);
+      }
+      break;
+    case 'typing_stop':
+      if(typingUsers[d.channelId]) typingUsers[d.channelId].delete(d.user);
+      renderTyping();
       break;
     case 'auth_err':      doLogout();break;
     case 'users':         if(d.channelId===currentChannelId||d.room===currentRoom) populateUsers(d.users||[]);break;
@@ -936,6 +963,13 @@ function initListeners(){
   listenersReady=true;
   document.getElementById('sendBtn').onclick=sendMessage;
   document.getElementById('msgInput').onkeypress=function(e){if(e.key==='Enter'&&!e.shiftKey)sendMessage();};
+  var _typingDebounce=null;
+  document.getElementById('msgInput').addEventListener('input',function(){
+    if(!connected||!currentChannelId) return;
+    wsSend({type:'typing'});
+    clearTimeout(_typingDebounce);
+    _typingDebounce=setTimeout(function(){wsSend({type:'typing_stop'});},2000);
+  });
   document.getElementById('attachBtn').onclick=function(){document.getElementById('fileInput').click();};
   document.getElementById('fileInput').onchange=function(){if(this.files[0])handleFileAttach(this.files[0]);this.value='';};
   // Paste image
@@ -1063,7 +1097,7 @@ function renderChannelCol(serverId){
     container.appendChild(lbl);
     channels.forEach(function(ch){
       var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
-      el.innerHTML='<span style="opacity:.7;flex-shrink:0">#</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>';
+      el.innerHTML='<span style="opacity:.7;flex-shrink:0">'+(ch.type==='announcement'?'📢':'#')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>'+(ch.type==='announcement'?'<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(255,200,80,.12);color:#ffc850;margin-left:2px;flex-shrink:0">ANN</span>':'');
       if(isOwner&&!srv.isOfficial){var del=document.createElement('button');del.className='ch-del';del.textContent='✕';del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};el.appendChild(del);}
       el.onclick=(function(c,s){return function(){joinChannel(c,s);if(mobile)closeMobilePanel();};})(ch,srv);
       container.appendChild(el);
@@ -1076,7 +1110,42 @@ function renderChannelCol(serverId){
 function addHdrBtn(container,text,danger,cb){
   var b=document.createElement('button');b.className='ch-hdr-btn'+(danger?' danger':'');b.textContent=text;b.onclick=cb;container.appendChild(b);
 }
-function renderFriendsInCol(container){
+function renderTyping(){
+  var bar=document.getElementById('typingBar');if(!bar)return;
+  var users=typingUsers[currentChannelId];
+  var list=users?[...users].filter(function(u){return u!==myName;}):[];
+  if(!list.length){bar.style.display='none';bar.textContent='';return;}
+  var txt=list.length===1?list[0]+' is typing…':list.length===2?list[0]+' and '+list[1]+' are typing…':list.slice(0,-1).join(', ')+' and '+list[list.length-1]+' are typing…';
+  bar.textContent='✏️ '+txt;bar.style.display='block';
+}
+function renderActivityFeed(){
+  var el=document.getElementById('activityFeed');if(!el)return;
+  el.innerHTML='';
+  // Online users
+  var onDiv=document.createElement('div');onDiv.style.cssText='padding:6px 8px 4px;';
+  var onHdr=document.createElement('div');onHdr.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px';onHdr.textContent='Online — '+onlineUsers.length;onDiv.appendChild(onHdr);
+  onlineUsers.slice(0,8).forEach(function(u){
+    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;color:var(--white)';
+    row.innerHTML='<div style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span>'+u+'</span>';
+    onDiv.appendChild(row);
+  });
+  if(onlineUsers.length>8){var more=document.createElement('div');more.style.cssText='font-size:11px;color:var(--muted);padding:2px';more.textContent='+'+(onlineUsers.length-8)+' more';onDiv.appendChild(more);}
+  el.appendChild(onDiv);
+  // Divider
+  var div=document.createElement('div');div.style.cssText='height:1px;background:rgba(255,255,255,.04);margin:4px 8px';el.appendChild(div);
+  // Recent activity
+  var actHdr=document.createElement('div');actHdr.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 4px';actHdr.textContent='Recent Activity';el.appendChild(actHdr);
+  var events=[...activityEvents].reverse().slice(0,10);
+  if(!events.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 10px';em.textContent='No recent activity';el.appendChild(em);}
+  events.forEach(function(ev){
+    var row=document.createElement('div');row.style.cssText='padding:4px 10px;font-size:12px;display:flex;gap:6px;align-items:flex-start';
+    var icon=ev.type==='join'?'→':ev.type==='leave'?'←':ev.type==='message'?'💬':'•';
+    var age=Math.round((Date.now()-ev.ts)/60000);var ageStr=age<1?'now':age+'m ago';
+    row.innerHTML='<span style="opacity:.5;flex-shrink:0">'+icon+'</span><span style="flex:1;color:var(--muted)"><span style="color:var(--white)">'+ev.user+'</span> '+ev.text+'</span><span style="opacity:.4;font-size:10px;flex-shrink:0">'+ageStr+'</span>';
+    el.appendChild(row);
+  });
+}
+
   if(!myFriends.length){var em=document.createElement('div');em.className='no-friends';em.innerHTML='No friends yet!<br>Click a username to add one.';container.appendChild(em);return;}
   myFriends.forEach(function(f){
     var el=document.createElement('div');el.className='friend-item';
@@ -1091,10 +1160,25 @@ function joinChannel(ch,srv){
   if(!connected&&!isGuest){toast('❌ Not connected');return;}
   currentChannelId=ch._id;currentRoom=ch._id;
   document.getElementById('messages').innerHTML='';
-  document.getElementById('roomTitle').textContent='# '+ch.name;
+  document.getElementById('roomTitle').textContent=(ch.type==='announcement'?'📢 ':'# ')+ch.name;
   document.getElementById('roomMeta').textContent=srv?srv.name:'';
   document.querySelectorAll('.ch-item').forEach(function(el){el.classList.toggle('active',el.dataset.chId===ch._id);});
   document.getElementById('callBtn').style.display='none';updateCallBtn();
+  // Announcement channel — lock compose for non-owners
+  var isOwnerOrAdmin=!isGuest&&srv&&(srv.owner===myName||(srv.admins&&srv.admins.includes(myName)));
+  var compose=document.getElementById('composeBar');
+  if(ch.type==='announcement'&&!isOwnerOrAdmin){
+    compose.style.display='none';
+    document.getElementById('typingBar').style.display='none';
+    var rb=document.getElementById('readOnlyBar');
+    if(!rb){rb=document.createElement('div');rb.id='readOnlyBar';rb.style.cssText='padding:10px 14px;text-align:center;font-size:13px;color:var(--muted);background:#0e1020;border-top:1px solid rgba(255,255,255,.02);flex-shrink:0';rb.textContent='📢 This is an announcement channel — only admins can post.';document.querySelector('.chatArea').appendChild(rb);}
+    rb.style.display='block';
+  } else {
+    compose.style.display='flex';
+    var rb2=document.getElementById('readOnlyBar');if(rb2)rb2.style.display='none';
+  }
+  // Clear typing
+  typingUsers[ch._id]=new Set();renderTyping();
   if(isGuest){
     fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
   } else {
@@ -1130,7 +1214,9 @@ function openAddChannel(sid){_addChanServerId=sid;document.getElementById('acmNa
 function closeAddChannel(){document.getElementById('addChannelModal').style.display='none';}
 async function doAddChannel(){
   var name=document.getElementById('acmName').value.trim();if(!name)return;
-  try{var r=await fetch('/servers/'+_addChanServerId+'/channels',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:name})});var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}closeAddChannel();}catch(e){toast('❌ Network error');}
+  var type=document.querySelector('input[name="chType"]:checked');
+  var chType=type?type.value:'text';
+  try{var r=await fetch('/servers/'+_addChanServerId+'/channels',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:name,type:chType})});var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}closeAddChannel();}catch(e){toast('❌ Network error');}
 }
 async function deleteChannel(sid,cid){if(!confirm('Delete this channel?'))return;try{await fetch('/servers/'+sid+'/channels/'+cid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});}catch(e){toast('❌ Network error');}}
 async function deleteServer(sid){if(!confirm('Delete this server? This cannot be undone.'))return;try{var r=await fetch('/servers/'+sid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});if(!r.ok){toast('❌ Failed');return;}myServers=myServers.filter(function(s){return s._id!==sid;});delete myChannels[sid];activeServerId=null;renderServerCol();var off=myServers.find(function(s){return s.isOfficial;});if(off)selectServer(off._id);toast('Server deleted');}catch(e){toast('❌ Network error');}}
@@ -1295,6 +1381,7 @@ function sendMessage(){
   var msg={type:'message',text:txt,channelId:currentChannelId};
   if(pendingFile){msg.fileUrl=pendingFile.url;msg.fileName=pendingFile.fileName;msg.fileType=pendingFile.fileType;}
   wsSend(msg);
+  wsSend({type:'typing_stop'});
   inp.value='';clearFileAttach();inp.focus();
 }
 function populateUsers(list){
