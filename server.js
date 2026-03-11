@@ -11,10 +11,11 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const crypto     = require('crypto');
 const path       = require('path');
-const fs         = require('fs');
 const multer     = require('multer');
 const { AccessToken } = require('livekit-server-sdk');
-const webpush = require('web-push');
+const webpush    = require('web-push');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app    = express();
 const server = http.createServer(app);
@@ -23,17 +24,30 @@ const wss    = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-/* ── FILE UPLOADS ── */
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
-app.use('/uploads', express.static(UPLOADS_DIR));
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename:    (req, file, cb) => cb(null, `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`),
+/* ── CLOUDINARY UPLOAD ── */
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+const cloudStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    const isVideo = file.mimetype.startsWith('video/');
+    const isAudio = file.mimetype.startsWith('audio/');
+    const isRaw   = file.mimetype === 'application/pdf' || file.mimetype === 'text/plain';
+    return {
+      folder:        'vyntra',
+      resource_type: isVideo ? 'video' : isAudio ? 'video' : isRaw ? 'raw' : 'image',
+      // Cloudinary uses 'video' resource_type for audio too
+      public_id:     `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      allowed_formats: ['jpg','jpeg','png','gif','webp','mp4','webm','mov','mp3','ogg','wav','aac','flac','m4a','pdf','txt'],
+    };
+  },
 });
 const upload = multer({
-  storage,
-  limits: { fileSize: 32 * 1024 * 1024 }, // 32MB
+  storage: cloudStorage,
+  limits: { fileSize: 32 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = /image\/(jpeg|png|gif|webp)|video\/(mp4|webm|quicktime)|audio\/(mpeg|mp4|ogg|wav|webm|aac|flac|x-m4a)|application\/pdf|text\/plain/.test(file.mimetype);
     cb(null, ok);
@@ -458,7 +472,7 @@ app.post('/push/unsubscribe', authMiddleware, async (req, res) => {
 app.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   res.json({
-    url:      `/uploads/${req.file.filename}`,
+    url:      req.file.path,          // Cloudinary CDN URL (permanent)
     fileName: req.file.originalname,
     fileType: req.file.mimetype,
   });
