@@ -200,42 +200,43 @@ main{display:flex;flex:1;overflow:hidden}
 .send-btn{padding:0 16px;border-radius:10px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:14px;font-weight:600;height:36px}
 /* ── Attach tray ── */
 #attachTray{
-  display:none;position:absolute;bottom:calc(100% + 8px);left:10px;right:10px;
-  background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:16px;
-  z-index:50;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);
+  display:none;position:absolute;bottom:calc(100% + 6px);left:0;
+  width:300px;
+  background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  z-index:50;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,.5);
 }
 #attachTray.open{display:block}
 .tray-tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.05)}
-.tray-tab{flex:1;padding:10px 0;font-size:13px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;transition:color .15s;display:flex;flex-direction:column;align-items:center;gap:3px}
-.tray-tab .tab-icon{font-size:22px}
+.tray-tab{flex:1;padding:7px 0;font-size:11px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;transition:color .15s;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tray-tab .tab-icon{font-size:16px}
 .tray-tab.active{color:var(--white);border-bottom:2px solid var(--accent)}
-.tray-pane{display:none;padding:14px}
+.tray-pane{display:none;padding:10px}
 .tray-pane.active{display:block}
 /* Files pane */
-.file-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
-.file-tile{aspect-ratio:1;border-radius:12px;border:1.5px dashed rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;color:var(--muted);transition:border-color .15s,background .15s;background:rgba(255,255,255,.02)}
+.file-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.file-tile{aspect-ratio:1;border-radius:9px;border:1.5px dashed rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font-size:10px;color:var(--muted);transition:border-color .15s,background .15s;background:rgba(255,255,255,.02)}
 .file-tile:hover{border-color:var(--accent);background:rgba(108,124,255,.08);color:var(--white)}
-.file-tile .ft-icon{font-size:26px}
-.file-upload-status{font-size:12px;color:var(--muted);text-align:center;min-height:18px}
+.file-tile .ft-icon{font-size:18px}
+.file-upload-status{font-size:11px;color:var(--muted);text-align:center;min-height:14px}
 /* Camera pane */
-#cameraPane video{width:100%;border-radius:10px;background:#000;max-height:200px;object-fit:cover}
-.cam-controls{display:flex;gap:8px;margin-top:10px;justify-content:center}
-.cam-btn{padding:8px 18px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer}
+#cameraPane video{width:100%;border-radius:8px;background:#000;max-height:160px;object-fit:cover}
+.cam-controls{display:flex;gap:6px;margin-top:7px;justify-content:center}
+.cam-btn{padding:5px 12px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer}
 .cam-snap{background:var(--accent);color:#fff}
 .cam-flip{background:rgba(255,255,255,.06);color:var(--white)}
 .cam-close{background:rgba(255,50,50,.12);color:#ff5050}
-#snapPreview{display:none;width:100%;border-radius:10px;margin-top:8px;max-height:180px;object-fit:contain;background:#0b0d16}
+#snapPreview{display:none;width:100%;border-radius:8px;margin-top:6px;max-height:140px;object-fit:contain;background:#0b0d16}
 /* Poll pane */
-.poll-builder{display:flex;flex-direction:column;gap:8px}
-.pb-q{width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:14px;outline:none}
+.poll-builder{display:flex;flex-direction:column;gap:6px}
+.pb-q{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
 .pb-q:focus{border-color:rgba(108,124,255,.35)}
-.pb-opts{display:flex;flex-direction:column;gap:6px}
-.pb-opt-row{display:flex;gap:6px;align-items:center}
-.pb-opt-row input{flex:1;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
+.pb-opts{display:flex;flex-direction:column;gap:5px}
+.pb-opt-row{display:flex;gap:5px;align-items:center}
+.pb-opt-row input{flex:1;padding:6px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:12px;outline:none}
 .pb-opt-row input:focus{border-color:rgba(108,124,255,.3)}
-.pb-opt-row button{width:28px;height:28px;border-radius:7px;border:none;background:rgba(255,50,50,.1);color:#ff7070;font-size:16px;cursor:pointer;flex-shrink:0;line-height:1}
-.pb-add{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:8px;color:var(--muted);font-size:12px;padding:6px 12px;cursor:pointer;align-self:flex-start}
-.pb-launch{background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:14px;font-weight:700;padding:9px 0;cursor:pointer;width:100%;margin-top:4px}
+.pb-opt-row button{width:24px;height:24px;border-radius:6px;border:none;background:rgba(255,50,50,.1);color:#ff7070;font-size:14px;cursor:pointer;flex-shrink:0;line-height:1}
+.pb-add{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;align-self:flex-start}
+.pb-launch{background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;padding:7px 0;cursor:pointer;width:100%;margin-top:2px}
 .pb-launch:hover{opacity:.9}
 .center-note{display:flex;align-items:center;justify-content:center;color:var(--muted);height:100%}
 
@@ -719,11 +720,11 @@ main{display:flex;flex:1;overflow:hidden}
               <div class="file-tile" onclick="triggerFileInput('application/pdf')">
                 <span class="ft-icon">📄</span><span>PDF</span>
               </div>
-              <div class="file-tile" onclick="triggerFileInput('text/plain')">
-                <span class="ft-icon">📝</span><span>Text</span>
-              </div>
               <div class="file-tile" onclick="triggerFileInput('*/*')">
                 <span class="ft-icon">📦</span><span>Any file</span>
+              </div>
+              <div class="file-tile" onclick="switchTrayTab('poll',document.querySelector('[data-tab=poll]'))" style="border-color:rgba(108,124,255,.2);color:var(--accent)">
+                <span class="ft-icon">📊</span><span>Poll</span>
               </div>
             </div>
             <input type="file" id="fileInput" accept="image/*,video/*,audio/*,application/pdf,text/plain" style="display:none"/>
