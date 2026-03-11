@@ -1032,7 +1032,8 @@ var lk={
   audioCtx: null, analyser: null, gainNode: null, vadInterval: null,
   vadThreshold: parseInt(localStorage.getItem('vyntra_vad')||'15'),
   // Per-participant volume (0-2) and local mute
-  participantVolumes: {},   // identity → 0.0–2.0
+  participantVolumes: {},   // identity → 0.0–1.5
+  remoteGainNodes:  {},   // identity → {ctx, gain}
   participantMuted: {},     // identity → bool (local mute only, others can't see)
   // Timer
   timerInterval: null, timerSeconds: 0,
@@ -2488,7 +2489,8 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
       resolution: LivekitClient.VideoPresets.h360.resolution,
     },
   });
-  lk.room=room;lk.lvRoomName=lvRoomName;lk.active=true;
+  lk.room=room;lk.lvRoomName=lvRoomName;lk.active=true;lk.remoteGainNodes={};
+  wsSend({type:'call_join_room',lvRoom:lvRoomName});
 
   // ── Speaking indicator ──
   room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, function(speakers){
@@ -2608,7 +2610,7 @@ function attachTrack(track,pub,participant){
     el.dataset.identity=participant.identity;
     // Apply saved volume/mute
     var vol=lk.participantVolumes[participant.identity];
-    el.volume=(vol!=null)?vol:1;
+    el.volume=(vol!=null)?Math.min(vol,1):0.6;
     el.muted=!!lk.participantMuted[participant.identity];
     el.id='audio-'+participant.sid;
     document.body.appendChild(el);
@@ -2787,24 +2789,25 @@ function refreshParticipantsPanel(){
   if(!lk.room){p.innerHTML='<div style="color:var(--muted);font-size:13px;padding:4px 0">No one else in the call</div>';return;}
 
   var html='';
-  // Self row (mic volume only — affects what YOU send)
+  // Self row — affects outgoing mic level, 10–100%
+  var selfVol = lk.participantVolumes['__self__']!=null ? Math.round(lk.participantVolumes['__self__']*100) : 60;
   html+='<div class="pp-row">';
   html+='<div class="pp-avatar">'+myName[0].toUpperCase()+'</div>';
   html+='<div class="pp-name">'+myName+' <span style="color:var(--muted);font-size:11px">(you)</span></div>';
-  html+='<input class="pp-vol" type="range" min="0" max="200" value="'+(lk.participantVolumes['__self__']!=null?Math.round(lk.participantVolumes['__self__']*100):100)+'" oninput="setSelfVolume(this.value)">';
-  html+='<button class="pp-mute'+(lk.micEnabled?'':' muted')+'" onclick="toggleMyMic()">'+( lk.micEnabled?'🎙️':'🔇')+'</button>';
+  html+='<input class="pp-vol" type="range" min="10" max="100" value="'+selfVol+'" oninput="setSelfVolume(this.value)" title="Mic output (10–100%)">';
+  html+='<button class="pp-mute'+(lk.micEnabled?'':' muted')+'" onclick="toggleMyMic()">'+(lk.micEnabled?'🎙️':'🔇')+'</button>';
   html+='</div>';
 
-  // Remote participants
+  // Remote participants — 10–150%, default 60%
   lk.room.remoteParticipants.forEach(function(participant){
     var id=participant.identity;
-    var vol=lk.participantVolumes[id]!=null?Math.round(lk.participantVolumes[id]*100):100;
+    var vol=lk.participantVolumes[id]!=null?Math.round(lk.participantVolumes[id]*100):60;
     var muted=!!lk.participantMuted[id];
     html+='<div class="pp-row">';
     html+='<div class="pp-avatar">'+id[0].toUpperCase()+'</div>';
     html+='<div class="pp-name">'+id+'</div>';
-    html+='<input class="pp-vol" type="range" min="0" max="100" value="'+vol+'" oninput="setParticipantVolume(\''+id+'\',this.value)">';
-    html+='<button class="pp-mute'+(muted?' muted':'')+'" onclick="toggleParticipantMute(\''+id+'\')">'+( muted?'🔇':'🔊')+'</button>';
+    html+='<input class="pp-vol" type="range" min="10" max="150" value="'+vol+'" oninput="setParticipantVolume(\''+id+'\',this.value)" title="Volume (10–150%)">';
+    html+='<button class="pp-mute'+(muted?' muted':'')+'" onclick="toggleParticipantMute(\''+id+'\')">'+(muted?'🔇':'🔊')+'</button>';
     html+='</div>';
   });
 
@@ -2813,17 +2816,42 @@ function refreshParticipantsPanel(){
 }
 
 function setParticipantVolume(identity,val){
-  var v=parseInt(val)/100;
+  var pct=parseInt(val);
+  var v=pct/100;
   lk.participantVolumes[identity]=v;
-  // Cap at 1.0 on the audio element to avoid browser-side clipping
+  if(!lk.remoteGainNodes) lk.remoteGainNodes={};
   document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){
-    el.volume=Math.min(v,1);
+    if(v<=1){
+      // Simple path — no boost needed, ditch any existing gain node
+      if(lk.remoteGainNodes[identity]){
+        try{lk.remoteGainNodes[identity].ctx.close();}catch(e){}
+        delete lk.remoteGainNodes[identity];
+        if(el._rawStream) el.srcObject=el._rawStream;
+      }
+      el.volume=Math.max(0,Math.min(v,1));
+    } else {
+      // Boost >100% via WebAudio gain node
+      el.volume=1;
+      if(!el._rawStream&&el.srcObject) el._rawStream=el.srcObject;
+      try{
+        var AC=window.AudioContext||window.webkitAudioContext;
+        if(!lk.remoteGainNodes[identity]){
+          var ctx=new AC();
+          var src=ctx.createMediaStreamSource(el._rawStream||el.srcObject);
+          var gain=ctx.createGain();
+          var dest=ctx.createMediaStreamDestination();
+          src.connect(gain);gain.connect(dest);
+          el.srcObject=dest.stream;
+          lk.remoteGainNodes[identity]={ctx,gain};
+        }
+        lk.remoteGainNodes[identity].gain.gain.setTargetAtTime(v,lk.remoteGainNodes[identity].ctx.currentTime,0.02);
+      }catch(e){el.volume=1;}
+    }
   });
 }
 
 function setSelfVolume(val){
-  // Self slider adjusts outgoing mic gate level (0–1 only, never amplify past 1 to avoid distortion)
-  var v=Math.min(parseInt(val)/100,1);
+  var v=parseInt(val)/100; // 0.1–1.0
   lk.participantVolumes['__self__']=v;
   if(lk.gainNode&&lk.audioCtx) lk.gainNode.gain.setTargetAtTime(v,lk.audioCtx.currentTime,0.02);
 }
