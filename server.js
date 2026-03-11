@@ -33,9 +33,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  limits: { fileSize: 32 * 1024 * 1024 }, // 32MB
   fileFilter: (req, file, cb) => {
-    const ok = /image\/(jpeg|png|gif|webp)|video\/mp4|application\/pdf|text\/plain/.test(file.mimetype);
+    const ok = /image\/(jpeg|png|gif|webp)|video\/(mp4|webm|quicktime)|audio\/(mpeg|mp4|ogg|wav|webm|aac|flac|x-m4a)|application\/pdf|text\/plain/.test(file.mimetype);
     cb(null, ok);
   },
 });
