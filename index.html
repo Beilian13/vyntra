@@ -300,6 +300,41 @@ main{display:flex;flex:1;overflow:hidden}
 
 /* ── SOUNDBOARD ── */
 #soundboardPanel{display:none;padding:10px 16px;background:rgba(0,0,0,.25);border-top:1px solid rgba(255,255,255,.03);max-height:220px;overflow-y:auto}
+/* Call Chat */
+#callChatPanel{display:none;flex-direction:column;background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.04);flex:1;min-height:0;max-height:240px}
+#callChatPanel.open{display:flex}
+#callChatMsgs{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+.cc-msg{font-size:12.5px;line-height:1.4}
+.cc-msg .cc-user{font-weight:700;margin-right:5px}
+.cc-msg.me .cc-user{color:var(--accent)}
+#callChatInput{display:flex;gap:6px;padding:7px 10px;border-top:1px solid rgba(255,255,255,.04);flex-shrink:0}
+#callChatInput input{flex:1;background:#0b0d16;border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--white);padding:6px 10px;font-size:13px;outline:none}
+#callChatInput button{background:var(--accent);border:none;border-radius:7px;color:#fff;padding:6px 12px;cursor:pointer;font-size:13px}
+/* Call poll panel */
+#callPollPanel{display:none;flex-direction:column;background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.04);padding:10px 14px;max-height:260px;overflow-y:auto}
+#callPollPanel.open{display:flex;gap:8px}
+/* Generic poll card */
+.poll-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px}
+.poll-q{font-size:13px;font-weight:700;margin-bottom:8px}
+.poll-opt{display:flex;align-items:center;gap:8px;margin-bottom:5px;cursor:pointer}
+.poll-opt-bar-wrap{flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.poll-opt-bar{height:100%;background:var(--accent);border-radius:4px;transition:width .3s}
+.poll-opt-label{font-size:12px;min-width:0;flex:1}
+.poll-opt-count{font-size:11px;color:var(--muted);flex-shrink:0}
+.poll-opt.voted .poll-opt-label{color:var(--accent)}
+.poll-footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.poll-status{font-size:11px;color:var(--muted)}
+.poll-end-btn{font-size:11px;padding:3px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:5px;color:var(--muted);cursor:pointer}
+/* Chat poll (rendered inside message feed) */
+.chat-poll-msg{background:rgba(108,124,255,.07);border:1px solid rgba(108,124,255,.18);border-radius:10px;padding:10px 14px;margin:2px 0}
+/* New poll form */
+.poll-form{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.poll-form input,.poll-form textarea{background:#0b0d16;border:1px solid rgba(255,255,255,.08);border-radius:7px;color:var(--white);padding:7px 10px;font-size:13px;outline:none;font-family:inherit}
+.poll-form-opts{display:flex;flex-direction:column;gap:4px}
+.poll-form-btns{display:flex;gap:6px;margin-top:2px}
+.poll-form-btns button{padding:6px 14px;border-radius:7px;font-size:13px;cursor:pointer;border:none;font-weight:600}
+.pf-submit{background:var(--accent);color:#fff}
+.pf-cancel{background:rgba(255,255,255,.06);color:var(--muted)}
 .sb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .sb-title{font-size:13px;font-weight:600;color:var(--white)}
 .sb-upload{font-size:12px;color:var(--accent);cursor:pointer;background:none;border:1px solid rgba(108,124,255,.3);border-radius:6px;padding:3px 10px}
@@ -738,6 +773,16 @@ main{display:flex;flex:1;overflow:hidden}
     <button class="sb-stop" id="sbStopBtn" onclick="sbStopAll()">⏹ Stop all sounds</button>
   </div>
   <div id="videoGrid"></div>
+  <!-- Call Chat -->
+  <div id="callChatPanel">
+    <div id="callChatMsgs"></div>
+    <div id="callChatInput">
+      <input id="callChatBox" placeholder="Message call members…" autocomplete="off"/>
+      <button onclick="sendCallChat()">Send</button>
+    </div>
+  </div>
+  <!-- Call Poll Panel -->
+  <div id="callPollPanel"></div>
   <div id="callControls">
     <button class="ctrl-btn" id="ctrlMic">
       <span class="ctrl-icon">🎙️</span><span>Mic</span>
@@ -753,6 +798,12 @@ main{display:flex;flex:1;overflow:hidden}
     </button>
     <button class="ctrl-btn" id="ctrlSoundboard" onclick="toggleSoundboard()">
       <span class="ctrl-icon">🎵</span><span>Sounds</span>
+    </button>
+    <button class="ctrl-btn" id="ctrlCallChat" onclick="toggleCallChat()">
+      <span class="ctrl-icon">💬</span><span>Chat</span>
+    </button>
+    <button class="ctrl-btn" id="ctrlCallPoll" onclick="toggleCallPoll()">
+      <span class="ctrl-icon">📊</span><span>Poll</span>
     </button>
     <button class="ctrl-btn danger" id="ctrlHangup">
       <span class="ctrl-icon">📵</span><span>Leave</span>
@@ -1196,7 +1247,13 @@ function handleMsg(raw){
     case 'chat':          cacheMsg(d);break;
     case 'msg_edited':    applyEdit(d);break;
     case 'msg_deleted':   applyDelete(d);break;
-    case 'msg_seen_ack':  applySeenAck(d);break;
+    case 'msg_seen_ack':    applySeenAck(d);break;
+    case 'call_chat':       recvCallChat(d);break;
+    case 'call_room_members': recvCallMembers(d);break;
+    case 'call_poll_new':   recvCallPoll(d);break;
+    case 'call_poll_update':recvCallPollUpdate(d);break;
+    case 'chat_poll_new':   recvChatPoll(d);break;
+    case 'chat_poll_update':recvChatPollUpdate(d);break;
     case 'friends_update':myFriends=d.friends||[];renderFriends();break;
     case 'friend_request':showFR(d.from);break;
     case 'friend_accepted':toast('🎉 '+d.by+' accepted your request!');break;
@@ -2680,6 +2737,11 @@ function updateCallBtn(){
 }
 
 function cleanupCall(){
+  if(lk.lvRoomName) wsSend({type:'call_leave_room',lvRoom:lk.lvRoomName});
+  if(lk.remoteGainNodes){Object.values(lk.remoteGainNodes).forEach(function(n){try{n.ctx.close();}catch(e){}});lk.remoteGainNodes={};}
+  // Reset call chat + poll panels
+  var ccp=document.getElementById('callChatPanel');if(ccp){ccp.classList.remove('open');document.getElementById('callChatMsgs').innerHTML='';}
+  var cpp=document.getElementById('callPollPanel');if(cpp){cpp.classList.remove('open');cpp.innerHTML='';}
   stopVAD();
   if(lk.timerInterval){clearInterval(lk.timerInterval);lk.timerInterval=null;}
   // Stop raw mic stream so the browser mic indicator goes off
@@ -3096,6 +3158,215 @@ function sbSaveCustom(){
     localStorage.setItem('vyntra_sb', JSON.stringify(toSave));
   }catch(e){ console.warn('Soundboard save failed (quota?):', e); }
 }
+
+/* ══════════════════════════════════════════════
+   CALL CHAT (ephemeral, in-memory only)
+══════════════════════════════════════════════ */
+function toggleCallChat(){
+  var p=document.getElementById('callChatPanel');
+  var open=p.classList.toggle('open');
+  document.getElementById('ctrlCallChat').classList.toggle('active',open);
+  if(open){
+    // close poll panel if open
+    document.getElementById('callPollPanel').classList.remove('open');
+    document.getElementById('ctrlCallPoll').classList.remove('active');
+    setTimeout(function(){document.getElementById('callChatBox').focus();},80);
+  }
+}
+function sendCallChat(){
+  var inp=document.getElementById('callChatBox');
+  var txt=inp.value.trim();
+  if(!txt||!lk.lvRoomName) return;
+  wsSend({type:'call_chat',lvRoom:lk.lvRoomName,text:txt});
+  inp.value='';
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&document.activeElement&&document.activeElement.id==='callChatBox'){
+    e.preventDefault();sendCallChat();
+  }
+});
+function recvCallChat(d){
+  var msgs=document.getElementById('callChatMsgs');if(!msgs) return;
+  var row=document.createElement('div');row.className='cc-msg'+(d.user===myName?' me':'');
+  var t=new Date(d.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  row.innerHTML='<span class="cc-user">'+escHtml(d.user)+'</span><span style="opacity:.6;font-size:10px;margin-right:5px">'+t+'</span>'+escHtml(d.text);
+  msgs.appendChild(row);msgs.scrollTop=msgs.scrollHeight;
+  // Badge if panel closed
+  if(!document.getElementById('callChatPanel').classList.contains('open')){
+    var btn=document.getElementById('ctrlCallChat');
+    if(btn&&!btn.querySelector('.notif-dot')){
+      var dot=document.createElement('span');dot.className='notif-dot';
+      dot.style.cssText='position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#ff5050';
+      btn.style.position='relative';btn.appendChild(dot);
+    }
+  } else {
+    var dot=document.getElementById('ctrlCallChat')&&document.getElementById('ctrlCallChat').querySelector('.notif-dot');
+    if(dot) dot.remove();
+  }
+}
+function recvCallMembers(d){
+  // Could update a member count badge on Chat button — future enhancement
+}
+
+/* ══════════════════════════════════════════════
+   CALL POLLS
+══════════════════════════════════════════════ */
+var _callPolls={};  // pollId → poll
+function toggleCallPoll(){
+  var p=document.getElementById('callPollPanel');
+  var open=p.classList.toggle('open');
+  document.getElementById('ctrlCallPoll').classList.toggle('active',open);
+  if(open){
+    document.getElementById('callChatPanel').classList.remove('open');
+    document.getElementById('ctrlCallChat').classList.remove('active');
+    renderCallPollPanel();
+  }
+}
+function renderCallPollPanel(){
+  var p=document.getElementById('callPollPanel');
+  p.innerHTML='';
+  // Create poll button
+  var createBtn=document.createElement('button');
+  createBtn.style.cssText='background:var(--accent);border:none;border-radius:8px;color:#fff;padding:7px 14px;font-size:13px;cursor:pointer;font-weight:600;flex-shrink:0;align-self:flex-start';
+  createBtn.textContent='+ New Poll';
+  createBtn.onclick=function(){showCallPollForm(p);};
+  p.appendChild(createBtn);
+  // Existing polls
+  Object.values(_callPolls).forEach(function(poll){
+    p.appendChild(renderPollCard(poll,'call'));
+  });
+  if(!Object.keys(_callPolls).length){
+    var empty=document.createElement('div');empty.style.cssText='color:var(--muted);font-size:12px;padding:4px 0';
+    empty.textContent='No polls yet. Start one!';p.appendChild(empty);
+  }
+}
+function showCallPollForm(container){
+  // Remove existing form if open
+  var existing=container.querySelector('.poll-form');if(existing) existing.remove();
+  var form=document.createElement('div');form.className='poll-form poll-card';
+  form.innerHTML=
+    '<div style="font-size:12px;font-weight:700;margin-bottom:4px">New Call Poll</div>'+
+    '<input class="pf-q" placeholder="Question…" style="width:100%;box-sizing:border-box"/>'+
+    '<div class="poll-form-opts">'+
+      '<input class="pf-o" placeholder="Option 1…" style="width:100%;box-sizing:border-box"/>'+
+      '<input class="pf-o" placeholder="Option 2…" style="width:100%;box-sizing:border-box"/>'+
+    '</div>'+
+    '<button onclick="addPollOption(this)" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:var(--muted);font-size:12px;padding:4px 10px;cursor:pointer;align-self:flex-start">+ Add option</button>'+
+    '<div class="poll-form-btns"><button class="pf-submit" onclick="submitCallPoll(this)">Launch Poll</button><button class="pf-cancel" onclick="this.closest(\'.poll-form\').remove()">Cancel</button></div>';
+  container.insertBefore(form,container.children[1]||null);
+}
+function addPollOption(btn){
+  var opts=btn.previousElementSibling;
+  var inp=document.createElement('input');inp.className='pf-o';inp.placeholder='Option '+(opts.children.length+1)+'…';inp.style.cssText='width:100%;box-sizing:border-box';
+  opts.appendChild(inp);
+}
+function submitCallPoll(btn){
+  var form=btn.closest('.poll-form');
+  var q=form.querySelector('.pf-q').value.trim();
+  var options=Array.from(form.querySelectorAll('.pf-o')).map(function(i){return i.value.trim();}).filter(Boolean);
+  if(!q){alert('Enter a question');return;}
+  if(options.length<2){alert('Add at least 2 options');return;}
+  wsSend({type:'call_poll_create',lvRoom:lk.lvRoomName,question:q,options});
+  form.remove();
+}
+function recvCallPoll(d){
+  if(d.lvRoom!==lk.lvRoomName) return;
+  _callPolls[d.poll.id]=d.poll;
+  var p=document.getElementById('callPollPanel');
+  if(p.classList.contains('open')) renderCallPollPanel();
+  // Show panel + badge if closed
+  if(!p.classList.contains('open')){
+    var btn=document.getElementById('ctrlCallPoll');
+    if(btn&&!btn.querySelector('.poll-dot')){
+      var dot=document.createElement('span');dot.className='poll-dot';
+      dot.style.cssText='position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--accent)';
+      btn.style.position='relative';btn.appendChild(dot);
+    }
+  }
+}
+function recvCallPollUpdate(d){
+  if(d.lvRoom!==lk.lvRoomName) return;
+  _callPolls[d.poll.id]=d.poll;
+  var p=document.getElementById('callPollPanel');
+  if(p.classList.contains('open')) renderCallPollPanel();
+}
+function renderPollCard(poll,scope){
+  var card=document.createElement('div');card.className='poll-card';
+  var totalVotes=poll.options.reduce(function(s,o){return s+o.votes.length;},0);
+  var myVoteId=null;
+  poll.options.forEach(function(o){if(o.votes.includes(myName)) myVoteId=o.id;});
+  var html='<div class="poll-q">'+escHtml(poll.question)+'</div>';
+  poll.options.forEach(function(o){
+    var pct=totalVotes?Math.round((o.votes.length/totalVotes)*100):0;
+    var voted=(myVoteId===o.id);
+    html+='<div class="poll-opt'+(voted?' voted':'')+'" onclick="voteOnPoll(\''+poll.id+'\','+o.id+',\''+scope+'\')">';
+    html+='<div class="poll-opt-label">'+escHtml(o.text)+'</div>';
+    html+='<div class="poll-opt-bar-wrap"><div class="poll-opt-bar" style="width:'+pct+'%"></div></div>';
+    html+='<div class="poll-opt-count">'+o.votes.length+(totalVotes?(' ('+pct+'%)'):'')+' </div>';
+    html+='</div>';
+  });
+  html+='<div class="poll-footer"><span class="poll-status">'+(poll.open?'🟢 Live':'🔴 Closed')+' · '+totalVotes+' vote'+(totalVotes!==1?'s':'')+'</span>';
+  if(poll.open&&poll.creator===myName){
+    html+='<button class="poll-end-btn" onclick="endPoll(\''+poll.id+'\',\''+scope+'\')">End poll</button>';
+  }
+  html+='</div>';
+  card.innerHTML=html;
+  return card;
+}
+function voteOnPoll(pollId,optionId,scope){
+  if(scope==='call') wsSend({type:'call_poll_vote',lvRoom:lk.lvRoomName,pollId,optionId});
+  else wsSend({type:'chat_poll_vote',pollId,optionId});
+}
+function endPoll(pollId,scope){
+  if(scope==='call') wsSend({type:'call_poll_end',lvRoom:lk.lvRoomName,pollId});
+  else wsSend({type:'chat_poll_end',pollId});
+}
+
+/* ══════════════════════════════════════════════
+   CHAT POLLS (channel polls via /poll command)
+══════════════════════════════════════════════ */
+var _chatPolls={};  // pollId → poll
+function recvChatPoll(d){
+  _chatPolls[d.poll.id]=d.poll;
+  // Render as a special message in the feed
+  renderChatPollMsg(d.poll);
+}
+function recvChatPollUpdate(d){
+  _chatPolls[d.poll.id]=d.poll;
+  var el=document.getElementById('chatpoll-'+d.poll.id);
+  if(el){
+    var newCard=renderPollCard(d.poll,'chat');
+    newCard.id='chatpoll-'+d.poll.id;
+    el.replaceWith(newCard);
+  }
+}
+function renderChatPollMsg(poll){
+  var c=document.getElementById('messages');if(!c) return;
+  var wrap=document.createElement('div');wrap.className='chat-poll-msg';
+  var card=renderPollCard(poll,'chat');card.id='chatpoll-'+poll.id;
+  card.style.border='none';card.style.background='none';card.style.padding='0';
+  var header=document.createElement('div');
+  header.style.cssText='font-size:11px;color:var(--muted);margin-bottom:6px';
+  header.textContent='📊 Poll by '+poll.creator;
+  wrap.appendChild(header);wrap.appendChild(card);
+  c.appendChild(wrap);c.scrollTop=c.scrollHeight;
+}
+// Intercept /poll command in sendMessage
+var _origSendMessage=sendMessage;
+sendMessage=function(){
+  var inp=document.getElementById('msgInput');
+  var txt=inp.value.trim();
+  if(txt.startsWith('/poll ')){
+    var rest=txt.slice(6).trim();
+    var parts=rest.split('|').map(function(p){return p.trim();}).filter(Boolean);
+    if(parts.length<3){toast('Usage: /poll Question | Option 1 | Option 2 | …');return;}
+    var question=parts[0];var options=parts.slice(1);
+    if(options.length<2){toast('Need at least 2 options');return;}
+    wsSend({type:'chat_poll_create',question,options});
+    inp.value='';return;
+  }
+  _origSendMessage();
+};
 
 function sbLoadCustom(){
   try{
