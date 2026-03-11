@@ -104,6 +104,7 @@ const msgSchema = new mongoose.Schema({
   replyTo:   { type: Object, default: null }, // {id, user, text}
   id:        String,
   editedAt:  { type: Date, default: null },
+  seenBy:    { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
 });
 const Message = mongoose.model('Message', msgSchema);
@@ -679,7 +680,7 @@ wss.on('connection', ws => {
       recent.reverse().forEach(m => {
         const reactions = {};
         if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, replyTo: m.replyTo||null, id: m.id, reactions }));
+        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, replyTo: m.replyTo||null, id: m.id, reactions, seenBy: m.seenBy||[] }));
       });
       return;
     }
@@ -702,7 +703,7 @@ wss.on('connection', ws => {
         ? { channelId: new mongoose.Types.ObjectId(currentChan), user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() }
         : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() };
       bufferMessage(doc);
-      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {} };
+      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, seenBy: [] };
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
       // Push-notify offline channel members
       if (mongoose.Types.ObjectId.isValid(currentChan)) {
@@ -799,6 +800,20 @@ wss.on('connection', ws => {
       if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
         sendTo(u, { type: 'msg_deleted', id: data.messageId, chanId })
       );
+      return;
+    }
+
+    /* SEEN RECEIPT */
+    if (data.type === 'msg_seen') {
+      // Mark a message as seen by this user
+      const msg = await Message.findOne({ id: data.messageId });
+      if (!msg || msg.user === username) return; // don't mark your own
+      if (msg.seenBy && msg.seenBy.includes(username)) return; // already marked
+      msg.seenBy = [...(msg.seenBy || []), username];
+      await msg.save();
+      // Notify the sender
+      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
+      sendTo(msg.user, { type: 'msg_seen_ack', id: msg.id, seenBy: msg.seenBy, chanId });
       return;
     }
 
