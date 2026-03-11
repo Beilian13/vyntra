@@ -171,6 +171,34 @@ main{display:flex;flex:1;overflow:hidden}
 .msg-edit-cancel{background:rgba(255,255,255,.08);color:var(--muted)}
 .msg .edited-tag{font-size:10px;color:var(--muted);margin-left:5px;opacity:.7}
 .seen-tick{font-size:11px;margin-left:5px;letter-spacing:-1px;color:var(--muted);user-select:none;transition:color .3s}
+/* Pending friends badge */
+.fr-badge{display:inline-block;background:#e03e3e;color:#fff;border-radius:999px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:4px;vertical-align:middle}
+/* Report modal */
+#reportModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:800;align-items:center;justify-content:center}
+#reportModal.open{display:flex}
+.report-box{background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;width:min(380px,92vw)}
+.report-box h3{margin:0 0 12px;font-size:15px}
+.report-box textarea{width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit}
+.report-btns{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.report-btns button{padding:7px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer}
+.rb-submit{background:#e03e3e;color:#fff}
+.rb-cancel2{background:rgba(255,255,255,.06);color:var(--muted)}
+/* Channel categories */
+.cat-header{display:flex;align-items:center;gap:4px;padding:10px 8px 3px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;user-select:none}
+.cat-header:hover{color:var(--white)}
+.cat-arrow{font-size:9px;transition:transform .15s;flex-shrink:0}
+.cat-arrow.collapsed{transform:rotate(-90deg)}
+.cat-body{overflow:hidden;transition:max-height .2s}
+.cat-body.collapsed{max-height:0!important}
+/* Role badge */
+.role-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
+/* Roles panel */
+.roles-panel{background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;width:min(420px,92vw);max-height:85vh;overflow-y:auto}
+.role-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.role-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.role-name{flex:1;font-size:13px}
+.role-perms{font-size:11px;color:var(--muted)}
+.role-del{background:rgba(255,50,50,.1);border:none;border-radius:5px;color:#ff6060;font-size:11px;padding:3px 8px;cursor:pointer}
 .seen-tick.seen{color:#5bb8ff}
 .seen-by-list{font-size:10px;color:var(--muted);margin-top:2px;opacity:.7}
 /* Admin panel */
@@ -806,9 +834,24 @@ main{display:flex;flex:1;overflow:hidden}
   <button class="popup-btn" id="pupCall">📞 Call</button>
   <button class="popup-btn" id="pupFriend">👤 Add Friend</button>
   <button class="popup-btn danger" id="pupMute">🔇 Mute</button>
+  <button class="popup-btn danger" id="pupBlock">🚫 Block</button>
+  <button class="popup-btn" id="pupReport" style="color:#ff9900">⚠️ Report</button>
   <button class="popup-btn danger" id="pupAdminDelete" style="display:none">🗑️ Delete Account</button>
   <button class="popup-btn" style="background:rgba(108,124,255,.12);color:var(--accent)" id="pupAdminPanel" style="display:none">🛡️ Admin Panel</button>
   <button class="popup-btn" onclick="closePopup()">✕ Close</button>
+</div>
+
+<!-- Report modal -->
+<div id="reportModal">
+  <div class="report-box">
+    <h3>⚠️ Report User</h3>
+    <div id="reportTarget" style="font-size:13px;color:var(--muted);margin-bottom:10px"></div>
+    <textarea id="reportReason" placeholder="Describe why you're reporting this user…"></textarea>
+    <div class="report-btns">
+      <button class="rb-cancel2" onclick="closeReportModal()">Cancel</button>
+      <button class="rb-submit" onclick="submitReport()">Submit Report</button>
+    </div>
+  </div>
 </div>
 
 <!-- Admin panel modal -->
@@ -985,6 +1028,7 @@ main{display:flex;flex:1;overflow:hidden}
   <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px;width:min(340px,90vw)">
     <h3 style="font-size:16px;font-weight:700;margin-bottom:14px">Add Channel</h3>
     <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;margin-bottom:10px" placeholder="channel-name"/>
+    <input id="acmCategory" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:13px;outline:none;margin-bottom:10px" placeholder="Category (e.g. Text Channels)" value="Text Channels"/>
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="text" checked style="accent-color:var(--accent);margin-right:5px"/> # Text</label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="announcement" style="accent-color:var(--accent);margin-right:5px"/> 📢 Announcement</label>
@@ -1004,7 +1048,7 @@ main{display:flex;flex:1;overflow:hidden}
    STATE
 ══════════════════════════════════════════════ */
 var ws, connected=false, myName='', currentRoom=null, currentChannelId=null;
-var myFriends=[], mutedUsers=[], msgCache={}, allRooms=[];
+var myFriends=[], mutedUsers=[], blockedUsers=[], pendingFriends=[], msgCache={}, allRooms=[];
 var listenersReady=false, pendingFR=null, pendingUser=null;
 var allEmojis=[], pickerFor=null;
 var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -1330,6 +1374,9 @@ function handleMsg(raw){
     case 'auth_ok':
       window._isAdmin=!!d.isAdmin;
       myFriends=d.friends||[];
+      blockedUsers=d.blockedUsers||[];
+      pendingFriends=d.pendingFriends||[];
+      if(pendingFriends.length) showPendingFriendsBadge();
       myServers=d.servers||[];
       onlineUsers=d.onlineUsers||[];
       renderOnlineUsers();
@@ -1363,6 +1410,9 @@ function handleMsg(raw){
     case 'msg_edited':    applyEdit(d);break;
     case 'msg_deleted':   applyDelete(d);break;
     case 'msg_seen_ack':    applySeenAck(d);break;
+    case 'roles_updated':   applyRolesUpdate(d);break;
+    case 'member_roles_updated': applyMemberRolesUpdate(d);break;
+    case 'channels_updated': applyChannelsUpdated(d);break;
     case 'call_chat':       recvCallChat(d);break;
     case 'call_room_members': recvCallMembers(d);break;
     case 'call_poll_new':   recvCallPoll(d);break;
@@ -1371,7 +1421,8 @@ function handleMsg(raw){
     case 'chat_poll_update':recvChatPollUpdate(d);break;
     case 'friends_update':myFriends=d.friends||[];renderFriends();break;
     case 'friend_request':showFR(d.from);break;
-    case 'friend_accepted':toast('🎉 '+d.by+' accepted your request!');break;
+    case 'friend_accepted':toast('🎉 '+d.by+' accepted your request!');pendingFriends=pendingFriends.filter(function(u){return u!==d.by;});break;
+    case 'friends_update':myFriends=d.friends||[];renderServerCol();break;
     case 'friend_declined':toast('❌ '+d.by+' declined your request.');break;
     case 'unfriended':    myFriends=myFriends.filter(function(f){return f!==d.by;});renderFriends();break;
     case 'friend_request_sent':toast('📨 Request sent to '+d.to+'!');break;
@@ -1517,6 +1568,7 @@ function renderChannelCol(serverId){
       if(isOwner&&!srv.isOfficial){
         addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
         addHdrBtn(container,'+ Ch',false,function(){openAddChannel(serverId);});
+        addHdrBtn(container,'🛡️ Roles',false,function(){openRolesPanel(serverId);});
         addHdrBtn(container,'Delete',true,function(){deleteServer(serverId);});
       } else if(!srv.isOfficial){
         addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
@@ -1530,17 +1582,52 @@ function renderChannelCol(serverId){
   if(mcpActions) addBtns(mcpActions);
   var channels=myChannels[serverId]||[];
   function buildList(container,mobile){
-    var lbl=document.createElement('div');lbl.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 6px 4px;display:flex;align-items:center;justify-content:space-between';lbl.textContent='Text Channels';
-    if(isOwner&&!srv.isOfficial){var ab=document.createElement('button');ab.style.cssText='font-size:16px;cursor:pointer;color:var(--muted);background:none;border:none;padding:0 2px';ab.textContent='+';ab.onclick=function(){openAddChannel(serverId);};lbl.appendChild(ab);}
-    container.appendChild(lbl);
+    // Group channels by category
+    var cats={};
     channels.forEach(function(ch){
-      var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
-      el.innerHTML='<span style="opacity:.7;flex-shrink:0">'+(ch.type==='announcement'?'📢':'#')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>'+(ch.type==='announcement'?'<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(255,200,80,.12);color:#ffc850;margin-left:2px;flex-shrink:0">ANN</span>':'');
-      if(isOwner&&!srv.isOfficial){var del=document.createElement('button');del.className='ch-del';del.textContent='✕';del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};el.appendChild(del);}
-      el.onclick=(function(c,s){return function(){joinChannel(c,s);if(mobile)closeMobilePanel();};})(ch,srv);
-      container.appendChild(el);
+      var cat=ch.category||'Text Channels';
+      if(!cats[cat]) cats[cat]=[];
+      cats[cat].push(ch);
     });
-    if(!channels.length){var em=document.createElement('div');em.style.cssText='color:var(--muted);font-size:12px;padding:8px 6px';em.textContent='No channels yet';container.appendChild(em);}
+    if(!channels.length){var em=document.createElement('div');em.style.cssText='color:var(--muted);font-size:12px;padding:8px 6px';em.textContent='No channels yet';container.appendChild(em);return;}
+    Object.keys(cats).forEach(function(catName){
+      // Category header
+      var catDiv=document.createElement('div');catDiv.className='cat-header';
+      var arrow=document.createElement('span');arrow.className='cat-arrow';arrow.textContent='▾';
+      var nameSpan=document.createElement('span');nameSpan.style.flex='1';nameSpan.textContent=catName;
+      catDiv.appendChild(arrow);catDiv.appendChild(nameSpan);
+      if(isOwner&&!srv.isOfficial){
+        var addCh=document.createElement('button');addCh.style.cssText='font-size:14px;cursor:pointer;color:var(--muted);background:none;border:none;padding:0 2px;opacity:0;transition:opacity .15s';addCh.textContent='+';
+        addCh.onclick=function(e){e.stopPropagation();openAddChannel(serverId,catName);};
+        catDiv.appendChild(addCh);
+        catDiv.onmouseenter=function(){addCh.style.opacity='1';};
+        catDiv.onmouseleave=function(){addCh.style.opacity='0';};
+      }
+      var body=document.createElement('div');body.className='cat-body';
+      body.style.maxHeight=(cats[catName].length*36+8)+'px';
+      catDiv.onclick=function(){
+        var collapsed=body.classList.toggle('collapsed');
+        arrow.classList.toggle('collapsed',collapsed);
+        if(!collapsed) body.style.maxHeight=(cats[catName].length*36+8)+'px';
+      };
+      container.appendChild(catDiv);
+      cats[catName].forEach(function(ch){
+        var el=document.createElement('div');el.className='ch-item'+(ch._id===currentChannelId?' active':'');el.dataset.chId=ch._id;
+        // Role badge for announcement channels
+        var annTag=ch.type==='announcement'?'<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(255,200,80,.12);color:#ffc850;margin-left:2px;flex-shrink:0">ANN</span>':'';
+        el.innerHTML='<span style="opacity:.7;flex-shrink:0">'+(ch.type==='announcement'?'📢':'#')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ch.name+'</span>'+annTag;
+        if(isOwner&&!srv.isOfficial){
+          var del=document.createElement('button');del.className='ch-del';del.textContent='✕';
+          del.onclick=function(e){e.stopPropagation();deleteChannel(serverId,ch._id);};
+          el.appendChild(del);
+          // Right-click to move category
+          el.oncontextmenu=function(e){e.preventDefault();openMoveCategoryMenu(ch,serverId,cats);};
+        }
+        el.onclick=(function(c,s){return function(){joinChannel(c,s);if(mobile)closeMobilePanel();};})(ch,srv);
+        body.appendChild(el);
+      });
+      container.appendChild(body);
+    });
   }
   if(list) buildList(list,false);
   if(mcpList) buildList(mcpList,true);
@@ -1642,13 +1729,23 @@ async function doCreateServer(){
   finally{document.getElementById('csmSubmit').disabled=false;}
 }
 var _addChanServerId=null;
-function openAddChannel(sid){_addChanServerId=sid;document.getElementById('acmName').value='';document.getElementById('addChannelModal').style.display='flex';setTimeout(function(){document.getElementById('acmName').focus();},80);}
+function openAddChannel(sid, defaultCat){
+  _addChanServerId=sid;
+  document.getElementById('acmName').value='';
+  document.getElementById('acmCategory').value=defaultCat||'Text Channels';
+  document.getElementById('addChannelModal').style.display='flex';
+  setTimeout(function(){document.getElementById('acmName').focus();},80);
+}
 function closeAddChannel(){document.getElementById('addChannelModal').style.display='none';}
 async function doAddChannel(){
   var name=document.getElementById('acmName').value.trim();if(!name)return;
+  var category=document.getElementById('acmCategory').value.trim()||'Text Channels';
   var type=document.querySelector('input[name="chType"]:checked');
   var chType=type?type.value:'text';
-  try{var r=await fetch('/servers/'+_addChanServerId+'/channels',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:name,type:chType})});var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}closeAddChannel();}catch(e){toast('❌ Network error');}
+  try{
+    var r=await fetch('/servers/'+_addChanServerId+'/channels',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name,type:chType,category})});
+    var d=await r.json();if(!r.ok){toast('❌ '+d.error);return;}closeAddChannel();
+  }catch(e){toast('❌ Network error');}
 }
 async function deleteChannel(sid,cid){if(!confirm('Delete this channel?'))return;try{await fetch('/servers/'+sid+'/channels/'+cid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});}catch(e){toast('❌ Network error');}}
 async function deleteServer(sid){if(!confirm('Delete this server? This cannot be undone.'))return;try{var r=await fetch('/servers/'+sid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});if(!r.ok){toast('❌ Failed');return;}myServers=myServers.filter(function(s){return s._id!==sid;});delete myChannels[sid];activeServerId=null;renderServerCol();var off=myServers.find(function(s){return s.isOfficial;});if(off)selectServer(off._id);toast('Server deleted');}catch(e){toast('❌ Network error');}}
@@ -1747,14 +1844,35 @@ function openPopup(user,ev){
   var isFriend=myFriends.indexOf(user)>=0,isMuted=mutedUsers.indexOf(user)>=0;
   var isAdmin=!!window._isAdmin;
   document.getElementById('popupName').textContent=user;
+  // Role badges in popup
+  var rolesDiv=document.getElementById('popupRoles');
+  if(!rolesDiv){rolesDiv=document.createElement('div');rolesDiv.id='popupRoles';rolesDiv.style.cssText='display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px';document.getElementById('popupName').after(rolesDiv);}
+  rolesDiv.innerHTML='';
+  if(activeServerId&&activeServerId!=='__dm__'){
+    getRolesForMember(activeServerId,user).forEach(function(role){
+      var b=document.createElement('span');b.className='role-badge';b.style.background=(role.color||'#6c7cff')+'22';b.style.color=role.color||'#6c7cff';b.textContent=role.name;rolesDiv.appendChild(b);
+    });
+  }
   var fb=document.getElementById('pupFriend');fb.textContent=isFriend?'👤 Already friends':'👤 Add Friend';fb.disabled=isFriend;
   document.getElementById('pupMute').textContent=isMuted?'🔊 Unmute':'🔇 Mute';
   document.getElementById('pupDM').onclick=function(){openDM(user);closePopup();if(isMobileLayout())mobileGoTo(2);};
   document.getElementById('pupCall').onclick=function(){openDM(user);setTimeout(function(){startCallInRoom('dm_'+[myName,user].sort().join('_'));},300);closePopup();if(isMobileLayout())mobileGoTo(2);};
   document.getElementById('pupFriend').onclick=function(){if(!isFriend){wsSend({type:'friend_request',to:user});closePopup();}};
   document.getElementById('pupMute').onclick=function(){toggleMuteUser(user);closePopup();};
+  var isBlocked=blockedUsers.indexOf(user)>=0;
+  var blockBtn=document.getElementById('pupBlock');
+  blockBtn.textContent=isBlocked?'✅ Unblock':'🚫 Block';
+  blockBtn.onclick=function(){isBlocked?unblockUser(user):blockUser(user);closePopup();};
+  document.getElementById('pupReport').onclick=function(){closePopup();openReportModal(user);};
   var adDel=document.getElementById('pupAdminDelete');
   var adPanel=document.getElementById('pupAdminPanel');
+  // Assign roles button (owner only)
+  var assignRolesBtn=document.getElementById('pupAssignRoles');
+  if(!assignRolesBtn){assignRolesBtn=document.createElement('button');assignRolesBtn.id='pupAssignRoles';assignRolesBtn.className='popup-btn';assignRolesBtn.style.cssText='background:rgba(108,124,255,.1);color:var(--accent)';assignRolesBtn.textContent='🛡️ Assign Roles';adDel.before(assignRolesBtn);}
+  var srv=activeServerId&&activeServerId!=='__dm__'?myServers.find(function(s){return s._id===activeServerId;}):null;
+  var canAssign=srv&&(srv.owner===myName||window._isAdmin)&&user!==myName;
+  assignRolesBtn.style.display=canAssign?'block':'none';
+  assignRolesBtn.onclick=function(){closePopup();openAssignRolesPanel(activeServerId,user);};
   if(isAdmin){
     adDel.style.display='';
     adDel.onclick=function(){closePopup();adminDeleteUser(user);};
@@ -1884,6 +2002,7 @@ function pushSys(text){
 }
 function renderMsg(msg){
   if(mutedUsers.indexOf(msg.user)>=0) return;
+  if(blockedUsers.indexOf(msg.user)>=0) return;
   var c=document.getElementById('messages');
   var ex=document.getElementById('m-'+msg.id);
   if(ex){
@@ -3647,6 +3766,260 @@ function launchChatPoll(){
     '<div class="pb-opt-row"><input placeholder="Option 2" maxlength="80"/><button onclick="removePollOpt(this)">−</button></div>';
   closeAttachTray();
   toast('📊 Poll launched!');
+}
+
+/* ══════════════════════════════════════════════
+   BLOCK / UNBLOCK / REPORT
+══════════════════════════════════════════════ */
+async function blockUser(username){
+  if(!confirm('Block '+username+'? They won\'t be able to see your messages and you won\'t see theirs.')) return;
+  try{
+    var r=await fetch('/users/'+username+'/block',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    if(r.ok){
+      blockedUsers.push(username);
+      myFriends=myFriends.filter(function(f){return f!==username;});
+      toast('🚫 Blocked '+username);
+      renderServerCol();
+    } else { toast('❌ Failed to block'); }
+  }catch(e){toast('❌ Network error');}
+}
+async function unblockUser(username){
+  try{
+    var r=await fetch('/users/'+username+'/unblock',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    if(r.ok){
+      blockedUsers=blockedUsers.filter(function(u){return u!==username;});
+      toast('✅ Unblocked '+username);
+    } else { toast('❌ Failed'); }
+  }catch(e){toast('❌ Network error');}
+}
+var _reportTarget=null;
+function openReportModal(username){
+  _reportTarget=username;
+  document.getElementById('reportTarget').textContent='Reporting: '+username;
+  document.getElementById('reportReason').value='';
+  document.getElementById('reportModal').classList.add('open');
+}
+function closeReportModal(){document.getElementById('reportModal').classList.remove('open');_reportTarget=null;}
+async function submitReport(){
+  if(!_reportTarget) return;
+  var reason=document.getElementById('reportReason').value.trim();
+  try{
+    var r=await fetch('/users/'+_reportTarget+'/report',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({reason})});
+    if(r.ok){toast('✅ Report submitted. Thank you.');closeReportModal();}
+    else{toast('❌ Failed to submit report');}
+  }catch(e){toast('❌ Network error');}
+}
+
+/* ══════════════════════════════════════════════
+   PENDING FRIEND REQUESTS
+══════════════════════════════════════════════ */
+function showPendingFriendsBadge(){
+  // Add a badge to the DM server icon
+  var dmBtn=document.querySelector('.srv-btn[data-sid="__dm__"]');
+  if(!dmBtn) return;
+  var existing=dmBtn.querySelector('.fr-badge');
+  if(pendingFriends.length>0){
+    if(!existing){var b=document.createElement('span');b.className='fr-badge';dmBtn.appendChild(b);}
+    dmBtn.querySelector('.fr-badge').textContent=pendingFriends.length;
+  } else {
+    if(existing) existing.remove();
+  }
+}
+// Also show badge on frToast accept
+var _origShowFR=window.showFR;
+function showFR(from){
+  if(!pendingFriends.includes(from)) pendingFriends.push(from);
+  showPendingFriendsBadge();
+  document.getElementById('frToast').style.display='block';
+  document.getElementById('frToast').querySelector('b').textContent=from;
+  document.getElementById('frAccept').onclick=function(){
+    wsSend({type:'friend_accept',from:from});
+    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
+    showPendingFriendsBadge();
+    document.getElementById('frToast').style.display='none';
+  };
+  document.getElementById('frDecline').onclick=function(){
+    wsSend({type:'friend_decline',from:from});
+    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
+    showPendingFriendsBadge();
+    document.getElementById('frToast').style.display='none';
+  };
+}
+
+/* ══════════════════════════════════════════════
+   SERVER ROLES
+══════════════════════════════════════════════ */
+var _serverRoles={};       // serverId → [{_id,name,color,permissions}]
+var _memberRoles={};       // serverId → {username:[roleId,...]}
+
+function applyRolesUpdate(d){
+  _serverRoles[d.serverId]=d.roles||[];
+  if(activeServerId===d.serverId) renderChannelCol(activeServerId);
+}
+function applyMemberRolesUpdate(d){
+  if(!_memberRoles[d.serverId]) _memberRoles[d.serverId]={};
+  _memberRoles[d.serverId][d.username]=d.roleIds||[];
+}
+function applyChannelsUpdated(d){
+  if(myChannels[d.serverId]){
+    myChannels[d.serverId]=d.channels||[];
+    if(activeServerId===d.serverId) renderChannelCol(activeServerId);
+  }
+}
+function getRolesForMember(serverId, username){
+  var mr=(_memberRoles[serverId]||{})[username]||[];
+  var roles=_serverRoles[serverId]||[];
+  return roles.filter(function(r){return mr.includes(r._id);});
+}
+function hasPermission(serverId, permission){
+  var srv=myServers.find(function(s){return s._id===serverId;});
+  if(!srv) return false;
+  if(srv.owner===myName||window._isAdmin) return true;
+  if(srv.admins&&srv.admins.includes(myName)) return true;
+  var mr=(_memberRoles[serverId]||{})[myName]||[];
+  var roles=(_serverRoles[serverId]||[]).filter(function(r){return mr.includes(r._id);});
+  return roles.some(function(r){return (r.permissions||[]).includes(permission)||r.permissions.includes('manage_server');});
+}
+
+async function openRolesPanel(serverId){
+  var srv=myServers.find(function(s){return s._id===serverId;});
+  if(!srv||srv.owner!==myName) return toast('Only the server owner can manage roles');
+  // Fetch latest
+  try{
+    var r=await fetch('/servers/'+serverId+'/roles',{headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();
+    _serverRoles[serverId]=d.roles||[];
+    _memberRoles[serverId]=d.memberRoles||{};
+  }catch(e){}
+
+  var roles=_serverRoles[serverId]||[];
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:flex;align-items:center;justify-content:center';
+  var box=document.createElement('div');box.className='roles-panel';
+  var PERMS=['send_messages','manage_channels','manage_roles','kick_members','manage_server'];
+  var PERM_LABELS={'send_messages':'Send Messages','manage_channels':'Manage Channels','manage_roles':'Manage Roles','kick_members':'Kick Members','manage_server':'Manage Server'};
+  function rebuildPanel(){
+    box.innerHTML='';
+    var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+    hdr.innerHTML='<h3 style="margin:0;font-size:15px">🛡️ Server Roles</h3>';
+    var closeB=document.createElement('button');closeB.textContent='✕';closeB.style.cssText='background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer';closeB.onclick=function(){overlay.remove();};
+    hdr.appendChild(closeB);box.appendChild(hdr);
+    if(!roles.length){var empty=document.createElement('div');empty.style.cssText='color:var(--muted);font-size:13px;padding:8px 0';empty.textContent='No roles yet. Create one below.';box.appendChild(empty);}
+    roles.forEach(function(role){
+      var row=document.createElement('div');row.className='role-row';
+      var dot=document.createElement('div');dot.className='role-dot';dot.style.background=role.color||'#6c7cff';
+      var name=document.createElement('div');name.className='role-name';name.textContent=role.name;
+      var perms=document.createElement('div');perms.className='role-perms';
+      perms.textContent=(role.permissions||[]).map(function(p){return PERM_LABELS[p]||p;}).join(', ')||'No special permissions';
+      var del=document.createElement('button');del.className='role-del';del.textContent='Delete';
+      del.onclick=async function(){
+        if(!confirm('Delete role "'+role.name+'"?')) return;
+        await fetch('/servers/'+serverId+'/roles/'+role._id,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+        roles=roles.filter(function(r){return r._id!==role._id;});
+        _serverRoles[serverId]=roles;rebuildPanel();
+      };
+      row.appendChild(dot);row.appendChild(name);row.appendChild(perms);row.appendChild(del);
+      box.appendChild(row);
+    });
+    // Create role form
+    var form=document.createElement('div');form.style.cssText='margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)';
+    form.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Create Role</div>';
+    var nameRow=document.createElement('div');nameRow.style.cssText='display:flex;gap:8px;margin-bottom:8px';
+    var nameInp=document.createElement('input');nameInp.placeholder='Role name';nameInp.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none';
+    var colorInp=document.createElement('input');colorInp.type='color';colorInp.value='#6c7cff';colorInp.style.cssText='width:36px;height:34px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;cursor:pointer;padding:2px';
+    nameRow.appendChild(nameInp);nameRow.appendChild(colorInp);form.appendChild(nameRow);
+    // Permission checkboxes
+    var permDiv=document.createElement('div');permDiv.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:10px';
+    PERMS.forEach(function(p){
+      var lbl=document.createElement('label');lbl.style.cssText='display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer';
+      var cb=document.createElement('input');cb.type='checkbox';cb.value=p;cb.style.accentColor='var(--accent)';
+      lbl.appendChild(cb);lbl.appendChild(document.createTextNode(PERM_LABELS[p]));
+      permDiv.appendChild(lbl);
+    });
+    form.appendChild(permDiv);
+    var createBtn=document.createElement('button');createBtn.textContent='Create Role';createBtn.style.cssText='width:100%;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer';
+    createBtn.onclick=async function(){
+      var n=nameInp.value.trim();if(!n){toast('Enter a role name');return;}
+      var perms=Array.from(permDiv.querySelectorAll('input:checked')).map(function(c){return c.value;});
+      var resp=await fetch('/servers/'+serverId+'/roles',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({name:n,color:colorInp.value,permissions:perms})});
+      var rd=await resp.json();if(!resp.ok){toast('❌ '+rd.error);return;}
+      roles.push(rd);_serverRoles[serverId]=roles;rebuildPanel();
+    };
+    form.appendChild(createBtn);box.appendChild(form);
+  }
+  rebuildPanel();
+  overlay.appendChild(box);
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+}
+
+async function openAssignRolesPanel(serverId, targetUser){
+  var roles=_serverRoles[serverId]||[];
+  if(!roles.length){toast('No roles on this server yet');return;}
+  var current=(_memberRoles[serverId]||{})[targetUser]||[];
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:flex;align-items:center;justify-content:center';
+  var box=document.createElement('div');box.style.cssText='background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:18px;width:min(320px,90vw)';
+  box.innerHTML='<h3 style="margin:0 0 12px;font-size:14px">Assign Roles to '+escHtml(targetUser)+'</h3>';
+  var list=document.createElement('div');
+  roles.forEach(function(role){
+    var lbl=document.createElement('label');lbl.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px';
+    var cb=document.createElement('input');cb.type='checkbox';cb.value=role._id;cb.checked=current.includes(role._id);cb.style.accentColor=role.color||'var(--accent)';
+    var dot=document.createElement('span');dot.style.cssText='width:9px;height:9px;border-radius:50%;background:'+(role.color||'#6c7cff')+';flex-shrink:0';
+    lbl.appendChild(cb);lbl.appendChild(dot);lbl.appendChild(document.createTextNode(role.name));
+    list.appendChild(lbl);
+  });
+  box.appendChild(list);
+  var saveBtn=document.createElement('button');saveBtn.textContent='Save Roles';saveBtn.style.cssText='width:100%;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;margin-top:12px';
+  saveBtn.onclick=async function(){
+    var roleIds=Array.from(list.querySelectorAll('input:checked')).map(function(c){return c.value;});
+    await fetch('/servers/'+serverId+'/members/'+targetUser+'/roles',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({roleIds})});
+    if(!_memberRoles[serverId]) _memberRoles[serverId]={};
+    _memberRoles[serverId][targetUser]=roleIds;
+    overlay.remove();toast('✅ Roles updated');
+  };
+  box.appendChild(saveBtn);
+  var cancelBtn=document.createElement('button');cancelBtn.textContent='Cancel';cancelBtn.style.cssText='width:100%;padding:7px;border-radius:8px;background:rgba(255,255,255,.05);color:var(--muted);border:none;font-size:13px;cursor:pointer;margin-top:6px';
+  cancelBtn.onclick=function(){overlay.remove();};
+  box.appendChild(cancelBtn);
+  overlay.appendChild(box);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+}
+
+/* ══════════════════════════════════════════════
+   CHANNEL CATEGORY MOVE MENU
+══════════════════════════════════════════════ */
+function openMoveCategoryMenu(ch, serverId, cats){
+  var existing=Object.keys(cats);
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
+  var box=document.createElement('div');box.style.cssText='background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;width:min(300px,90vw)';
+  box.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:10px">Move #'+escHtml(ch.name)+' to category</div>';
+  existing.forEach(function(cat){
+    var btn=document.createElement('button');
+    btn.style.cssText='display:block;width:100%;text-align:left;padding:8px 12px;border-radius:8px;border:none;background:'+(ch.category===cat?'rgba(108,124,255,.15)':'rgba(255,255,255,.04)')+';color:var(--white);font-size:13px;cursor:pointer;margin-bottom:5px';
+    btn.textContent=(ch.category===cat?'✓ ':'')+cat;
+    btn.onclick=async function(){
+      await fetch('/servers/'+serverId+'/channels/'+ch._id+'/category',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({category:cat})});
+      overlay.remove();
+    };
+    box.appendChild(btn);
+  });
+  // New category
+  var newRow=document.createElement('div');newRow.style.cssText='display:flex;gap:6px;margin-top:8px';
+  var newInp=document.createElement('input');newInp.placeholder='New category…';newInp.style.cssText='flex:1;padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:12px;outline:none';
+  var newBtn=document.createElement('button');newBtn.textContent='Add';newBtn.style.cssText='padding:7px 12px;border-radius:7px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer';
+  newBtn.onclick=async function(){
+    var cat=newInp.value.trim();if(!cat)return;
+    await fetch('/servers/'+serverId+'/channels/'+ch._id+'/category',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({category:cat})});
+    overlay.remove();
+  };
+  newRow.appendChild(newInp);newRow.appendChild(newBtn);box.appendChild(newRow);
+  var cancelBtn=document.createElement('button');cancelBtn.textContent='Cancel';cancelBtn.style.cssText='width:100%;padding:6px;border-radius:7px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:8px';
+  cancelBtn.onclick=function(){overlay.remove();};
+  box.appendChild(cancelBtn);
+  overlay.appendChild(box);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
 }
 
 function sbLoadCustom(){
