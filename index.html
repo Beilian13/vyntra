@@ -2585,24 +2585,20 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     adaptiveStream: true,
     dynacast:       true,
     stopLocalTrackOnUnpublish: true,
-    reconnectPolicy: { maxRetries: 10, retryDelayMs: 1000 },
+    reconnectPolicy: { maxRetries: 6, retryDelayMs: 2000 },
     publishDefaults:{
-      dtx:           true,   // discontinuous transmission — silence = no packets
-      red:           true,   // redundant encoding — fixes packet loss artifacts
+      dtx:           true,
+      red:           true,
       simulcast:     false,
       audioPreset:   LivekitClient.AudioPresets.speech,
       forceStereo:   false,
     },
     audioCaptureDefaults:{
-      echoCancellation:   true,
-      noiseSuppression:   true,
-      autoGainControl:    true,
-      sampleRate:         48000,
-      channelCount:       1,
-      // Use high-quality constraints for voice
-      googNoiseSuppression:       true,
-      googHighpassFilter:         true,
-      googAudioMirroring:         false,
+      echoCancellation:  true,
+      noiseSuppression:  true,
+      autoGainControl:   true,
+      sampleRate:        48000,
+      channelCount:      1,
     },
     videoCaptureDefaults:{
       resolution: LivekitClient.VideoPresets.h360.resolution,
@@ -2852,41 +2848,60 @@ function leaveCall(){
    VAD — Web Audio pipeline for volume gating
 ══════════════════════════════════════════════ */
 function setupVAD(rawStream){
-  // VAD is now meter-only — Livekit handles noise suppression + DTX natively.
-  // We just drive the visual meter and the vadStatus indicator.
+  // Single shared AudioContext — only for the meter visual.
+  // Livekit owns the actual mic track; we just tap the raw stream for RMS.
   var AC=window.AudioContext||window.webkitAudioContext;
-  try{ var ctx=new AC(); lk.audioCtx=ctx; } catch(e){ return; }
+  try{ var ctx=new AC({sampleRate:16000,latencyHint:'playback'}); lk.audioCtx=ctx; } catch(e){ return; }
+
   var src=ctx.createMediaStreamSource(rawStream);
   var analyser=ctx.createAnalyser();
-  analyser.fftSize=256;
-  analyser.smoothingTimeConstant=0.6;
+  analyser.fftSize=512;          // larger = smoother but still cheap
+  analyser.smoothingTimeConstant=0.75;
+  analyser.minDecibels=-80;
   src.connect(analyser);
   lk.analyser=analyser;
 
-  var buf=new Uint8Array(analyser.fftSize);
-  var SPEAK_THRESH=0.015, HOLD_MS=300, lastSpeak=0;
+  var buf=new Float32Array(analyser.fftSize);
+  var SPEAK_THRESH=0.015, HOLD_MS=400, lastSpeak=0;
+  var lastPct=-1, lastSpeaking=null;
+  var FRAME_MS=80; // poll at ~12fps — plenty for a meter visual
+  var lastFrame=0;
 
-  lk.vadInterval=setInterval(function(){
-    if(!lk.active){ clearInterval(lk.vadInterval); return; }
-    analyser.getByteTimeDomainData(buf);
-    var sum=0;
-    for(var i=0;i<buf.length;i++){var v=(buf[i]-128)/128;sum+=v*v;}
-    var rms=Math.sqrt(sum/buf.length);
+  function tick(ts){
+    if(!lk.active){ lk.vadInterval=null; return; }
+    lk.vadInterval=requestAnimationFrame(tick);
+    if(ts-lastFrame < FRAME_MS) return; // throttle to ~12fps
+    lastFrame=ts;
+
+    analyser.getFloatTimeDomainData(buf);
+    var sum=0, len=buf.length;
+    for(var i=0;i<len;i++) sum+=buf[i]*buf[i];
+    var rms=Math.sqrt(sum/len);
+
     var now=Date.now();
     if(rms>SPEAK_THRESH) lastSpeak=now;
     var speaking=(now-lastSpeak)<HOLD_MS;
-    // Meter
-    var pct=Math.min(100,(rms/0.08)*100);
-    var vb=document.getElementById('vadBar');if(vb) vb.style.width=pct+'%';
-    var vs=document.getElementById('vadStatus');if(vs) vs.textContent=speaking?'🟢':'🔇';
-    // Speaking glow on local tile
-    var lt=document.getElementById('tile-local');
-    if(lt) lt.classList.toggle('speaking',speaking&&lk.micEnabled);
-  },40);
+    var pct=Math.min(100,(rms/0.06)*100)|0;
+
+    // Only write DOM when values change
+    if(pct!==lastPct){
+      lastPct=pct;
+      var vb=document.getElementById('vadBar');
+      if(vb) vb.style.width=pct+'%';
+    }
+    if(speaking!==lastSpeaking){
+      lastSpeaking=speaking;
+      var vs=document.getElementById('vadStatus');
+      if(vs) vs.textContent=speaking?'🟢':'🔇';
+      var lt=document.getElementById('tile-local');
+      if(lt) lt.classList.toggle('speaking',speaking&&lk.micEnabled);
+    }
+  }
+  lk.vadInterval=requestAnimationFrame(tick);
 }
 
 function stopVAD(){
-  if(lk.vadInterval){clearInterval(lk.vadInterval);lk.vadInterval=null;}
+  if(lk.vadInterval){cancelAnimationFrame(lk.vadInterval);lk.vadInterval=null;}
   if(lk.audioCtx){try{lk.audioCtx.close();}catch(e){}lk.audioCtx=null;}
   lk.analyser=null;lk.gainNode=null;
 }
@@ -2939,32 +2954,43 @@ function setParticipantVolume(identity,val){
   var v=pct/100;
   lk.participantVolumes[identity]=v;
   if(!lk.remoteGainNodes) lk.remoteGainNodes={};
+
   document.querySelectorAll('audio[data-identity="'+identity+'"]').forEach(function(el){
     if(v<=1){
-      // Simple path — no boost needed, ditch any existing gain node
-      if(lk.remoteGainNodes[identity]){
-        try{lk.remoteGainNodes[identity].ctx.close();}catch(e){}
+      // Simple path: tear down any gain node, use native volume
+      var gn=lk.remoteGainNodes[identity];
+      if(gn){
+        try{
+          // Reroute back to original stream
+          if(el._origStream) el.srcObject=el._origStream;
+          gn.gain.disconnect();gn.src.disconnect();
+        }catch(e){}
         delete lk.remoteGainNodes[identity];
-        if(el._rawStream) el.srcObject=el._rawStream;
       }
-      el.volume=Math.max(0,Math.min(v,1));
+      el.volume=Math.max(0.01,v);
     } else {
-      // Boost >100% via WebAudio gain node
+      // Boost path: reuse the VAD AudioContext if available, else create one shared boostCtx
       el.volume=1;
-      if(!el._rawStream&&el.srcObject) el._rawStream=el.srcObject;
-      try{
-        var AC=window.AudioContext||window.webkitAudioContext;
-        if(!lk.remoteGainNodes[identity]){
-          var ctx=new AC();
-          var src=ctx.createMediaStreamSource(el._rawStream||el.srcObject);
+      var gn=lk.remoteGainNodes[identity];
+      if(gn){
+        // Just update gain value
+        gn.gain.gain.setTargetAtTime(v,gn.ctx.currentTime,0.05);
+      } else {
+        try{
+          if(!el._origStream) el._origStream=el.srcObject;
+          var AC=window.AudioContext||window.webkitAudioContext;
+          // Reuse a shared boost context to avoid multiple audio threads
+          if(!lk._boostCtx||lk._boostCtx.state==='closed') lk._boostCtx=new AC({sampleRate:48000,latencyHint:'playback'});
+          var ctx=lk._boostCtx;
+          var src=ctx.createMediaStreamSource(el._origStream);
           var gain=ctx.createGain();
           var dest=ctx.createMediaStreamDestination();
+          gain.gain.value=v;
           src.connect(gain);gain.connect(dest);
           el.srcObject=dest.stream;
-          lk.remoteGainNodes[identity]={ctx,gain};
-        }
-        lk.remoteGainNodes[identity].gain.gain.setTargetAtTime(v,lk.remoteGainNodes[identity].ctx.currentTime,0.02);
-      }catch(e){el.volume=1;}
+          lk.remoteGainNodes[identity]={ctx,src,gain,dest};
+        }catch(e){ el.volume=1; }
+      }
     }
   });
 }
@@ -3106,27 +3132,12 @@ function releaseWakeLock(){
       when user comes back to the tab after switching */
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'visible'){
-    // Resume AudioContext if it was suspended by the browser
     if(lk.audioCtx && lk.audioCtx.state === 'suspended'){
-      lk.audioCtx.resume().then(function(){
-        console.log('AudioContext resumed after tab switch');
-      });
+      lk.audioCtx.resume();
     }
-    // Re-acquire wake lock — browser drops it when tab is backgrounded
     if(lk.active) acquireWakeLock();
-  } else {
-    // Tab going background during call — keep a silent audio trick
-    // to hint to the browser this tab has active audio
-    if(lk.active && !document.getElementById('_bgAudio')){
-      var a = document.createElement('audio');
-      a.id = '_bgAudio';
-      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='; // 0-byte silent wav
-      a.loop = true;
-      a.volume = 0.001;
-      document.body.appendChild(a);
-      a.play().catch(function(){});
-    }
   }
+  // No silent audio hack — Livekit keeps the audio pipeline alive via its own track
 });
 
 /* Hook into call start/end to manage wake lock + heartbeat */
@@ -3144,8 +3155,8 @@ cleanupCall = function(){
   sbStopAll();
   document.getElementById('soundboardPanel').style.display='none';
   document.getElementById('ctrlSoundboard').classList.remove('active');
-  var bg = document.getElementById('_bgAudio');
-  if(bg){ bg.pause(); bg.remove(); }
+  // Close shared boost AudioContext
+  if(lk._boostCtx){try{lk._boostCtx.close();}catch(e){}lk._boostCtx=null;}
 };
 /* ══════════════════════════════════════════════
    SOUNDBOARD
