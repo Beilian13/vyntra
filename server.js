@@ -60,15 +60,23 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
    SCHEMAS
 ══════════════════════════════════════════════ */
 const userSchema = new mongoose.Schema({
-  username:       { type: String, unique: true, required: true },
-  email:          { type: String, unique: true, sparse: true },
-  password:       { type: String, required: true },
-  friends:        [String],
-  secretQuestion: String,
-  secretAnswer:   String,
-  createdAt:      { type: Date, default: Date.now },
+  username:        { type: String, unique: true, required: true },
+  email:           { type: String, unique: true, sparse: true },
+  password:        { type: String, required: true },
+  friends:         [String],
+  blockedUsers:    [String],
+  pendingFriends:  [String],  // incoming requests not yet acted on
+  secretQuestion:  String,
+  secretAnswer:    String,
+  createdAt:       { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', userSchema);
+
+const roleSchema = new mongoose.Schema({
+  name:        { type: String, required: true },
+  color:       { type: String, default: '#6c7cff' },
+  permissions: { type: [String], default: [] }, // 'send_messages','manage_channels','manage_roles','kick_members','ban_members','manage_server'
+}, { _id: true });
 
 const serverSchema = new mongoose.Schema({
   name:        { type: String, required: true },
@@ -78,6 +86,8 @@ const serverSchema = new mongoose.Schema({
   owner:       { type: String, required: true },
   admins:      [String],
   members:     [String],
+  roles:       { type: [roleSchema], default: [] },
+  memberRoles: { type: Map, of: [String], default: {} }, // username → [roleId]
   isPublic:    { type: Boolean, default: true },
   isOfficial:  { type: Boolean, default: false },
   createdAt:   { type: Date, default: Date.now },
@@ -87,6 +97,8 @@ const VyntraServer = mongoose.model('VyntraServer', serverSchema);
 const channelSchema = new mongoose.Schema({
   name:      { type: String, required: true },
   type:      { type: String, default: 'text' }, // 'text' | 'announcement'
+  category:  { type: String, default: 'Text Channels' },
+  position:  { type: Number, default: 0 },
   serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
   createdAt: { type: Date, default: Date.now },
 });
@@ -128,6 +140,16 @@ const pushSubSchema = new mongoose.Schema({
 });
 pushSubSchema.index({ username: 1 });
 const PushSub = mongoose.model('PushSub', pushSubSchema);
+
+const reportSchema = new mongoose.Schema({
+  reporter:  { type: String, required: true },
+  reported:  { type: String, required: true },
+  reason:    { type: String, default: '' },
+  messageId: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  reviewed:  { type: Boolean, default: false },
+});
+const Report = mongoose.model('Report', reportSchema);
 
 async function pushToUser(username, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
@@ -311,6 +333,102 @@ app.get('/admin/users/:username', adminMiddleware, async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
 
+/* ── BLOCK / REPORT ── */
+app.post('/users/:username/block', authMiddleware, async (req, res) => {
+  try {
+    const target = req.params.username;
+    if (target === req.user.username) return res.status(400).json({ error: 'Cannot block yourself' });
+    await User.updateOne({ username: req.user.username }, { $addToSet: { blockedUsers: target }, $pull: { friends: target, pendingFriends: target } });
+    await User.updateOne({ username: target }, { $pull: { friends: req.user.username } });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/users/:username/unblock', authMiddleware, async (req, res) => {
+  try {
+    await User.updateOne({ username: req.user.username }, { $pull: { blockedUsers: req.params.username } });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/users/:username/report', authMiddleware, async (req, res) => {
+  try {
+    const { reason, messageId } = req.body;
+    await Report.create({ reporter: req.user.username, reported: req.params.username, reason: reason||'', messageId: messageId||null });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+// Admin: list reports
+app.get('/admin/reports', adminMiddleware, async (req, res) => {
+  try {
+    const reports = await Report.find().sort({ createdAt: -1 }).limit(100).lean();
+    res.json(reports);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/admin/reports/:id/review', adminMiddleware, async (req, res) => {
+  try {
+    await Report.updateOne({ _id: req.params.id }, { reviewed: true });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── SERVER ROLES ── */
+app.get('/servers/:id/roles', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id).lean();
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    res.json({ roles: srv.roles||[], memberRoles: Object.fromEntries(srv.memberRoles||new Map()) });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/servers/:id/roles', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
+    const { name, color, permissions } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    srv.roles.push({ name, color: color||'#6c7cff', permissions: permissions||[] });
+    await srv.save();
+    const role = srv.roles[srv.roles.length-1];
+    broadcastToServer(srv, { type: 'roles_updated', serverId: srv._id.toString(), roles: srv.roles });
+    res.json(role);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.delete('/servers/:id/roles/:roleId', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv || srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
+    srv.roles = srv.roles.filter(r => r._id.toString() !== req.params.roleId);
+    await srv.save();
+    broadcastToServer(srv, { type: 'roles_updated', serverId: srv._id.toString(), roles: srv.roles });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/servers/:id/members/:username/roles', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)) return res.status(403).json({ error: 'Forbidden' });
+    const { roleIds } = req.body; // array of role IDs
+    srv.memberRoles.set(req.params.username, roleIds||[]);
+    await srv.save();
+    broadcastToServer(srv, { type: 'member_roles_updated', serverId: srv._id.toString(), username: req.params.username, roleIds: roleIds||[] });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── CHANNEL CATEGORY ── */
+app.patch('/servers/:id/channels/:cid/category', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)) return res.status(403).json({ error: 'Forbidden' });
+    const { category } = req.body;
+    await Channel.updateOne({ _id: req.params.cid, serverId: srv._id }, { category: category||'Text Channels' });
+    const allChannels = await Channel.find({ serverId: srv._id }).lean();
+    broadcastToServer(srv, { type: 'channels_updated', serverId: srv._id.toString(), channels: allChannels });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
 /* ── PUSH NOTIFICATIONS ── */
 app.get('/push/vapid-public-key', (req, res) => {
   res.json({ key: VAPID_PUBLIC_KEY || null });
@@ -444,10 +562,11 @@ app.post('/servers/:id/channels', authMiddleware, async (req, res) => {
     if (!srv) return res.status(404).json({ error: 'Not found' });
     if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
       return res.status(403).json({ error: 'Forbidden' });
-    const { name, type } = req.body;
+    const { name, type, category } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     const chType = ['text','announcement'].includes(type) ? type : 'text';
-    const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), type: chType, serverId: srv._id });
+    const chCategory = category || 'Text Channels';
+    const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), type: chType, category: chCategory, serverId: srv._id });
     if (chType === 'announcement') announcementChannels.add(ch._id.toString());
     // Notify all members online
     (srv.members||[]).forEach(m => sendTo(m, { type: 'channel_added', serverId: srv._id.toString(), channel: ch }));
@@ -602,6 +721,11 @@ function ensureCallRoom(room) {
   return callRooms[room];
 }
 
+function broadcastToServer(srv, data) {
+  const members = [...new Set([srv.owner, ...(srv.admins||[]), ...(srv.members||[])])];
+  members.forEach(m => sendTo(m, data));
+}
+
 function broadcastAll(data) {
   const msg = JSON.stringify(data);
   Object.values(clients).forEach(ws => { if (ws.readyState === WebSocket.OPEN) ws.send(msg); });
@@ -643,6 +767,8 @@ wss.on('connection', ws => {
         username = payload.username;
         clients[username] = ws;
         const user = await User.findOne({ username });
+        const blockedUsers = user ? (user.blockedUsers||[]) : [];
+        const pendingFriends = user ? (user.pendingFriends||[]) : [];
         const myServers = await VyntraServer.find({
           $or: [{ members: username }, { owner: username }, { isOfficial: true }]
         }).lean();
@@ -654,6 +780,8 @@ wss.on('connection', ws => {
         ws.send(JSON.stringify({
           type: 'auth_ok',
           friends: user ? user.friends : [],
+          blockedUsers,
+          pendingFriends,
           servers: myServers,
           channels: allChannels,
           onlineUsers: Object.keys(clients),
@@ -710,7 +838,14 @@ wss.on('connection', ws => {
         : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() };
       bufferMessage(doc);
       const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, seenBy: [] };
-      if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u => sendTo(u, out));
+      if (activeChannels[currentChan]) {
+        const recipientUsers = await User.find({ username: { $in: [...activeChannels[currentChan]] } }, 'username blockedUsers').lean();
+        activeChannels[currentChan].forEach(u => {
+          const recip = recipientUsers.find(r => r.username === u);
+          if (recip && (recip.blockedUsers||[]).includes(username)) return; // blocked
+          sendTo(u, out);
+        });
+      }
       // Push-notify offline channel members
       if (mongoose.Types.ObjectId.isValid(currentChan)) {
         (async () => {
@@ -825,21 +960,31 @@ wss.on('connection', ws => {
 
     /* FRIENDS */
     if (data.type === 'friend_request') {
-      if (!await User.findOne({ username: data.to })) return;
+      const target = await User.findOne({ username: data.to });
+      if (!target) return;
+      if ((target.blockedUsers||[]).includes(username)) return; // blocked
+      await User.updateOne({ username: data.to }, { $addToSet: { pendingFriends: username } });
       sendTo(data.to, { type: 'friend_request', from: username });
       sendTo(username, { type: 'friend_request_sent', to: data.to });
+      if (!(data.to in clients)) {
+        pushToUser(data.to, { type:'friend_request', title:`👋 Friend request from ${username}`, body:'Tap to open Vyntra', url:'/' }).catch(()=>{});
+      }
       return;
     }
     if (data.type === 'friend_accept') {
       const [u1,u2] = [username,data.from];
-      await User.updateOne({ username: u1 }, { $addToSet: { friends: u2 } });
+      await User.updateOne({ username: u1 }, { $addToSet: { friends: u2 }, $pull: { pendingFriends: u2 } });
       await User.updateOne({ username: u2 }, { $addToSet: { friends: u1 } });
       sendTo(u1, { type: 'friends_update', friends: (await User.findOne({username:u1})).friends });
       sendTo(u2, { type: 'friends_update', friends: (await User.findOne({username:u2})).friends });
       sendTo(u2, { type: 'friend_accepted', by: u1 });
       return;
     }
-    if (data.type === 'friend_decline') { sendTo(data.from, { type: 'friend_declined', by: username }); return; }
+    if (data.type === 'friend_decline') {
+      await User.updateOne({ username }, { $pull: { pendingFriends: data.from } });
+      sendTo(data.from, { type: 'friend_declined', by: username });
+      return;
+    }
     if (data.type === 'unfriend') {
       await User.updateOne({ username }, { $pull: { friends: data.username } });
       await User.updateOne({ username: data.username }, { $pull: { friends: username } });
