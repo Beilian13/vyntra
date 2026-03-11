@@ -595,6 +595,12 @@ const activeChannels = {};
 const clients = {};
 const typingTimers = {};
 const announcementChannels = new Set();
+// In-memory call rooms: lvRoom → { members: Set, polls: Map<pollId, poll> }
+const callRooms = {};
+function ensureCallRoom(room) {
+  if (!callRooms[room]) callRooms[room] = { members: new Set(), polls: new Map() };
+  return callRooms[room];
+}
 
 function broadcastAll(data) {
   const msg = JSON.stringify(data);
@@ -853,6 +859,108 @@ wss.on('connection', ws => {
     if (data.type === 'call_accept')  { sendTo(data.to, { type: 'call_accepted', from: username }); return; }
     if (data.type === 'call_decline') { sendTo(data.to, { type: 'call_declined', from: username }); return; }
     if (data.type === 'call_cancel')  { sendTo(data.to, { type: 'call_ended',    from: username }); return; }
+
+    /* CALL ROOM TRACKING */
+    if (data.type === 'call_join_room') {
+      const cr = ensureCallRoom(data.lvRoom);
+      cr.members.add(username);
+      // Broadcast updated member list to call room
+      cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
+      return;
+    }
+    if (data.type === 'call_leave_room') {
+      const cr = callRooms[data.lvRoom];
+      if (cr) {
+        cr.members.delete(username);
+        if (cr.members.size === 0) { delete callRooms[data.lvRoom]; }
+        else cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
+      }
+      return;
+    }
+
+    /* EPHEMERAL CALL CHAT */
+    if (data.type === 'call_chat') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr || !cr.members.has(username)) return;
+      const msg = { type: 'call_chat', lvRoom: data.lvRoom, user: username, text: data.text, ts: Date.now() };
+      cr.members.forEach(m => sendTo(m, msg));
+      return;
+    }
+
+    /* CALL POLLS */
+    if (data.type === 'call_poll_create') {
+      const cr = ensureCallRoom(data.lvRoom);
+      if (!cr.members.has(username)) return;
+      const pollId = crypto.randomBytes(6).toString('hex');
+      const poll = {
+        id: pollId, creator: username, question: data.question,
+        options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
+        createdAt: Date.now(), open: true,
+      };
+      cr.polls.set(pollId, poll);
+      cr.members.forEach(m => sendTo(m, { type: 'call_poll_new', lvRoom: data.lvRoom, poll }));
+      return;
+    }
+    if (data.type === 'call_poll_vote') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr) return;
+      const poll = cr.polls.get(data.pollId);
+      if (!poll || !poll.open) return;
+      // Remove previous vote, add new one
+      poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
+      const opt = poll.options.find(o => o.id === data.optionId);
+      if (!opt) return;
+      opt.votes.push(username);
+      cr.members.forEach(m => sendTo(m, { type: 'call_poll_update', lvRoom: data.lvRoom, poll }));
+      return;
+    }
+    if (data.type === 'call_poll_end') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr) return;
+      const poll = cr.polls.get(data.pollId);
+      if (!poll || poll.creator !== username) return;
+      poll.open = false;
+      cr.members.forEach(m => sendTo(m, { type: 'call_poll_update', lvRoom: data.lvRoom, poll }));
+      return;
+    }
+
+    /* CHAT POLLS (channel) */
+    if (data.type === 'chat_poll_create' && currentChan) {
+      const pollId = crypto.randomBytes(6).toString('hex');
+      const poll = {
+        id: pollId, creator: username, question: data.question,
+        options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
+        createdAt: Date.now(), open: true, chanId: currentChan,
+      };
+      // Store in memory on the channel activeChannels scope (not persisted)
+      if (!activeChannels._polls) activeChannels._polls = {};
+      activeChannels._polls[pollId] = poll;
+      if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u =>
+        sendTo(u, { type: 'chat_poll_new', poll })
+      );
+      return;
+    }
+    if (data.type === 'chat_poll_vote') {
+      const poll = activeChannels._polls && activeChannels._polls[data.pollId];
+      if (!poll || !poll.open) return;
+      poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
+      const opt = poll.options.find(o => o.id === data.optionId);
+      if (!opt) return;
+      opt.votes.push(username);
+      if (activeChannels[poll.chanId]) activeChannels[poll.chanId].forEach(u =>
+        sendTo(u, { type: 'chat_poll_update', poll })
+      );
+      return;
+    }
+    if (data.type === 'chat_poll_end') {
+      const poll = activeChannels._polls && activeChannels._polls[data.pollId];
+      if (!poll || poll.creator !== username) return;
+      poll.open = false;
+      if (activeChannels[poll.chanId]) activeChannels[poll.chanId].forEach(u =>
+        sendTo(u, { type: 'chat_poll_update', poll })
+      );
+      return;
+    }
   });
 
   ws.on('close', () => {
@@ -862,6 +970,14 @@ wss.on('connection', ws => {
       activeChannels[currentChan].delete(username);
       broadcastChannelUsers(currentChan);
     }
+    // Remove from any call rooms
+    Object.entries(callRooms).forEach(([lvRoom, cr]) => {
+      if (cr.members.has(username)) {
+        cr.members.delete(username);
+        if (cr.members.size === 0) delete callRooms[lvRoom];
+        else cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom, members: [...cr.members] }));
+      }
+    });
     broadcastAll({ type: 'online_users', users: Object.keys(clients) });
   });
 });
