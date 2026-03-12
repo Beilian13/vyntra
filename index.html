@@ -653,7 +653,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
     background:var(--bg);
   }
   /* Panel 0 — servers */
-  #mvServers{background:#080a12}
+  #mvServers{background:var(--panel-dark)}
   #mvServers .mv-list{flex:1;overflow-y:auto;padding:8px}
   /* Panel 1 — channels */
   #mvChannels{background:var(--panel-dark)}
@@ -749,7 +749,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <div class="auth-field"><label>Password</label><input id="regPass" type="password" autocomplete="new-password"/></div>
         <div class="auth-field">
           <label>Secret Question</label>
-          <select id="regQuestion" style="padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none">
+          <select id="regQuestion" style="padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none">
             <option value="">— Pick a question —</option>
             <option>What was the name of your first pet?</option>
             <option>What city were you born in?</option>
@@ -840,7 +840,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
     <!-- Server column -->
     <div id="serverCol" style="width:60px;background:var(--panel-dark);border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
     <!-- Channel column -->
-    <div id="channelCol" style="width:220px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden">
+    <div id="channelCol" style="width:220px;background:var(--panel-dark);border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden">
       <div id="chHeader" style="padding:14px 12px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0">
         <div id="chHeaderName" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Vyntra</div>
         <div id="chHeaderMeta" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
@@ -869,7 +869,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         </div>
       </div>
       <div class="messages" id="messages"><div class="center-note">← Pick a server and channel</div></div>
-      <div id="typingBar" style="display:none;padding:4px 14px;font-size:12px;color:var(--muted);flex-shrink:0;background:#0e1020;border-top:1px solid rgba(255,255,255,.02)"></div>
+      <div id="typingBar" style="display:none;padding:4px 14px;font-size:12px;color:var(--muted);flex-shrink:0;background:var(--panel-dark);border-top:1px solid rgba(255,255,255,.02)"></div>
       <div id="replyBar">
         <span style="font-size:13px;color:var(--muted);flex-shrink:0">↩ Replying to</span>
         <div class="rb-quote"><span class="rb-user" id="rbUser"></span><span id="rbText"></span></div>
@@ -978,7 +978,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <div>
           <div style="font-size:18px;font-weight:700;margin-bottom:4px">🔍 Discover Servers</div>
           <div style="color:var(--muted);font-size:13px">Find and join public communities</div>
-          <input id="discSearch" style="margin-top:10px;width:min(320px,100%);padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);outline:none;font-size:14px" placeholder="Search servers…"/>
+          <input id="discSearch" style="margin-top:10px;width:min(320px,100%);padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);outline:none;font-size:14px" placeholder="Search servers…"/>
         </div>
         <button onclick="closeDiscovery()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--muted);font-size:13px;padding:6px 12px;cursor:pointer;flex-shrink:0;margin-top:4px">✕ Close</button>
       </div>
@@ -1062,7 +1062,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
 <!-- Edit Profile modal -->
 <div id="editProfileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:800;align-items:center;justify-content:center">
-  <div style="background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:22px;width:min(400px,94vw);max-height:90vh;overflow-y:auto">
+  <div style="background:var(--panel-card);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:22px;width:min(400px,94vw);max-height:90vh;overflow-y:auto">
     <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Edit Profile</h3>
     <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Avatar URL (or upload)</div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
@@ -1071,7 +1071,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
       <input type="file" id="epAvatarFile" accept="image/*" style="display:none" onchange="uploadAvatarFile(this)"/>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Banner Color</div>
-    <input type="color" id="epBannerColor" style="width:100%;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;cursor:pointer;margin-bottom:10px"/>
+    <input type="color" id="epBannerColor" style="width:100%;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:var(--panel-input);cursor:pointer;margin-bottom:10px"/>
     <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Pronouns</div>
     <input id="epPronouns" class="edit-profile-field" placeholder="they/them, he/him, she/her…" maxlength="40"/>
     <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Status</div>
@@ -1238,10 +1238,10 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
 <!-- Admin panel modal -->
 <div id="adminModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:800;align-items:center;justify-content:center">
-  <div style="background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:16px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+  <div style="background:var(--panel-card);border:1px solid rgba(255,255,255,.08);border-radius:16px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <div style="font-size:16px;font-weight:700">🛡️ Admin Panel</div>
-      <input id="adminSearch" placeholder="Search users…" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);outline:none;font-size:13px;width:200px"/>
+      <input id="adminSearch" placeholder="Search users…" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);outline:none;font-size:13px;width:200px"/>
       <button onclick="closeAdminPanel()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--muted);font-size:13px;padding:6px 12px;cursor:pointer">✕</button>
     </div>
     <div id="adminUserList" style="flex:1;overflow-y:auto;padding:10px 14px"></div>
@@ -1384,7 +1384,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
 <!-- INVITE LANDING -->
 <div id="inviteScreen" style="display:none;align-items:center;justify-content:center;height:100%;position:fixed;inset:0;background:radial-gradient(ellipse at 50% 40%,#1a1c35,var(--bg));z-index:2000">
-  <div style="width:min(420px,92vw);background:#13152a;border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.04);text-align:center">
+  <div style="width:min(420px,92vw);background:var(--panel-card);border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.04);text-align:center">
     <div id="invIcon" style="width:72px;height:72px;border-radius:20px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;margin:0 auto 16px">V</div>
     <div id="invName" style="font-size:22px;font-weight:700;margin-bottom:6px">Loading…</div>
     <div id="invDesc" style="color:var(--muted);font-size:14px;margin-bottom:8px"></div>
@@ -1400,15 +1400,15 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
 <!-- CREATE SERVER MODAL -->
 <div id="createServerModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:center;justify-content:center">
-  <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:28px;width:min(400px,90vw)">
+  <div style="background:var(--panel-card);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:28px;width:min(400px,90vw)">
     <h3 style="font-size:17px;font-weight:700;margin-bottom:18px">Create a Server</h3>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Server name *</label><input id="csmName" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none" placeholder="My awesome server"/></div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Description</label><textarea id="csmDesc" rows="2" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;resize:none" placeholder="What's this server about?"></textarea></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Server name *</label><input id="csmName" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none" placeholder="My awesome server"/></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"><label style="font-size:13px;color:var(--muted)">Description</label><textarea id="csmDesc" rows="2" style="padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none;resize:none" placeholder="What's this server about?"></textarea></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Color:</div>
     <div id="csmColors" style="display:flex;gap:6px;margin-bottom:14px"></div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:16px"><input type="checkbox" id="csmPublic" checked style="accent-color:var(--accent)"/> Public (appears in discovery)</label>
     <div style="display:flex;gap:10px">
-      <button onclick="closeCreateServer()" style="flex:1;padding:10px;border-radius:8px;background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
+      <button onclick="closeCreateServer()" style="flex:1;padding:10px;border-radius:8px;background:var(--panel-card);color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
       <button id="csmSubmit" onclick="doCreateServer()" style="flex:1;padding:10px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">Create</button>
     </div>
     <div id="csmError" style="color:#ff6b6b;font-size:13px;margin-top:8px"></div>
@@ -1417,16 +1417,16 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
 <!-- ADD CHANNEL MODAL -->
 <div id="addChannelModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:center;justify-content:center">
-  <div style="background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px;width:min(340px,90vw)">
+  <div style="background:var(--panel-card);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:24px;width:min(340px,90vw)">
     <h3 style="font-size:16px;font-weight:700;margin-bottom:14px">Add Channel</h3>
-    <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:14px;outline:none;margin-bottom:10px" placeholder="channel-name"/>
-    <input id="acmCategory" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:13px;outline:none;margin-bottom:10px" placeholder="Category (e.g. Text Channels)" value="Text Channels"/>
+    <input id="acmName" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none;margin-bottom:10px" placeholder="channel-name"/>
+    <input id="acmCategory" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;margin-bottom:10px" placeholder="Category (e.g. Text Channels)" value="Text Channels"/>
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="text" checked style="accent-color:var(--accent);margin-right:5px"/> # Text</label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="chType" value="announcement" style="accent-color:var(--accent);margin-right:5px"/> 📢 Announcement</label>
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="closeAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:#1a1d30;color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
+      <button onclick="closeAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:var(--panel-card);color:var(--muted);border:1px solid rgba(255,255,255,.06);font-size:14px;cursor:pointer">Cancel</button>
       <button onclick="doAddChannel()" style="flex:1;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">Add</button>
     </div>
   </div>
@@ -2208,7 +2208,7 @@ function filterDisc(q){
   list.forEach(function(s){
     var joined=!!myServers.find(function(ms){return ms._id===s._id;});
     var card=document.createElement('div');
-    card.style.cssText='background:#13152a;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,.04);cursor:pointer;transition:border-color .15s';
+    card.style.cssText='background:var(--panel-card);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,.04);cursor:pointer;transition:border-color .15s';
     card.onmouseenter=function(){this.style.borderColor='color-mix(in srgb, var(--accent) 30%, transparent)';};card.onmouseleave=function(){this.style.borderColor='rgba(255,255,255,.04)';};
     var iconBg=s.isOfficial?'linear-gradient(135deg,#6c7cff,#9b6cff)':(s.color||getAccentHex());
     card.innerHTML='<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:44px;height:44px;border-radius:12px;background:'+iconBg+';display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0">'+((s.icon||s.name[0]).toUpperCase())+'</div><div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+(s.isOfficial?' ⭐':'')+'</div></div><div style="font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px">'+(s.description||'No description')+'</div><div style="font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between"><span>👥 '+(s.memberCount||0)+'</span><button class="disc-join-btn" style="font-size:12px;font-weight:600;padding:4px 12px;border-radius:6px;background:'+(joined?'#1a1d30':' var(--accent)')+';color:'+(joined?'var(--muted)':'#fff')+';border:none;cursor:'+(joined?'default':'pointer')+'">'+( joined?'Joined':'Join')+'</button></div>';
@@ -2328,7 +2328,7 @@ function showFR(from){
 }
 function toast(msg){
   var t=document.createElement('div');
-  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px 18px;font-size:14px;z-index:950;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap;pointer-events:none';
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel-card);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px 18px;font-size:14px;z-index:950;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap;pointer-events:none';
   t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},3500);
 }
 
@@ -2527,7 +2527,7 @@ function renderMsg(msg){
       w.appendChild(sm);
     } else if(ft.startsWith('image/')){
       var img=document.createElement('img');
-      img.src=msg.fileUrl;img.style.cssText='max-width:min(320px,80vw);max-height:280px;border-radius:10px;display:block;margin-top:6px;cursor:pointer;object-fit:contain;background:#0b0d16';
+      img.src=msg.fileUrl;img.style.cssText='max-width:min(320px,80vw);max-height:280px;border-radius:10px;display:block;margin-top:6px;cursor:pointer;object-fit:contain;background:var(--panel-input)';
       img.onclick=function(){window.open(msg.fileUrl,'_blank');};
       img.onerror=function(){this.style.display='none';};
       w.appendChild(img);
@@ -2735,7 +2735,7 @@ function renderMobileServers(){
   list.innerHTML='';
   // DM item
   var dm=document.createElement('div');dm.className='msrv-item'+(activeServerId==='__dm__'?' active':'');
-  dm.innerHTML='<div class="msrv-avatar" style="background:#1a1d30;font-size:20px">💬</div><div class="msrv-info"><div class="msrv-name">Direct Messages</div><div class="msrv-desc">Friends &amp; DMs</div></div><div class="msrv-arrow">›</div>';
+  dm.innerHTML='<div class="msrv-avatar" style="background:var(--panel-card);font-size:20px">💬</div><div class="msrv-info"><div class="msrv-name">Direct Messages</div><div class="msrv-desc">Friends &amp; DMs</div></div><div class="msrv-arrow">›</div>';
   dm.onclick=function(){selectServer('__dm__');mobileGoTo(1);};
   list.appendChild(dm);
   myServers.forEach(function(s){
@@ -4459,8 +4459,8 @@ async function openRolesPanel(serverId){
     var form=document.createElement('div');form.style.cssText='margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)';
     form.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Create Role</div>';
     var nameRow=document.createElement('div');nameRow.style.cssText='display:flex;gap:8px;margin-bottom:8px';
-    var nameInp=document.createElement('input');nameInp.placeholder='Role name';nameInp.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none';
-    var colorInp=document.createElement('input');colorInp.type='color';colorInp.value=getAccentHex();colorInp.style.cssText='width:36px;height:34px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;cursor:pointer;padding:2px';
+    var nameInp=document.createElement('input');nameInp.placeholder='Role name';nameInp.style.cssText='flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:var(--panel-input);color:var(--white);font-size:13px;outline:none';
+    var colorInp=document.createElement('input');colorInp.type='color';colorInp.value=getAccentHex();colorInp.style.cssText='width:36px;height:34px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:var(--panel-input);cursor:pointer;padding:2px';
     nameRow.appendChild(nameInp);nameRow.appendChild(colorInp);form.appendChild(nameRow);
     // Permission checkboxes
     var permDiv=document.createElement('div');permDiv.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:10px';
@@ -4493,7 +4493,7 @@ async function openAssignRolesPanel(serverId, targetUser){
   var current=(_memberRoles[serverId]||{})[targetUser]||[];
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:flex;align-items:center;justify-content:center';
-  var box=document.createElement('div');box.style.cssText='background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:18px;width:min(320px,90vw)';
+  var box=document.createElement('div');box.style.cssText='background:var(--panel-card);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:18px;width:min(320px,90vw)';
   box.innerHTML='<h3 style="margin:0 0 12px;font-size:14px">Assign Roles to '+escHtml(targetUser)+'</h3>';
   var list=document.createElement('div');
   roles.forEach(function(role){
@@ -4527,7 +4527,7 @@ function openMoveCategoryMenu(ch, serverId, cats){
   var existing=Object.keys(cats);
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
-  var box=document.createElement('div');box.style.cssText='background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;width:min(300px,90vw)';
+  var box=document.createElement('div');box.style.cssText='background:var(--panel-card);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;width:min(300px,90vw)';
   box.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:10px">Move #'+escHtml(ch.name)+' to category</div>';
   existing.forEach(function(cat){
     var btn=document.createElement('button');
@@ -4541,7 +4541,7 @@ function openMoveCategoryMenu(ch, serverId, cats){
   });
   // New category
   var newRow=document.createElement('div');newRow.style.cssText='display:flex;gap:6px;margin-top:8px';
-  var newInp=document.createElement('input');newInp.placeholder='New category…';newInp.style.cssText='flex:1;padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:12px;outline:none';
+  var newInp=document.createElement('input');newInp.placeholder='New category…';newInp.style.cssText='flex:1;padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:var(--panel-input);color:var(--white);font-size:12px;outline:none';
   var newBtn=document.createElement('button');newBtn.textContent='Add';newBtn.style.cssText='padding:7px 12px;border-radius:7px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer';
   newBtn.onclick=async function(){
     var cat=newInp.value.trim();if(!cat)return;
