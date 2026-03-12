@@ -22,9 +22,11 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   var url = new URL(e.request.url);
+  if (e.request.method !== 'GET') return;
   if (url.pathname.startsWith('/auth') ||
       url.pathname.startsWith('/livekit') ||
       url.pathname.startsWith('/push') ||
+      url.pathname.startsWith('/ai') ||
       e.request.headers.get('upgrade') === 'websocket') return;
   e.respondWith(
     caches.match(e.request).then(function(cached){
