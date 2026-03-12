@@ -192,6 +192,88 @@ main{display:flex;flex:1;overflow:hidden}
 .cat-body.collapsed{max-height:0!important}
 /* Role badge */
 .role-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
+/* ── USER PROFILE MODAL ── */
+#profileModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:700;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto}
+#profileModal.open{display:flex}
+.profile-card{background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:18px;width:min(420px,95vw);overflow:hidden;position:relative}
+.profile-banner{height:90px;background:var(--accent);flex-shrink:0;position:relative}
+.profile-avatar-wrap{position:absolute;bottom:-28px;left:18px}
+.profile-avatar{width:64px;height:64px;border-radius:50%;border:4px solid #13152a;object-fit:cover;background:#20233a;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.profile-body{padding:38px 18px 18px}
+.profile-username{font-size:18px;font-weight:800}
+.profile-pronouns{font-size:12px;color:var(--muted);margin-left:6px}
+.profile-status{font-size:13px;color:var(--muted);margin:4px 0 8px;display:flex;align-items:center;gap:5px}
+.profile-bio{font-size:13px;color:var(--white);line-height:1.5;background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;margin-bottom:10px;white-space:pre-wrap;word-break:break-word}
+.profile-meta{font-size:11px;color:var(--muted);margin-bottom:12px}
+.profile-actions{display:flex;gap:8px;flex-wrap:wrap}
+.profile-btn{padding:7px 14px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer}
+.profile-btn.primary{background:var(--accent);color:#fff}
+.profile-btn.secondary{background:rgba(255,255,255,.07);color:var(--white)}
+.profile-close{position:absolute;top:10px;right:12px;background:rgba(0,0,0,.4);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* Edit profile */
+.edit-profile-field{width:100%;box-sizing:border-box;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none;margin-bottom:8px}
+.edit-profile-field:focus{border-color:rgba(108,124,255,.35)}
+textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
+/* Avatar on messages */
+.msg-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:#20233a;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;overflow:hidden}
+.msg-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+/* Status dot */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+/* User list status */
+.user-status{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+/* ── AI PANEL ── */
+#aiPanel{display:none;position:absolute;bottom:100%;right:0;width:min(360px,95vw);background:#13152a;border:1px solid rgba(108,124,255,.2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:60;overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
+#aiPanel.open{display:flex}
+.ai-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
+.ai-header h4{flex:1;font-size:13px;font-weight:700;color:var(--accent)}
+.ai-tabs{display:flex;gap:4px;flex-shrink:0}
+.ai-tab{padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.05);color:var(--muted)}
+.ai-tab.active{background:var(--accent);color:#fff}
+.ai-body{flex:1;overflow-y:auto;padding:10px 12px;font-size:13px;line-height:1.6;color:var(--white)}
+.ai-body p{margin-bottom:6px}
+.ai-loading{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;padding:8px 0}
+.ai-loading span{animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.ai-footer{padding:8px 12px;border-top:1px solid rgba(255,255,255,.05);display:flex;gap:6px;flex-shrink:0}
+.ai-inp{flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:12px;outline:none}
+.ai-inp:focus{border-color:rgba(108,124,255,.3)}
+.ai-send{padding:7px 12px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer;font-weight:600}
+.smart-reply{display:inline-block;padding:5px 10px;border-radius:999px;border:1px solid rgba(108,124,255,.25);background:rgba(108,124,255,.08);color:var(--accent);font-size:12px;cursor:pointer;margin:2px;transition:background .15s}
+.smart-reply:hover{background:rgba(108,124,255,.2)}
+/* ── STICKERS ── */
+.sticker-tray{padding:0}
+.sticker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}
+.sticker-item{aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);transition:transform .15s,border-color .15s}
+.sticker-item:hover{transform:scale(1.06);border-color:var(--accent)}
+.sticker-item img{width:100%;height:100%;object-fit:contain;padding:4px}
+.sticker-name{font-size:9px;color:var(--muted);text-align:center;padding-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px 4px}
+.sticker-msg img{max-width:120px;max-height:120px;border-radius:8px;cursor:pointer}
+/* ── SETTINGS / THEME ENGINE ── */
+#settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
+#settingsModal.open{display:flex}
+.settings-wrap{background:#13152a;border:1px solid rgba(255,255,255,.07);border-radius:18px;width:min(680px,96vw);overflow:hidden;display:flex;min-height:500px}
+.settings-sidebar{width:180px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,.05);padding:12px 0;flex-shrink:0}
+.settings-nav-item{padding:9px 16px;font-size:13px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:8px;transition:background .12s}
+.settings-nav-item:hover{background:rgba(255,255,255,.04);color:var(--white)}
+.settings-nav-item.active{background:rgba(108,124,255,.12);color:var(--white);font-weight:600}
+.settings-content{flex:1;padding:20px;overflow-y:auto}
+.settings-content h3{font-size:15px;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.05)}
+.settings-row{margin-bottom:14px}
+.settings-label{font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.settings-input{width:100%;box-sizing:border-box;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
+.settings-input:focus{border-color:rgba(108,124,255,.3)}
+textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code',monospace;font-size:12px}
+.settings-save{padding:8px 20px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer}
+.settings-save:hover{opacity:.9}
+.theme-preview{width:100%;height:60px;border-radius:8px;border:1px solid rgba(255,255,255,.07);margin-bottom:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+.color-picker-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.color-swatch{width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:transform .12s}
+.color-swatch:hover{transform:scale(1.15)}
+.color-swatch.active{border-color:#fff}
+/* Bottom bar settings gear */
+#settingsGear{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0;transition:background .15s}
+#settingsGear:hover{background:rgba(255,255,255,.1)}
 /* Roles panel */
 .roles-panel{background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;width:min(420px,92vw);max-height:85vh;overflow-y:auto}
 .role-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -800,7 +882,10 @@ main{display:flex;flex:1;overflow:hidden}
         </div>
         <button class="icon-btn" id="emojiBtn">✦</button>
         <button class="icon-btn" id="attachBtn" title="Attach / Poll / Camera" style="font-size:20px;font-weight:300">+</button>
+        <button class="icon-btn" id="stickerBtn" title="Stickers" style="font-size:17px">🎭</button>
+        <button class="icon-btn" id="aiBtn" title="AI Assistant" style="font-size:15px;background:linear-gradient(135deg,rgba(108,124,255,.15),rgba(155,108,255,.15));border-color:rgba(108,124,255,.2)">✦</button>
         <input class="msg-input" id="msgInput" placeholder="Type a message…"/>
+        <div id="settingsGear" onclick="openSettings()" title="Settings">⚙️</div>
         <button class="send-btn" id="sendBtn">↑</button>
       </div>
     </section>
@@ -840,6 +925,172 @@ main{display:flex;flex:1;overflow:hidden}
   <button class="popup-btn" style="background:rgba(108,124,255,.12);color:var(--accent)" id="pupAdminPanel" style="display:none">🛡️ Admin Panel</button>
   <button class="popup-btn" onclick="closePopup()">✕ Close</button>
 </div>
+
+<!-- Profile modal -->
+<div id="profileModal">
+  <div class="profile-card" id="profileCard">
+    <div class="profile-banner" id="profileBanner"></div>
+    <button class="profile-close" onclick="closeProfileModal()">✕</button>
+    <div class="profile-avatar-wrap">
+      <div class="profile-avatar" id="profileAvatarEl"></div>
+    </div>
+    <div class="profile-body">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px">
+        <span class="profile-username" id="profileUsername"></span>
+        <span class="profile-pronouns" id="profilePronouns"></span>
+      </div>
+      <div class="profile-status" id="profileStatus"></div>
+      <div class="profile-bio" id="profileBio" style="display:none"></div>
+      <div class="profile-meta" id="profileMeta"></div>
+      <div class="profile-actions" id="profileActions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Profile modal -->
+<div id="editProfileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:800;align-items:center;justify-content:center">
+  <div style="background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:22px;width:min(400px,94vw);max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">Edit Profile</h3>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Avatar URL (or upload)</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="epAvatarUrl" class="edit-profile-field" style="margin:0;flex:1" placeholder="https://… or leave blank"/>
+      <button onclick="document.getElementById('epAvatarFile').click()" style="padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.07);border:none;color:var(--white);font-size:12px;cursor:pointer;flex-shrink:0">📎 Upload</button>
+      <input type="file" id="epAvatarFile" accept="image/*" style="display:none" onchange="uploadAvatarFile(this)"/>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Banner Color</div>
+    <input type="color" id="epBannerColor" style="width:100%;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;cursor:pointer;margin-bottom:10px"/>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Pronouns</div>
+    <input id="epPronouns" class="edit-profile-field" placeholder="they/them, he/him, she/her…" maxlength="40"/>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Status</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input id="epStatusEmoji" class="edit-profile-field" style="margin:0;width:60px" placeholder="🟢" maxlength="8"/>
+      <input id="epStatusText" class="edit-profile-field" style="margin:0;flex:1" placeholder="What are you up to?" maxlength="80"/>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Bio</div>
+    <textarea id="epBio" class="edit-profile-field" placeholder="Tell people about yourself…" maxlength="300"></textarea>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button onclick="closeEditProfile()" style="flex:1;padding:9px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--muted);border:none;cursor:pointer;font-size:13px">Cancel</button>
+      <button onclick="saveProfile()" style="flex:1;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="settingsModal">
+  <div class="settings-wrap">
+    <div class="settings-sidebar">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 16px 8px;font-weight:700">Settings</div>
+      <div class="settings-nav-item active" data-tab="profile" onclick="switchSettingsTab('profile',this)">👤 Profile</div>
+      <div class="settings-nav-item" data-tab="appearance" onclick="switchSettingsTab('appearance',this)">🎨 Appearance</div>
+      <div class="settings-nav-item" data-tab="customcss" onclick="switchSettingsTab('customcss',this)">🖌️ Custom CSS</div>
+      <div class="settings-nav-item" data-tab="injecthtml" onclick="switchSettingsTab('injecthtml',this)">⚡ Inject HTML</div>
+      <div class="settings-nav-item" data-tab="notifications" onclick="switchSettingsTab('notifications',this)">🔔 Notifications</div>
+      <div style="margin-top:auto;padding:12px 16px 4px;border-top:1px solid rgba(255,255,255,.04)">
+        <button onclick="closeSettings()" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,.05);border:none;color:var(--muted);font-size:13px;cursor:pointer">✕ Close</button>
+      </div>
+    </div>
+    <div class="settings-content">
+      <!-- Profile tab -->
+      <div id="stab-profile" class="stab-content">
+        <h3>👤 Your Profile</h3>
+        <div style="text-align:center;margin-bottom:16px">
+          <div id="settingsAvatar" style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 auto 10px;overflow:hidden;cursor:pointer" onclick="openEditProfile()"></div>
+          <button class="settings-save" onclick="openEditProfile()">Edit Profile</button>
+        </div>
+      </div>
+      <!-- Appearance tab -->
+      <div id="stab-appearance" class="stab-content" style="display:none">
+        <h3>🎨 Appearance</h3>
+        <div class="settings-row">
+          <div class="settings-label">Accent Color</div>
+          <div class="color-picker-row" id="accentPicker"></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">Background</div>
+          <div class="color-picker-row" id="bgPicker"></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">Font Size</div>
+          <input type="range" min="12" max="18" value="14" id="fontSizeSlider" style="width:100%;accent-color:var(--accent)" oninput="applyFontSize(this.value)"/>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px" id="fontSizeLabel">14px</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">Message Bubbles</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="bubbleToggle" style="accent-color:var(--accent)" onchange="applyBubbleStyle(this.checked)"/> Enable bubble style
+          </label>
+        </div>
+        <div class="settings-row" style="margin-top:16px">
+          <button class="settings-save" onclick="saveAppearance()">Save Appearance</button>
+          <button onclick="resetAppearance()" style="margin-left:8px;padding:8px 16px;border-radius:8px;background:rgba(255,50,50,.1);color:#ff7070;border:none;font-size:13px;cursor:pointer">Reset</button>
+        </div>
+      </div>
+      <!-- Custom CSS tab -->
+      <div id="stab-customcss" class="stab-content" style="display:none">
+        <h3>🖌️ Custom CSS</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Write any CSS. It's injected as a <code style="background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px">&lt;style&gt;</code> tag and saved to your account — active on any device you log in to.</div>
+        <textarea class="settings-input" id="customCssInput" placeholder="/* Example */&#10;.msg{ border-radius: 14px !important; }&#10;body { font-family: 'Comic Sans MS' !important; }"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <button class="settings-save" onclick="saveCustomCss()">Save & Apply</button>
+          <button onclick="document.getElementById('customCssInput').value='';applyCustomCss('')" style="padding:8px 14px;border-radius:8px;background:rgba(255,50,50,.1);color:#ff7070;border:none;font-size:13px;cursor:pointer">Clear</button>
+          <span style="font-size:11px;color:var(--muted)" id="cssStatus"></span>
+        </div>
+      </div>
+      <!-- Inject HTML tab -->
+      <div id="stab-injecthtml" class="stab-content" style="display:none">
+        <h3>⚡ Inject HTML</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Inject arbitrary HTML into the page. Scripts are executed. Use this to add widgets, override UI, or run custom JS. <span style="color:#ff9900">⚠️ Only inject code you trust.</span></div>
+        <textarea class="settings-input" id="injectHtmlInput" placeholder="&lt;!-- Example --&gt;&#10;&lt;div id=&quot;my-widget&quot; style=&quot;position:fixed;bottom:80px;right:20px&quot;&gt;Hello!&lt;/div&gt;&#10;&lt;script&gt;console.log('injected!');&lt;/script&gt;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <button class="settings-save" onclick="saveInjectHtml()">Save & Inject</button>
+          <button onclick="document.getElementById('injectHtmlInput').value='';applyInjectHtml('')" style="padding:8px 14px;border-radius:8px;background:rgba(255,50,50,.1);color:#ff7070;border:none;font-size:13px;cursor:pointer">Clear</button>
+          <span style="font-size:11px;color:var(--muted)" id="htmlStatus"></span>
+        </div>
+      </div>
+      <!-- Notifications tab -->
+      <div id="stab-notifications" class="stab-content" style="display:none">
+        <h3>🔔 Notifications</h3>
+        <div class="settings-row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="notifPush" style="accent-color:var(--accent)" onchange="this.checked?subscribePush(true):unsubscribePush()"/> Push notifications
+          </label>
+        </div>
+        <div class="settings-row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="notifSound" style="accent-color:var(--accent)" onchange="localStorage.setItem('vt_notifSound',this.checked)"/> Sound on message
+          </label>
+        </div>
+        <div class="settings-row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="notifMentionOnly" style="accent-color:var(--accent)" onchange="localStorage.setItem('vt_mentionOnly',this.checked)"/> Notify mentions only
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Panel (anchored in compose area) -->
+<template id="aiPanelTpl">
+  <div id="aiPanel">
+    <div class="ai-header">
+      <span style="font-size:16px">✦</span>
+      <h4>Vyntra AI</h4>
+      <div class="ai-tabs">
+        <button class="ai-tab active" onclick="switchAiTab('chat',this)">Chat</button>
+        <button class="ai-tab" onclick="switchAiTab('summarize',this)">Summarize</button>
+        <button class="ai-tab" onclick="switchAiTab('replies',this)">Smart Reply</button>
+        <button class="ai-tab" onclick="switchAiTab('translate',this)">Translate</button>
+      </div>
+      <button onclick="closeAiPanel()" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;margin-left:6px">✕</button>
+    </div>
+    <div class="ai-body" id="aiBody"><div style="color:var(--muted);font-size:13px;padding:4px 0">Ask me anything about this conversation, or use the tabs above.</div></div>
+    <div class="ai-footer">
+      <input class="ai-inp" id="aiInput" placeholder="Ask AI…" onkeypress="if(event.key==='Enter')sendAiMsg()"/>
+      <button class="ai-send" onclick="sendAiMsg()">↑</button>
+    </div>
+  </div>
+</template>
 
 <!-- Report modal -->
 <div id="reportModal">
@@ -1327,6 +1578,8 @@ function launchApp(token,username,friends){
   connectWS(token);
   if(!listenersReady) initListeners();
   initNotifications();
+  loadSavedAppearance();
+  initAppearancePicker();
   if(!isMobile) document.getElementById('ctrlScreen').style.display='flex';
   // Build color swatches
   var cc=document.getElementById('csmColors');
@@ -1376,7 +1629,11 @@ function handleMsg(raw){
       myFriends=d.friends||[];
       blockedUsers=d.blockedUsers||[];
       pendingFriends=d.pendingFriends||[];
+      myProfile=d.profile||{};
+      _profiles[myName]=Object.assign({username:myName},myProfile);
       if(pendingFriends.length) showPendingFriendsBadge();
+      // Load customization from server after login
+      loadCustomization();
       myServers=d.servers||[];
       onlineUsers=d.onlineUsers||[];
       renderOnlineUsers();
@@ -1413,6 +1670,9 @@ function handleMsg(raw){
     case 'roles_updated':   applyRolesUpdate(d);break;
     case 'member_roles_updated': applyMemberRolesUpdate(d);break;
     case 'channels_updated': applyChannelsUpdated(d);break;
+    case 'status_update':   applyStatusUpdate(d);break;
+    case 'sticker_added':   if(_stickers[d.serverId]){_stickers[d.serverId].push(d.sticker);}break;
+    case 'sticker_removed': if(_stickers[d.serverId]){_stickers[d.serverId]=_stickers[d.serverId].filter(function(s){return s._id!==d.stickerId;});}break;
     case 'call_chat':       recvCallChat(d);break;
     case 'call_room_members': recvCallMembers(d);break;
     case 'call_poll_new':   recvCallPoll(d);break;
@@ -1459,7 +1719,9 @@ function initListeners(){
     _typingDebounce=setTimeout(function(){wsSend({type:'typing_stop'});},2000);
   });
   document.getElementById('attachBtn').onclick=function(){toggleAttachTray();};
-  document.getElementById('fileInput').onchange=function(){if(this.files[0])handleFileAttach(this.files[0]);this.value='';};
+  document.getElementById('stickerBtn').onclick=function(){openStickerPicker();};
+  document.getElementById('aiBtn').onclick=function(){openAiPanel();};
+  document.getElementById('fileInput').onchange=function(){if(this.files[0])handleFileAttach(this.files[0]);this.value=''};
   // Paste image
   document.getElementById('msgInput').addEventListener('paste',function(e){
     var items=e.clipboardData&&e.clipboardData.items;
@@ -2027,6 +2289,11 @@ function renderMsg(msg){
     setReply(m.id, m.user, m.text||(m.fileName||''));
   };})(msg);
   acts.appendChild(replyBtn);
+  if(msg.text){
+    var xlBtn=document.createElement('button');xlBtn.title='Translate';xlBtn.textContent='🌐';
+    xlBtn.onclick=(function(m){return function(e){e.stopPropagation();translateMessage(m.text);};})(msg);
+    acts.appendChild(xlBtn);
+  }
   if(msg.user===myName){
     var editBtn=document.createElement('button');editBtn.title='Edit';editBtn.textContent='✏️';
     editBtn.onclick=(function(m){return function(e){e.stopPropagation();startEdit(m.id,m.text||'');};})(msg);
@@ -2067,10 +2334,14 @@ function renderMsg(msg){
   }
   // Text
   if(msg.text){var tx=document.createElement('div');tx.className='text';tx.textContent=msg.text;w.appendChild(tx);}
-  // File/image attachment
+  // File/image/sticker attachment
   if(msg.fileUrl){
     var ft=msg.fileType||'';
-    if(ft.startsWith('image/')){
+    if(ft==='sticker/vyntra'){
+      var sm=document.createElement('div');sm.className='sticker-msg';
+      var simg=document.createElement('img');simg.src=msg.fileUrl;simg.alt=msg.fileName||'sticker';simg.loading='lazy';
+      sm.appendChild(simg);w.appendChild(sm);
+    } else if(ft.startsWith('image/')){
       var img=document.createElement('img');
       img.src=msg.fileUrl;img.style.cssText='max-width:min(320px,80vw);max-height:280px;border-radius:10px;display:block;margin-top:6px;cursor:pointer;object-fit:contain;background:#0b0d16';
       img.onclick=function(){window.open(msg.fileUrl,'_blank');};
@@ -4031,6 +4302,439 @@ function openMoveCategoryMenu(ch, serverId, cats){
   box.appendChild(cancelBtn);
   overlay.appendChild(box);overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
   document.body.appendChild(overlay);
+}
+
+/* ══════════════════════════════════════════════
+   USER PROFILES
+══════════════════════════════════════════════ */
+var _profiles={};  // username → profile cache
+var myProfile={};  // own profile
+
+async function fetchProfile(username){
+  if(_profiles[username]) return _profiles[username];
+  try{
+    var r=await fetch('/profile/'+username);
+    if(r.ok){var d=await r.json();_profiles[username]=d;return d;}
+  }catch(e){}
+  return null;
+}
+
+async function openProfileModal(username){
+  var p=await fetchProfile(username);
+  if(!p) p={username,bio:'',pronouns:'',statusEmoji:'',statusText:'',bannerColor:'#6c7cff',avatarUrl:'',createdAt:null};
+  var modal=document.getElementById('profileModal');
+  document.getElementById('profileBanner').style.background=p.bannerColor||'#6c7cff';
+  // Avatar
+  var av=document.getElementById('profileAvatarEl');
+  if(p.avatarUrl){av.innerHTML='<img src="'+p.avatarUrl+'" alt="'+escHtml(username)+'">';} 
+  else{av.textContent=username[0].toUpperCase();av.style.background=p.bannerColor||'#6c7cff';}
+  document.getElementById('profileUsername').textContent=username;
+  document.getElementById('profilePronouns').textContent=p.pronouns?'('+p.pronouns+')':'';
+  // Status
+  var st=document.getElementById('profileStatus');
+  st.innerHTML=(p.statusEmoji?'<span>'+escHtml(p.statusEmoji)+'</span> ':'')+(p.statusText?escHtml(p.statusText):'<span style="color:var(--muted)">No status set</span>');
+  // Bio
+  var bio=document.getElementById('profileBio');
+  if(p.bio){bio.textContent=p.bio;bio.style.display='block';}else{bio.style.display='none';}
+  // Meta
+  var joined=p.createdAt?new Date(p.createdAt).toLocaleDateString('en-US',{month:'long',year:'numeric'}):'';
+  var mutualFriends=myFriends.filter(function(f){return (p.friends||[]).includes(f);});
+  document.getElementById('profileMeta').innerHTML=
+    (joined?'📅 Joined '+joined:'')+(mutualFriends.length?' &nbsp;·&nbsp; 👥 '+mutualFriends.length+' mutual':'');
+  // Actions
+  var actions=document.getElementById('profileActions');
+  actions.innerHTML='';
+  if(username!==myName){
+    var dmBtn=document.createElement('button');dmBtn.className='profile-btn primary';dmBtn.textContent='💬 Message';
+    dmBtn.onclick=function(){closeProfileModal();openDM(username);};
+    actions.appendChild(dmBtn);
+    var isFriend=myFriends.includes(username);
+    var frBtn=document.createElement('button');frBtn.className='profile-btn secondary';
+    frBtn.textContent=isFriend?'✓ Friends':'+ Add Friend';
+    if(!isFriend) frBtn.onclick=function(){wsSend({type:'friend_request',to:username});frBtn.textContent='Request sent';frBtn.disabled=true;};
+    actions.appendChild(frBtn);
+  } else {
+    var editBtn=document.createElement('button');editBtn.className='profile-btn primary';editBtn.textContent='✏️ Edit Profile';
+    editBtn.onclick=function(){closeProfileModal();openEditProfile();};
+    actions.appendChild(editBtn);
+  }
+  modal.classList.add('open');
+  modal.onclick=function(e){if(e.target===modal)closeProfileModal();};
+}
+function closeProfileModal(){document.getElementById('profileModal').classList.remove('open');}
+
+function openEditProfile(){
+  var u=myProfile;
+  document.getElementById('epAvatarUrl').value=u.avatarUrl||'';
+  document.getElementById('epBannerColor').value=u.bannerColor||'#6c7cff';
+  document.getElementById('epPronouns').value=u.pronouns||'';
+  document.getElementById('epStatusEmoji').value=u.statusEmoji||'';
+  document.getElementById('epStatusText').value=u.statusText||'';
+  document.getElementById('epBio').value=u.bio||'';
+  document.getElementById('editProfileModal').style.display='flex';
+}
+function closeEditProfile(){document.getElementById('editProfileModal').style.display='none';}
+async function uploadAvatarFile(input){
+  var file=input.files[0];if(!file)return;
+  var fd=new FormData();fd.append('file',file);
+  var r=await fetch('/upload',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')},body:fd});
+  var d=await r.json();
+  if(d.url) document.getElementById('epAvatarUrl').value=d.url;
+}
+async function saveProfile(){
+  var body={
+    avatarUrl:   document.getElementById('epAvatarUrl').value.trim(),
+    bannerColor: document.getElementById('epBannerColor').value,
+    pronouns:    document.getElementById('epPronouns').value.trim(),
+    statusEmoji: document.getElementById('epStatusEmoji').value.trim(),
+    statusText:  document.getElementById('epStatusText').value.trim(),
+    bio:         document.getElementById('epBio').value.trim(),
+  };
+  try{
+    var r=await fetch('/profile',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify(body)});
+    var d=await r.json();
+    if(d.ok){
+      myProfile=Object.assign(myProfile,body);
+      _profiles[myName]=Object.assign(_profiles[myName]||{},body);
+      updateSettingsAvatarDisplay();
+      toast('✅ Profile saved');closeEditProfile();
+    } else { toast('❌ '+(d.error||'Failed')); }
+  }catch(e){toast('❌ Network error');}
+}
+function updateSettingsAvatarDisplay(){
+  var el=document.getElementById('settingsAvatar');if(!el)return;
+  if(myProfile.avatarUrl){el.innerHTML='<img src="'+myProfile.avatarUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';}
+  else{el.textContent=myName?myName[0].toUpperCase():'?';}
+}
+function getAvatarHtml(username, size){
+  size=size||32;
+  var p=_profiles[username];
+  var initial=(username||'?')[0].toUpperCase();
+  var color=(p&&p.bannerColor)||'#6c7cff';
+  if(p&&p.avatarUrl){
+    return '<div class="msg-avatar" style="width:'+size+'px;height:'+size+'px" onclick="openProfileModal(\''+escHtml(username)+'\')"><img src="'+p.avatarUrl+'" alt="'+escHtml(username)+'"></div>';
+  }
+  return '<div class="msg-avatar" style="width:'+size+'px;height:'+size+'px;background:'+color+'" onclick="openProfileModal(\''+escHtml(username)+'\')">'+initial+'</div>';
+}
+// Handle status_update from server
+function applyStatusUpdate(d){
+  if(!_profiles[d.username]) _profiles[d.username]={};
+  Object.assign(_profiles[d.username],{statusEmoji:d.statusEmoji,statusText:d.statusText,avatarUrl:d.avatarUrl});
+}
+
+/* ══════════════════════════════════════════════
+   SETTINGS / THEME ENGINE
+══════════════════════════════════════════════ */
+var _customCssEl=null, _injectHtmlEl=null;
+
+function openSettings(){
+  document.getElementById('settingsModal').classList.add('open');
+  updateSettingsAvatarDisplay();
+  // Load notification prefs
+  document.getElementById('notifSound').checked=localStorage.getItem('vt_notifSound')!=='false';
+  document.getElementById('notifMentionOnly').checked=localStorage.getItem('vt_mentionOnly')==='true';
+  // Load customization from server
+  loadCustomization();
+}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
+function switchSettingsTab(tab,btn){
+  document.querySelectorAll('.stab-content').forEach(function(el){el.style.display='none';});
+  document.querySelectorAll('.settings-nav-item').forEach(function(el){el.classList.remove('active');});
+  document.getElementById('stab-'+tab).style.display='block';
+  btn.classList.add('active');
+}
+async function loadCustomization(){
+  try{
+    var r=await fetch('/profile/customization/me',{headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();
+    document.getElementById('customCssInput').value=d.customCss||'';
+    document.getElementById('injectHtmlInput').value=d.injectHtml||'';
+    // Re-apply in case we just logged in
+    if(d.customCss) applyCustomCss(d.customCss);
+    if(d.injectHtml) applyInjectHtml(d.injectHtml);
+  }catch(e){}
+}
+function applyCustomCss(css){
+  if(!_customCssEl){_customCssEl=document.createElement('style');_customCssEl.id='_userCss';document.head.appendChild(_customCssEl);}
+  _customCssEl.textContent=css;
+}
+function applyInjectHtml(html){
+  var old=document.getElementById('_userInject');if(old)old.remove();
+  if(!html) return;
+  var wrap=document.createElement('div');wrap.id='_userInject';
+  wrap.innerHTML=html;
+  // Execute any scripts
+  Array.from(wrap.querySelectorAll('script')).forEach(function(s){
+    var ns=document.createElement('script');ns.textContent=s.textContent;
+    Array.from(s.attributes).forEach(function(a){ns.setAttribute(a.name,a.value);});
+    s.parentNode.replaceChild(ns,s);
+  });
+  document.body.appendChild(wrap);
+}
+async function saveCustomCss(){
+  var css=document.getElementById('customCssInput').value;
+  applyCustomCss(css);
+  try{
+    await fetch('/profile/customization',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({customCss:css})});
+    document.getElementById('cssStatus').textContent='✓ Saved';
+    setTimeout(function(){document.getElementById('cssStatus').textContent='';},2000);
+  }catch(e){document.getElementById('cssStatus').textContent='❌ Error';}
+}
+async function saveInjectHtml(){
+  var html=document.getElementById('injectHtmlInput').value;
+  applyInjectHtml(html);
+  try{
+    await fetch('/profile/customization',{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({injectHtml:html})});
+    document.getElementById('htmlStatus').textContent='✓ Saved';
+    setTimeout(function(){document.getElementById('htmlStatus').textContent='';},2000);
+  }catch(e){document.getElementById('htmlStatus').textContent='❌ Error';}
+}
+// Appearance
+var ACCENT_PRESETS=['#6c7cff','#9b6cff','#ff6cb4','#ff4f4f','#ff8c5a','#39d353','#28c8d4','#f5c842'];
+var BG_PRESETS=['#0f1220','#0a0a0a','#0d1117','#120f20','#0f120a','#1a0f0f','#fff','#f4f1eb'];
+function initAppearancePicker(){
+  function makePicker(containerId,presets,cssVar){
+    var el=document.getElementById(containerId);if(!el)return;
+    presets.forEach(function(c){
+      var s=document.createElement('div');s.className='color-swatch';s.style.background=c;
+      var cur=getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+      if(cur===c) s.classList.add('active');
+      s.onclick=function(){
+        document.documentElement.style.setProperty(cssVar,c);
+        el.querySelectorAll('.color-swatch').forEach(function(x){x.classList.remove('active');});
+        s.classList.add('active');
+        localStorage.setItem('vt_'+cssVar,c);
+      };
+      el.appendChild(s);
+    });
+    // Custom color input
+    var inp=document.createElement('input');inp.type='color';inp.style.cssText='width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;cursor:pointer;padding:1px';
+    inp.oninput=function(){document.documentElement.style.setProperty(cssVar,inp.value);localStorage.setItem('vt_'+cssVar,inp.value);};
+    el.appendChild(inp);
+  }
+  makePicker('accentPicker',ACCENT_PRESETS,'--accent');
+  makePicker('bgPicker',BG_PRESETS,'--bg');
+  // Font size
+  var stored=localStorage.getItem('vt_fontSize');
+  if(stored){document.getElementById('fontSizeSlider').value=stored;applyFontSize(stored);}
+  var bubbles=localStorage.getItem('vt_bubbles')==='true';
+  document.getElementById('bubbleToggle').checked=bubbles;
+  if(bubbles) applyBubbleStyle(true);
+}
+function applyFontSize(v){
+  document.documentElement.style.setProperty('--msg-font',v+'px');
+  document.querySelectorAll('.msg .text,.msg-input').forEach(function(el){el.style.fontSize=v+'px';});
+  document.getElementById('fontSizeLabel').textContent=v+'px';
+  localStorage.setItem('vt_fontSize',v);
+}
+function applyBubbleStyle(on){
+  var s=document.getElementById('_bubbleCss');
+  if(!s&&on){s=document.createElement('style');s.id='_bubbleCss';document.head.appendChild(s);}
+  if(s) s.textContent=on?'.msg .text{background:var(--bubble);padding:7px 11px;border-radius:14px;display:inline-block;max-width:80%}':'';
+  localStorage.setItem('vt_bubbles',on);
+}
+function saveAppearance(){toast('✅ Appearance saved');}
+function resetAppearance(){
+  ['--accent','--bg'].forEach(function(v){localStorage.removeItem('vt_'+v);document.documentElement.style.removeProperty(v);});
+  localStorage.removeItem('vt_fontSize');localStorage.removeItem('vt_bubbles');
+  applyBubbleStyle(false);document.getElementById('fontSizeSlider').value=14;applyFontSize(14);
+  document.getElementById('bubbleToggle').checked=false;
+  document.getElementById('accentPicker').innerHTML='';document.getElementById('bgPicker').innerHTML='';
+  initAppearancePicker();toast('✅ Reset to defaults');
+}
+function loadSavedAppearance(){
+  ['--accent','--bg'].forEach(function(v){var s=localStorage.getItem('vt_'+v);if(s)document.documentElement.style.setProperty(v,s);});
+  var fs=localStorage.getItem('vt_fontSize');if(fs) applyFontSize(fs);
+  if(localStorage.getItem('vt_bubbles')==='true') applyBubbleStyle(true);
+}
+
+/* ══════════════════════════════════════════════
+   STICKERS
+══════════════════════════════════════════════ */
+var _stickers={};  // serverId → [{_id,name,url}]
+
+async function loadStickers(serverId){
+  if(_stickers[serverId]) return _stickers[serverId];
+  try{
+    var r=await fetch('/servers/'+serverId+'/stickers',{headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();_stickers[serverId]=d;return d;
+  }catch(e){return [];}
+}
+
+async function openStickerPicker(){
+  var serverId=activeServerId;
+  if(!serverId||serverId==='__dm__'){toast('Join a server to use stickers');return;}
+  var existing=document.getElementById('stickerPickerPanel');
+  if(existing){existing.remove();return;}
+  var stickers=await loadStickers(serverId);
+  var panel=document.createElement('div');
+  panel.id='stickerPickerPanel';
+  panel.style.cssText='position:absolute;bottom:calc(100% + 8px);right:0;width:min(320px,95vw);background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:14px;z-index:60;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  var srv=myServers.find(function(s){return s._id===serverId;});
+  var isOwner=srv&&srv.owner===myName;
+  var header='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)">'
+    +'<span style="font-size:13px;font-weight:700">🎭 Stickers</span>'
+    +(isOwner?'<button onclick="openUploadSticker(\''+serverId+'\')" style="font-size:11px;padding:4px 10px;border-radius:6px;background:var(--accent);color:#fff;border:none;cursor:pointer">+ Upload</button>':'')
+    +'<button onclick="document.getElementById(\'stickerPickerPanel\').remove()" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;margin-left:6px">✕</button>'
+    +'</div>';
+  var grid='<div class="sticker-grid">';
+  if(!stickers.length){grid+='<div style="grid-column:span 4;text-align:center;color:var(--muted);font-size:12px;padding:12px">'+(isOwner?'No stickers yet — upload some!':'No stickers on this server')+'</div>';}
+  stickers.forEach(function(st){
+    grid+='<div class="sticker-item" onclick="sendSticker(\''+escHtml(st.url)+'\',\''+escHtml(st.name)+'\')" title="'+escHtml(st.name)+'">'
+      +'<img src="'+escHtml(st.url)+'" alt="'+escHtml(st.name)+'" loading="lazy">'
+      +'<div class="sticker-name">'+escHtml(st.name)+'</div>'
+      +(isOwner?'<div onclick="event.stopPropagation();deleteSticker(\''+serverId+'\',\''+st._id+'\')" style="position:absolute;top:2px;right:2px;background:rgba(255,50,50,.7);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:#fff">✕</div>':'');
+    grid+='</div>';
+  });
+  grid+='</div>';
+  panel.innerHTML=header+grid;
+  panel.querySelectorAll('.sticker-item').forEach(function(el){el.style.position='relative';});
+  document.getElementById('composeBar').appendChild(panel);
+  document.addEventListener('click',function handler(e){
+    if(!panel.contains(e.target)&&e.target!==document.getElementById('stickerBtn')){panel.remove();document.removeEventListener('click',handler);}
+  });
+}
+function sendSticker(url, name){
+  var panel=document.getElementById('stickerPickerPanel');if(panel)panel.remove();
+  wsSend({type:'message',text:'',fileUrl:url,fileName:name,fileType:'sticker/vyntra'});
+}
+async function deleteSticker(serverId, stickerId){
+  if(!confirm('Delete this sticker?')) return;
+  await fetch('/servers/'+serverId+'/stickers/'+stickerId,{method:'DELETE',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  delete _stickers[serverId];
+  toast('Sticker deleted');
+}
+function openUploadSticker(serverId){
+  var panel=document.getElementById('stickerPickerPanel');if(panel)panel.remove();
+  var name=prompt('Sticker name (short, no spaces):');
+  if(!name)return;
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=async function(){
+    var file=inp.files[0];if(!file)return;
+    var fd=new FormData();fd.append('file',file);fd.append('name',name);
+    toast('Uploading sticker…');
+    var r=await fetch('/servers/'+serverId+'/stickers',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')},body:fd});
+    var d=await r.json();
+    if(d._id){_stickers[serverId]=null;toast('🎭 Sticker uploaded!');}
+    else{toast('❌ '+(d.error||'Failed'));}
+  };
+  inp.click();
+}
+
+/* ══════════════════════════════════════════════
+   AI ASSISTANT
+══════════════════════════════════════════════ */
+var _aiOpen=false, _aiTab='chat', _aiHistory=[];
+
+function openAiPanel(){
+  var compose=document.getElementById('composeBar');
+  if(_aiOpen){closeAiPanel();return;}
+  var tpl=document.getElementById('aiPanelTpl');
+  var node=tpl.content.cloneNode(true);
+  compose.appendChild(node);
+  _aiOpen=true;
+  document.getElementById('aiInput').focus();
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener('click',function h(e){
+      var panel=document.getElementById('aiPanel');
+      if(panel&&!panel.contains(e.target)&&e.target!==document.getElementById('aiBtn')){closeAiPanel();document.removeEventListener('click',h);}
+    });
+  },50);
+}
+function closeAiPanel(){
+  var p=document.getElementById('aiPanel');if(p)p.remove();
+  _aiOpen=false;_aiHistory=[];
+}
+function switchAiTab(tab,btn){
+  _aiTab=tab;_aiHistory=[];
+  document.querySelectorAll('.ai-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  var body=document.getElementById('aiBody');
+  if(tab==='summarize'){body.innerHTML='<div class="ai-loading"><span>●</span><span style="animation-delay:.2s">●</span><span style="animation-delay:.4s">●</span> Summarizing channel…</div>';aiSummarize();}
+  else if(tab==='replies'){body.innerHTML='<div class="ai-loading"><span>●</span><span style="animation-delay:.2s">●</span><span style="animation-delay:.4s">●</span> Generating replies…</div>';aiSmartReplies();}
+  else if(tab==='translate'){body.innerHTML='<div style="color:var(--muted);font-size:13px">Select a message to translate by clicking a message\'s timestamp, or type something below.</div>';}
+  else{body.innerHTML='<div style="color:var(--muted);font-size:13px">Ask me anything about this conversation, summarize, or get smart replies.</div>';}
+}
+function getRecentMessages(n){
+  var cache=msgCache[currentChannelId||currentRoom]||[];
+  return cache.slice(-n).filter(function(m){return m.text;}).map(function(m){return m.user+': '+m.text;}).join('\n');
+}
+async function aiCall(messages){
+  var r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1000,
+      system:'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.',
+      messages:messages
+    })
+  });
+  var d=await r.json();
+  return (d.content&&d.content[0])?d.content[0].text:'(no response)';
+}
+async function aiSummarize(){
+  var msgs=getRecentMessages(50);
+  if(!msgs){document.getElementById('aiBody').innerHTML='<div style="color:var(--muted);font-size:13px">No messages to summarize yet.</div>';return;}
+  try{
+    var result=await aiCall([{role:'user',content:'Summarize this conversation in 3-5 bullet points, highlighting key topics and decisions:\n\n'+msgs}]);
+    document.getElementById('aiBody').innerHTML='<div style="line-height:1.7">'+result.replace(/\n/g,'<br>')+'</div>';
+  }catch(e){document.getElementById('aiBody').innerHTML='<div style="color:var(--red)">❌ AI error. Check your connection.</div>';}
+}
+async function aiSmartReplies(){
+  var msgs=getRecentMessages(10);
+  if(!msgs){document.getElementById('aiBody').innerHTML='<div style="color:var(--muted);font-size:13px">No messages yet.</div>';return;}
+  try{
+    var result=await aiCall([{role:'user',content:'Given this chat, suggest 5 short, natural reply options (vary tone from casual to helpful). Return ONLY a JSON array of strings, no explanation:\n\n'+msgs}]);
+    var clean=result.replace(/```json|```/g,'').trim();
+    var replies=JSON.parse(clean);
+    var html='<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Tap to use:</div>';
+    replies.forEach(function(r){html+='<span class="smart-reply" onclick="useSmartReply(\''+escHtml(r)+'\')">'+escHtml(r)+'</span>';});
+    document.getElementById('aiBody').innerHTML=html;
+  }catch(e){document.getElementById('aiBody').innerHTML='<div style="color:var(--red)">❌ Could not generate replies.</div>';}
+}
+function useSmartReply(text){
+  document.getElementById('msgInput').value=text;
+  document.getElementById('msgInput').focus();
+  closeAiPanel();
+}
+async function sendAiMsg(){
+  var inp=document.getElementById('aiInput');
+  var text=inp.value.trim();if(!text)return;
+  inp.value='';
+  var body=document.getElementById('aiBody');
+  // Add user message
+  body.innerHTML+='<div style="background:rgba(108,124,255,.1);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:13px"><b style="color:var(--accent)">You:</b> '+escHtml(text)+'</div>';
+  body.innerHTML+='<div id="ai-thinking" class="ai-loading"><span>●</span><span style="animation-delay:.2s">●</span><span style="animation-delay:.4s">●</span></div>';
+  body.scrollTop=body.scrollHeight;
+  _aiHistory.push({role:'user',content:text});
+  // Include recent chat context on first message
+  if(_aiHistory.length===1){
+    var ctx=getRecentMessages(20);
+    if(ctx) _aiHistory[0].content='[Recent chat context]\n'+ctx+'\n\n[User question]\n'+text;
+  }
+  try{
+    var result=await aiCall(_aiHistory);
+    _aiHistory.push({role:'assistant',content:result});
+    var thinking=document.getElementById('ai-thinking');if(thinking)thinking.remove();
+    body.innerHTML+='<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:6px 10px;margin-bottom:6px;font-size:13px;line-height:1.6"><b style="color:var(--accent)">✦ AI:</b> '+result.replace(/\n/g,'<br>')+'</div>';
+  }catch(e){
+    var thinking2=document.getElementById('ai-thinking');if(thinking2)thinking2.remove();
+    body.innerHTML+='<div style="color:var(--red);font-size:13px">❌ AI error</div>';
+  }
+  body.scrollTop=body.scrollHeight;
+}
+// Translate individual message — called from message context menu
+async function translateMessage(text){
+  openAiPanel();
+  _aiTab='translate';
+  var body=document.getElementById('aiBody');
+  body.innerHTML='<div class="ai-loading"><span>●</span><span style="animation-delay:.2s">●</span><span style="animation-delay:.4s">●</span> Translating…</div>';
+  try{
+    var result=await aiCall([{role:'user',content:'Detect the language of the following message, then translate it to English (or if it\'s already English, translate to Spanish). Format: "🌐 [Detected: X] → [Translation]"\n\nMessage: '+text}]);
+    body.innerHTML='<div style="font-size:13px;line-height:1.7">'+result+'</div>';
+  }catch(e){body.innerHTML='<div style="color:var(--red)">❌ Translation failed.</div>';}
 }
 
 function sbLoadCustom(){
