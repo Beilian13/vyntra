@@ -2216,10 +2216,22 @@ function toggleMuteUser(user){
   toast(i>=0?'🔊 Unmuted '+user:'🔇 Muted '+user);
 }
 function showFR(from){
+  if(!pendingFriends.includes(from)) pendingFriends.push(from);
+  showPendingFriendsBadge();
   document.getElementById('frSub').textContent=from+' wants to be your friend!';
   document.getElementById('frToast').style.display='block';
-  document.getElementById('frAccept').onclick=function(){wsSend({type:'friend_accept',from:from});document.getElementById('frToast').style.display='none';};
-  document.getElementById('frDecline').onclick=function(){wsSend({type:'friend_decline',from:from});document.getElementById('frToast').style.display='none';};
+  document.getElementById('frAccept').onclick=function(){
+    wsSend({type:'friend_accept',from:from});
+    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
+    showPendingFriendsBadge();
+    document.getElementById('frToast').style.display='none';
+  };
+  document.getElementById('frDecline').onclick=function(){
+    wsSend({type:'friend_decline',from:from});
+    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
+    showPendingFriendsBadge();
+    document.getElementById('frToast').style.display='none';
+  };
 }
 function toast(msg){
   var t=document.createElement('div');
@@ -3057,10 +3069,12 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     if(tile){var m=tile.querySelector('.tile-muted');if(m)m.textContent='';}
   });
   room.on(LivekitClient.RoomEvent.Disconnected,function(reason){
-    if(reason!==LivekitClient.DisconnectReason.CLIENT_INITIATED) toast('⚠️ Call disconnected — reconnecting…');
+    var msg='Call disconnected';
+    if(reason===LivekitClient.DisconnectReason.CLIENT_INITIATED) return cleanupCall();
+    toast('⚠️ '+msg+' (reason: '+(reason||'unknown')+') — check LiveKit API keys in Render');
     cleanupCall();
   });
-  room.on(LivekitClient.RoomEvent.Reconnecting,function(){toast('🔄 Reconnecting…');});
+  room.on(LivekitClient.RoomEvent.Reconnecting,function(){toast('🔄 Reconnecting call…');});
   room.on(LivekitClient.RoomEvent.Reconnected,function(){toast('✅ Reconnected!');});
   room.on(LivekitClient.RoomEvent.LocalTrackPublished,function(){renderVideoGrid();});
   room.on(LivekitClient.RoomEvent.LocalTrackUnpublished,function(){renderVideoGrid();});
@@ -4248,26 +4262,6 @@ function showPendingFriendsBadge(){
   }
 }
 // Also show badge on frToast accept
-var _origShowFR=window.showFR;
-function showFR(from){
-  if(!pendingFriends.includes(from)) pendingFriends.push(from);
-  showPendingFriendsBadge();
-  document.getElementById('frToast').style.display='block';
-  document.getElementById('frToast').querySelector('b').textContent=from;
-  document.getElementById('frAccept').onclick=function(){
-    wsSend({type:'friend_accept',from:from});
-    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
-    showPendingFriendsBadge();
-    document.getElementById('frToast').style.display='none';
-  };
-  document.getElementById('frDecline').onclick=function(){
-    wsSend({type:'friend_decline',from:from});
-    pendingFriends=pendingFriends.filter(function(u){return u!==from;});
-    showPendingFriendsBadge();
-    document.getElementById('frToast').style.display='none';
-  };
-}
-
 /* ══════════════════════════════════════════════
    SERVER ROLES
 ══════════════════════════════════════════════ */
@@ -5126,7 +5120,7 @@ async function aiSummarize(){
   try{
     var result=await aiCall([{role:'user',content:'Summarize this conversation in 3-5 bullet points, highlighting key topics and decisions:\n\n'+msgs}]);
     document.getElementById('aiBody').innerHTML='<div style="line-height:1.7">'+result.replace(/\n/g,'<br>')+'</div>';
-  }catch(e){document.getElementById('aiBody').innerHTML='<div style="color:var(--red)">❌ AI error. Check your connection.</div>';}
+  }catch(e){document.getElementById('aiBody').innerHTML='<div style="color:var(--red)">❌ '+escHtml(e.message||'AI error')+'</div>';}
 }
 async function aiSmartReplies(){
   var msgs=getRecentMessages(10);
@@ -5176,11 +5170,12 @@ async function translateMessage(text){
   openAiPanel();
   _aiTab='translate';
   var body=document.getElementById('aiBody');
+  if(!body) return;
   body.innerHTML='<div class="ai-loading"><span>●</span><span style="animation-delay:.2s">●</span><span style="animation-delay:.4s">●</span> Translating…</div>';
   try{
     var result=await aiCall([{role:'user',content:'Detect the language of the following message, then translate it to English (or if it\'s already English, translate to Spanish). Format: "🌐 [Detected: X] → [Translation]"\n\nMessage: '+text}]);
     body.innerHTML='<div style="font-size:13px;line-height:1.7">'+result+'</div>';
-  }catch(e){body.innerHTML='<div style="color:var(--red)">❌ Translation failed.</div>';}
+  }catch(e){body.innerHTML='<div style="color:var(--red)">❌ '+escHtml(e.message||'Translation failed.')+'</div>';}
 }
 
 function sbLoadCustom(){
