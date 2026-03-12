@@ -5276,77 +5276,137 @@ function closePdfViewer(){
   _pdf=null; _pdfTextCache={};
 }
 
-// Extract text from all pages (cached)
+// Extract text from pages with better spacing (cached)
 async function _pdfExtractText(maxPages){
   if(!_pdf) return '';
-  maxPages=maxPages||_pdf.numPages;
-  var pages=[];
-  for(var i=1;i<=Math.min(maxPages,_pdf.numPages);i++){
-    if(_pdfTextCache[i]){pages.push('--- Page '+i+' ---\n'+_pdfTextCache[i]);continue;}
+  maxPages = Math.min(maxPages || _pdf.numPages, _pdf.numPages);
+  var pages = [];
+  for(var i=1; i<=maxPages; i++){
+    if(_pdfTextCache[i] !== undefined){
+      if(_pdfTextCache[i]) pages.push('--- Page '+i+' ---\n'+_pdfTextCache[i]);
+      continue;
+    }
     try{
-      var page=await _pdf.getPage(i);
-      var content=await page.getTextContent();
-      var text=content.items.map(function(it){return it.str;}).join(' ');
-      _pdfTextCache[i]=text;
-      pages.push('--- Page '+i+' ---\n'+text);
-    }catch(e){}
+      var page = await _pdf.getPage(i);
+      var content = await page.getTextContent();
+      // Preserve line breaks using transform Y position
+      var lines = [], lastY = null;
+      content.items.forEach(function(item){
+        if(!item.str) return;
+        var y = item.transform ? item.transform[5] : null;
+        if(lastY !== null && Math.abs(y - lastY) > 5) lines.push('\n');
+        lines.push(item.str);
+        lastY = y;
+      });
+      var text = lines.join(' ').replace(/ +/g,' ').trim();
+      _pdfTextCache[i] = text;
+      if(text) pages.push('--- Page '+i+' ---\n'+text);
+    } catch(e){ _pdfTextCache[i]=''; }
   }
   return pages.join('\n\n');
+}
+
+// Show how many pages were read in the UI
+async function _pdfExtractWithStatus(maxPages, statusEl){
+  if(statusEl) statusEl.innerHTML='<span style="animation:pulse 1s infinite">●</span> Extracting text from PDF…';
+  var text = await _pdfExtractText(maxPages);
+  var charCount = text.replace(/--- Page \d+ ---/g,'').trim().length;
+  if(charCount < 100){
+    // Likely a scanned/image PDF — warn the user
+    if(statusEl) statusEl.innerHTML='⚠️ This PDF appears to be image-based (scanned) with no selectable text. AI can only see the filename.';
+    return null;
+  }
+  return text;
 }
 
 async function pdfAiAction(action){
   var result=document.getElementById('pdfAiResult');
   result.classList.add('open');
-  result.innerHTML='<div style="color:var(--muted);display:flex;gap:6px;align-items:center"><span style="animation:pulse 1s infinite">●</span> Thinking…</div>';
+  result.innerHTML='<span style="color:var(--muted)"><span style="animation:pulse 1s infinite">●</span> Extracting PDF text…</span>';
   try{
-    var text, prompt;
+    var text, prompt, pages;
     if(action==='thispage'){
-      if(!_pdfTextCache[_pdfPage]) await _pdfExtractText();
-      text=_pdfTextCache[_pdfPage]||'(no text on this page)';
-      prompt='Summarize this page from a PDF in 3-5 sentences:\n\n'+text;
+      // Extract just current page
+      if(_pdfTextCache[_pdfPage] === undefined) await _pdfExtractText(_pdfPage);
+      text = _pdfTextCache[_pdfPage] || '';
+      if(!text.trim()){
+        result.innerHTML='⚠️ Page '+_pdfPage+' has no selectable text (may be an image/scan).';
+        return;
+      }
+      prompt = 'Summarize page '+_pdfPage+' of the PDF "'+_pdfName+'" in 3-5 sentences. Only use the content provided below.\n\nPage '+_pdfPage+' content:\n'+text;
     } else if(action==='summarize'){
-      text=await _pdfExtractText(10); // first 10 pages
-      prompt='Give a concise summary (5-8 bullet points) of this PDF document:\n\n'+text.slice(0,12000);
+      pages = Math.min(30, _pdf.numPages);
+      text = await _pdfExtractWithStatus(pages, result);
+      if(!text) return;
+      result.innerHTML='<span style="color:var(--muted)"><span style="animation:pulse 1s infinite">●</span> Summarizing '+pages+' pages…</span>';
+      prompt = 'Give a clear, concise summary (5-8 bullet points) of this PDF document titled "'+_pdfName+'". Base your answer ONLY on the text below.\n\nDocument text:\n'+text.slice(0,14000);
     } else if(action==='keypoints'){
-      text=await _pdfExtractText(10);
-      prompt='Extract the key points, main arguments, and any important numbers or facts from this PDF:\n\n'+text.slice(0,12000);
+      pages = Math.min(30, _pdf.numPages);
+      text = await _pdfExtractWithStatus(pages, result);
+      if(!text) return;
+      result.innerHTML='<span style="color:var(--muted)"><span style="animation:pulse 1s infinite">●</span> Analyzing key points…</span>';
+      prompt = 'Extract the key points, main arguments, conclusions, and any important numbers or facts from this PDF titled "'+_pdfName+'". Base your answer ONLY on the text below.\n\nDocument text:\n'+text.slice(0,14000);
     }
-    var reply=await aiCall([{role:'user',content:prompt}],'You are a PDF analysis assistant. Be concise and well-structured. Use bullet points where appropriate.');
-    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>');
-  }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
+    var reply = await aiCall(
+      [{role:'user', content:prompt}],
+      'You are a PDF analysis assistant. Answer ONLY based on the document content provided. Do not add external knowledge or make things up. If something is unclear from the text, say so.'
+    );
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI · '+_pdfName+'</b><br><br>'+reply.replace(/\n/g,'<br>');
+  } catch(e){ result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>'; }
 }
 
 async function pdfAiAsk(){
   var inp=document.getElementById('pdfAiInput');
-  var q=inp.value.trim();if(!q)return;
+  var q=inp.value.trim(); if(!q) return;
   var result=document.getElementById('pdfAiResult');
   result.classList.add('open');
-  result.innerHTML='<div style="color:var(--muted);display:flex;gap:6px;align-items:center"><span style="animation:pulse 1s infinite">●</span> Reading PDF…</div>';
   inp.value='';
+
+  // Navigation shortcut — no AI needed
+  var pageMatch=q.match(/^(?:go to|jump to|page)\s*(\d+)$/i);
+  if(pageMatch){
+    var pg=parseInt(pageMatch[1]);
+    _pdfRenderPage(pg);
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>Jumped to page '+pg+'.';
+    return;
+  }
+
+  result.innerHTML='<span style="color:var(--muted)"><span style="animation:pulse 1s infinite">●</span> Reading PDF…</span>';
   try{
-    // Check if user wants to navigate to a page
-    var pageMatch=q.match(/(?:go to|page|jump to)\s+(\d+)/i);
-    if(pageMatch){
-      var pg=parseInt(pageMatch[1]);
-      _pdfRenderPage(pg);
-      result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>Jumped to page '+pg+'.';
+    var pages = Math.min(30, _pdf ? _pdf.numPages : 1);
+    var text = await _pdfExtractWithStatus(pages, result);
+    if(!text){
+      // Image PDF — answer from filename only with caveat
+      var reply = await aiCall(
+        [{role:'user', content:'The user is asking about a PDF called "'+_pdfName+'". The PDF contains only images with no extractable text. Question: '+q}],
+        'Tell the user you cannot read the PDF content as it is image-based, and suggest they copy-paste text from it manually.'
+      );
+      result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>');
       return;
     }
-    // Extract text and ask AI
-    var text=await _pdfExtractText(20);
-    var prompt='The user is viewing a PDF called "'+_pdfName+'". Answer their question based on the document content.\n\nUser question: '+q+'\n\nDocument content (first 20 pages):\n'+text.slice(0,15000);
-    var reply=await aiCall([{role:'user',content:prompt}],'You are a PDF assistant. If the answer mentions a specific page, start with "📄 Page X:" to indicate which page is relevant. Be concise.');
-    // If AI response mentions a page number, offer to jump there
-    var mentioned=reply.match(/(?:page|p\.)\s*(\d+)/i);
-    var jumpBtn='';
-    if(mentioned){
-      var pg2=parseInt(mentioned[1]);
-      if(pg2>=1&&pg2<=_pdf.numPages){
-        jumpBtn='<br><button onclick="_pdfRenderPage('+pg2+')" style="margin-top:8px;padding:5px 12px;border-radius:6px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer">→ Jump to page '+pg2+'</button>';
+
+    result.innerHTML='<span style="color:var(--muted)"><span style="animation:pulse 1s infinite">●</span> Thinking…</span>';
+    var prompt = 'The user is asking about a PDF titled "'+_pdfName+'" ('+pages+' pages read).\n\nUser question: '+q+'\n\nAnswer ONLY from the document text below. If the answer is on a specific page, mention the page number.\n\nDocument text:\n'+text.slice(0,14000);
+    var reply = await aiCall(
+      [{role:'user', content:prompt}],
+      'You are a PDF assistant. Answer ONLY from the document content provided. Mention page numbers when relevant. If the answer is not in the document, say so clearly.'
+    );
+
+    // Detect page numbers mentioned and offer jump buttons
+    var html = reply.replace(/\n/g,'<br>');
+    var jumpBtns = '';
+    var seen = {};
+    var re = /[Pp]age\s*(\d+)/g, m;
+    while((m=re.exec(reply))!==null){
+      var pn=parseInt(m[1]);
+      if(!seen[pn] && _pdf && pn>=1 && pn<=_pdf.numPages){
+        seen[pn]=true;
+        jumpBtns+='<button onclick="_pdfRenderPage('+pn+')" style="margin:4px 4px 0 0;padding:4px 10px;border-radius:6px;background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);font-size:11px;cursor:pointer">→ Page '+pn+'</button>';
       }
     }
-    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>')+jumpBtn;
-  }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
+
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI · '+_pdfName+'</b><br><br>'+html+(jumpBtns?'<br><div style="margin-top:6px">'+jumpBtns+'</div>':'');
+  } catch(e){ result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>'; }
 }
 
 // Allow pressing Enter in the PDF AI input
