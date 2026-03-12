@@ -602,24 +602,36 @@ app.post('/ai/chat', authMiddleware, async (req, res) => {
     const { messages, system } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages array' });
 
-    const response = await _fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer':  'https://vyntra-zlfn.onrender.com',
-        'X-Title':       'Vyntra',
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct:free',
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.' },
-          ...messages.slice(-10),
-        ],
-      }),
-    });
-    const data = await response.json();
+    const makeRequest = async (model) => {
+      return _fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer':  'https://vyntra-zlfn.onrender.com',
+          'X-Title':       'Vyntra',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1000,
+          messages: [
+            { role: 'system', content: system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.' },
+            ...messages.slice(-10),
+          ],
+        }),
+      });
+    };
+
+    let response = await makeRequest('deepseek/deepseek-chat-v3-0324:free');
+    let data = await response.json();
+
+    // If primary model fails, fall back to openrouter/free auto-router
+    if (!response.ok || data?.error) {
+      console.warn('Primary AI model failed, trying fallback:', data?.error?.message);
+      response = await makeRequest('openrouter/auto');
+      data = await response.json();
+    }
+
     if (!response.ok) {
       console.error('OpenRouter API error:', response.status, JSON.stringify(data));
       return res.status(500).json({ error: data?.error?.message || `OpenRouter returned ${response.status}` });
