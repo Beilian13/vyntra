@@ -79,9 +79,19 @@ const userSchema = new mongoose.Schema({
   password:        { type: String, required: true },
   friends:         [String],
   blockedUsers:    [String],
-  pendingFriends:  [String],  // incoming requests not yet acted on
+  pendingFriends:  [String],
   secretQuestion:  String,
   secretAnswer:    String,
+  // Profile
+  bio:             { type: String, default: '' },
+  pronouns:        { type: String, default: '' },
+  statusEmoji:     { type: String, default: '' },
+  statusText:      { type: String, default: '' },
+  bannerColor:     { type: String, default: '#6c7cff' },
+  avatarUrl:       { type: String, default: '' },
+  // Customization (saved server-side so it roams across devices)
+  customCss:       { type: String, default: '' },
+  injectHtml:      { type: String, default: '' },
   createdAt:       { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', userSchema);
@@ -164,6 +174,15 @@ const reportSchema = new mongoose.Schema({
   reviewed:  { type: Boolean, default: false },
 });
 const Report = mongoose.model('Report', reportSchema);
+
+const stickerSchema = new mongoose.Schema({
+  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
+  name:      { type: String, required: true },
+  url:       { type: String, required: true },
+  uploadedBy:{ type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const Sticker = mongoose.model('Sticker', stickerSchema);
 
 async function pushToUser(username, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
@@ -380,6 +399,84 @@ app.get('/admin/reports', adminMiddleware, async (req, res) => {
 app.post('/admin/reports/:id/review', adminMiddleware, async (req, res) => {
   try {
     await Report.updateOne({ _id: req.params.id }, { reviewed: true });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+
+/* ── USER PROFILE ── */
+app.get('/profile/:username', async (req, res) => {
+  try {
+    const u = await User.findOne({ username: req.params.username }, '-password -secretAnswer -blockedUsers -pendingFriends -customCss -injectHtml').lean();
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    res.json(u);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.patch('/profile', authMiddleware, async (req, res) => {
+  try {
+    const { bio, pronouns, statusEmoji, statusText, bannerColor, avatarUrl } = req.body;
+    const update = {};
+    if (bio         !== undefined) update.bio         = bio.slice(0, 300);
+    if (pronouns    !== undefined) update.pronouns    = pronouns.slice(0, 40);
+    if (statusEmoji !== undefined) update.statusEmoji = statusEmoji.slice(0, 8);
+    if (statusText  !== undefined) update.statusText  = statusText.slice(0, 80);
+    if (bannerColor !== undefined) update.bannerColor = bannerColor;
+    if (avatarUrl   !== undefined) update.avatarUrl   = avatarUrl;
+    await User.updateOne({ username: req.user.username }, update);
+    const updated = await User.findOne({ username: req.user.username }, '-password -secretAnswer').lean();
+    // Broadcast status change to online users
+    broadcastAll({ type: 'status_update', username: req.user.username, statusEmoji: updated.statusEmoji, statusText: updated.statusText, avatarUrl: updated.avatarUrl });
+    res.json({ ok: true, profile: updated });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+// Save custom CSS/HTML (private — only returned to the owner)
+app.patch('/profile/customization', authMiddleware, async (req, res) => {
+  try {
+    const { customCss, injectHtml } = req.body;
+    const update = {};
+    if (customCss   !== undefined) update.customCss   = customCss.slice(0, 50000);
+    if (injectHtml  !== undefined) update.injectHtml  = injectHtml.slice(0, 50000);
+    await User.updateOne({ username: req.user.username }, update);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.get('/profile/customization/me', authMiddleware, async (req, res) => {
+  try {
+    const u = await User.findOne({ username: req.user.username }, 'customCss injectHtml').lean();
+    res.json({ customCss: u?.customCss||'', injectHtml: u?.injectHtml||'' });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── STICKERS ── */
+// List stickers for a server
+app.get('/servers/:id/stickers', authMiddleware, async (req, res) => {
+  try {
+    const stickers = await Sticker.find({ serverId: req.params.id }).lean();
+    res.json(stickers);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+// Upload sticker (image only, stored on Cloudinary)
+app.post('/servers/:id/stickers', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
+      return res.status(403).json({ error: 'Forbidden' });
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const sticker = await Sticker.create({ serverId: srv._id, name: name.slice(0,32), url: req.file.path, uploadedBy: req.user.username });
+    broadcastToServer(srv, { type: 'sticker_added', serverId: srv._id.toString(), sticker });
+    res.json(sticker);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.delete('/servers/:id/stickers/:sid', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv || (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)))
+      return res.status(403).json({ error: 'Forbidden' });
+    await Sticker.deleteOne({ _id: req.params.sid, serverId: srv._id });
+    broadcastToServer(srv, { type: 'sticker_removed', serverId: srv._id.toString(), stickerId: req.params.sid });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -796,6 +893,7 @@ wss.on('connection', ws => {
           friends: user ? user.friends : [],
           blockedUsers,
           pendingFriends,
+          profile: user ? { bio: user.bio, pronouns: user.pronouns, statusEmoji: user.statusEmoji, statusText: user.statusText, bannerColor: user.bannerColor, avatarUrl: user.avatarUrl } : {},
           servers: myServers,
           channels: allChannels,
           onlineUsers: Object.keys(clients),
