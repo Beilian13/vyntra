@@ -241,14 +241,46 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .ai-send{padding:7px 12px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer;font-weight:600}
 .smart-reply{display:inline-block;padding:5px 10px;border-radius:999px;border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);background:color-mix(in srgb, var(--accent) 8%, transparent);color:var(--accent);font-size:12px;cursor:pointer;margin:2px;transition:background .15s}
 .smart-reply:hover{background:color-mix(in srgb, var(--accent) 20%, transparent)}
-/* ── STICKERS ── */
-.sticker-tray{padding:0}
-.sticker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}
-.sticker-item{aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);transition:transform .15s,border-color .15s}
-.sticker-item:hover{transform:scale(1.06);border-color:var(--accent)}
-.sticker-item img{width:100%;height:100%;object-fit:contain;padding:4px}
-.sticker-name{font-size:9px;color:var(--muted);text-align:center;padding-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px 4px}
-.sticker-msg img{max-width:120px;max-height:120px;border-radius:8px;cursor:pointer}
+/* ── STICKER & EMOJI LIBRARY ── */
+#stickerLibrary{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;align-items:flex-end;justify-content:center}
+#stickerLibrary.open{display:flex}
+.slib-panel{background:#13152a;border-radius:20px 20px 0 0;width:min(680px,100vw);height:72vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.06);border-bottom:none}
+.slib-header{display:flex;align-items:center;gap:8px;padding:14px 16px 0;flex-shrink:0}
+.slib-header h3{flex:1;font-size:15px;font-weight:700}
+.slib-close{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+.slib-tabs{display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,.06);padding:0 16px;flex-shrink:0}
+.slib-tab{padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:color .15s;white-space:nowrap}
+.slib-tab.active{color:var(--white);border-bottom-color:var(--accent)}
+.slib-search{padding:10px 16px;flex-shrink:0}
+.slib-search input{width:100%;box-sizing:border-box;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
+.slib-search input:focus{border-color:color-mix(in srgb, var(--accent) 35%, transparent)}
+.slib-body{flex:1;overflow-y:auto;padding:0 12px 12px}
+.slib-section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:8px 4px 6px;display:flex;align-items:center;justify-content:space-between}
+.slib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:10px}
+.slib-item{aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:rgba(255,255,255,.03);border:2px solid transparent;transition:transform .12s,border-color .12s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.slib-item:hover{transform:scale(1.06);border-color:color-mix(in srgb, var(--accent) 40%, transparent)}
+.slib-item img{width:72px;height:72px;object-fit:contain;padding:4px}
+.slib-item-name{font-size:9px;color:var(--muted);text-align:center;padding:0 4px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}
+.slib-fav-btn{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.5);border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;color:#fff}
+.slib-item:hover .slib-fav-btn{display:flex}
+.slib-item.favorited .slib-fav-btn{display:flex;background:rgba(255,200,0,.25);color:#ffd700}
+.slib-upload-btn{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:10px;border:2px dashed rgba(255,255,255,.12);cursor:pointer;font-size:22px;color:var(--muted);transition:border-color .15s,color .15s}
+.slib-upload-btn:hover{border-color:var(--accent);color:var(--accent)}
+.slib-empty{text-align:center;color:var(--muted);font-size:13px;padding:32px 0}
+/* Emoji tab inside library */
+.elib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:2px;margin-bottom:10px}
+.elib-item{width:38px;height:38px;border-radius:6px;border:none;background:none;cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;transition:background .1s;position:relative}
+.elib-item:hover{background:rgba(255,255,255,.08)}
+.elib-item.custom{padding:3px}
+.elib-item.custom img{width:28px;height:28px;object-fit:contain;border-radius:4px}
+.elib-item.favorited::after{content:'⭐';position:absolute;top:1px;right:1px;font-size:8px;line-height:1}
+/* Sent sticker in chat — clickable to favorite */
+.sticker-msg{display:inline-block;position:relative}
+.sticker-msg img{max-width:140px;max-height:140px;border-radius:10px;cursor:pointer;display:block;transition:transform .12s}
+.sticker-msg img:hover{transform:scale(1.04)}
+.sticker-fav-overlay{position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:8px;padding:2px 7px;font-size:11px;cursor:pointer;color:#fff;opacity:0;transition:opacity .15s}
+.sticker-msg:hover .sticker-fav-overlay{opacity:1}
+.sticker-fav-overlay.active{opacity:1;color:#ffd700}
 /* ── SETTINGS / THEME ENGINE ── */
 #settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
 #settingsModal.open{display:flex}
@@ -1070,6 +1102,23 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   </div>
 </div>
 
+<!-- Sticker & Emoji Library -->
+<div id="stickerLibrary">
+  <div class="slib-panel">
+    <div class="slib-header">
+      <h3 id="slibTitle">🎭 Stickers</h3>
+      <button class="slib-close" onclick="closeStickerLibrary()">✕</button>
+    </div>
+    <div class="slib-tabs">
+      <div class="slib-tab active" data-slib="stickers" onclick="switchSlibTab('stickers',this)">🎭 Stickers</div>
+      <div class="slib-tab" data-slib="emoji" onclick="switchSlibTab('emoji',this)">😀 Emoji</div>
+      <div class="slib-tab" data-slib="favorites" onclick="switchSlibTab('favorites',this)">⭐ Favorites</div>
+    </div>
+    <div class="slib-search"><input id="slibSearch" placeholder="Search…" oninput="renderSlibTab()"/></div>
+    <div class="slib-body" id="slibBody"></div>
+  </div>
+</div>
+
 <!-- AI Panel (anchored in compose area) -->
 <template id="aiPanelTpl">
   <div id="aiPanel">
@@ -1235,6 +1284,11 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 <!-- Emoji picker -->
 <div id="emojiOverlay">
   <div id="emojiPicker">
+    <div style="display:flex;gap:4px;margin-bottom:8px;border-bottom:1px solid #dde;padding-bottom:8px">
+      <button id="epTabStd" onclick="switchEmojiTab('std',this)" style="flex:1;padding:5px;border-radius:6px;border:none;background:#6c7cff;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Standard</button>
+      <button id="epTabSrv" onclick="switchEmojiTab('srv',this)" style="flex:1;padding:5px;border-radius:6px;border:none;background:rgba(0,0,0,.06);color:#555;font-size:12px;font-weight:600;cursor:pointer">Server</button>
+      <button id="epTabFav" onclick="switchEmojiTab('fav',this)" style="flex:1;padding:5px;border-radius:6px;border:none;background:rgba(0,0,0,.06);color:#555;font-size:12px;font-weight:600;cursor:pointer">⭐ Favs</button>
+    </div>
     <input id="emojiSearch" placeholder="Search emoji…"/>
     <div id="emojiGrid"></div>
     <button id="emojiClose">✕</button>
@@ -1634,6 +1688,8 @@ function handleMsg(raw){
       if(pendingFriends.length) showPendingFriendsBadge();
       // Load customization from server after login
       loadCustomization();
+      loadFavs();
+      setTimeout(preloadAllStickerEmoji, 1000);
       myServers=d.servers||[];
       onlineUsers=d.onlineUsers||[];
       renderOnlineUsers();
@@ -1673,6 +1729,8 @@ function handleMsg(raw){
     case 'status_update':   applyStatusUpdate(d);break;
     case 'sticker_added':   if(_stickers[d.serverId]){_stickers[d.serverId].push(d.sticker);}break;
     case 'sticker_removed': if(_stickers[d.serverId]){_stickers[d.serverId]=_stickers[d.serverId].filter(function(s){return s._id!==d.stickerId;});}break;
+    case 'emoji_added':     if(_serverEmoji[d.serverId]){_serverEmoji[d.serverId].push(d.emoji);}break;
+    case 'emoji_removed':   if(_serverEmoji[d.serverId]){_serverEmoji[d.serverId]=_serverEmoji[d.serverId].filter(function(e){return e._id!==d.emojiId;});}break;
     case 'call_chat':       recvCallChat(d);break;
     case 'call_room_members': recvCallMembers(d);break;
     case 'call_poll_new':   recvCallPoll(d);break;
@@ -1719,7 +1777,7 @@ function initListeners(){
     _typingDebounce=setTimeout(function(){wsSend({type:'typing_stop'});},2000);
   });
   document.getElementById('attachBtn').onclick=function(){toggleAttachTray();};
-  document.getElementById('stickerBtn').onclick=function(){openStickerPicker();};
+  document.getElementById('stickerBtn').onclick=function(){openStickerLibrary('stickers');};
   document.getElementById('aiBtn').onclick=function(){openAiPanel();};
   document.getElementById('fileInput').onchange=function(){if(this.files[0])handleFileAttach(this.files[0]);this.value=''};
   // Paste image
@@ -2340,7 +2398,18 @@ function renderMsg(msg){
     if(ft==='sticker/vyntra'){
       var sm=document.createElement('div');sm.className='sticker-msg';
       var simg=document.createElement('img');simg.src=msg.fileUrl;simg.alt=msg.fileName||'sticker';simg.loading='lazy';
-      sm.appendChild(simg);w.appendChild(sm);
+      var favOv=document.createElement('button');favOv.className='sticker-fav-overlay';
+      var stickerObj={_id:msg.id,name:msg.fileName||'sticker',url:msg.fileUrl};
+      var updateFavOv=function(){
+        var isFav=isStickerFav(stickerObj._id);
+        favOv.textContent=isFav?'★ Favorited':'☆ Favorite';
+        favOv.classList.toggle('active',isFav);
+      };
+      updateFavOv();
+      favOv.onclick=function(e){e.stopPropagation();toggleStickerFav(stickerObj);updateFavOv();};
+      simg.onclick=function(){openStickerLibrary('stickers');};
+      sm.appendChild(simg);sm.appendChild(favOv);
+      w.appendChild(sm);
     } else if(ft.startsWith('image/')){
       var img=document.createElement('img');
       img.src=msg.fileUrl;img.style.cssText='max-width:min(320px,80vw);max-height:280px;border-radius:10px;display:block;margin-top:6px;cursor:pointer;object-fit:contain;background:#0b0d16';
@@ -2648,24 +2717,85 @@ function toggleMobilePanel(){if(isMobileLayout())mobileGoTo(_mobileView===1?0:1)
     ];
   }
 })();
-function openEmoji(id){pickerFor=id;document.getElementById('emojiOverlay').style.display='flex';fillEmojiGrid('');setTimeout(function(){document.getElementById('emojiSearch').focus();},60);}
+function openEmoji(id){
+  pickerFor=id;_emojiTab='std';
+  document.getElementById('emojiOverlay').style.display='flex';
+  ['epTabStd','epTabSrv','epTabFav'].forEach(function(tid){
+    var el=document.getElementById(tid);if(!el)return;
+    el.style.background=tid==='epTabStd'?'#6c7cff':'rgba(0,0,0,.06)';
+    el.style.color=tid==='epTabStd'?'#fff':'#555';
+  });
+  fillEmojiGrid('');
+  setTimeout(function(){document.getElementById('emojiSearch').focus();},60);
+}
 function closeEmoji(){pickerFor=null;document.getElementById('emojiOverlay').style.display='none';document.getElementById('emojiSearch').value='';}
+function switchEmojiTab(tab,btn){
+  _emojiTab=tab;
+  ['epTabStd','epTabSrv','epTabFav'].forEach(function(tid){
+    var el=document.getElementById(tid);if(el){el.style.background='rgba(0,0,0,.06)';el.style.color='#555';}
+  });
+  btn.style.background='#6c7cff';btn.style.color='#fff';
+  document.getElementById('emojiSearch').value='';
+  fillEmojiGrid('');
+}
 function fillEmojiGrid(f){
+  loadFavs();
   var g=document.getElementById('emojiGrid');g.innerHTML='';
-  var fl=(f||'').toLowerCase(),n=0;
-  for(var i=0;i<allEmojis.length;i++){
-    var e=allEmojis[i];
-    if(fl&&!e.n.toLowerCase().includes(fl)) continue;
-    var b=document.createElement('button');b.textContent=e.c;b.style.cssText='font-size:22px;background:none;border:none;cursor:pointer;width:36px;height:36px;border-radius:6px';
-    b.onmouseenter=function(){this.style.background='rgba(0,0,0,.1)';};
-    b.onmouseleave=function(){this.style.background='none';};
-    (function(ch){b.onclick=function(){
-      if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;closeEmoji();return;}
-      wsSend({type:'reaction',messageId:pickerFor,emoji:ch});closeEmoji();
-    };})(e.c);
-    g.appendChild(b);if(++n>2000) break;
+  var fl=(f||'').toLowerCase();
+  if(_emojiTab==='std'){
+    var n=0;
+    for(var i=0;i<allEmojis.length;i++){
+      var e=allEmojis[i];
+      if(fl&&!e.n.toLowerCase().includes(fl)) continue;
+      var b=document.createElement('button');
+      b.style.cssText='font-size:22px;background:none;border:none;cursor:pointer;width:36px;height:36px;border-radius:6px;position:relative';
+      b.textContent=e.c;
+      if(isEmojiFav(e.c)){var star=document.createElement('span');star.textContent='⭐';star.style.cssText='position:absolute;top:0;right:0;font-size:8px;line-height:1';b.appendChild(star);}
+      b.onmouseenter=function(){this.style.background='rgba(0,0,0,.1)';};
+      b.onmouseleave=function(){this.style.background='none';};
+      b.oncontextmenu=(function(ch){return function(ev){ev.preventDefault();toggleEmojiFav(ch);fillEmojiGrid(fl);};})(e.c);
+      (function(ch){b.onclick=function(){
+        if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+        else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
+        closeEmoji();
+      };})(e.c);
+      g.appendChild(b);if(++n>600) break;
+    }
+  } else if(_emojiTab==='srv'){
+    var hasAny=false;
+    myServers.forEach(function(s){
+      var list=(_serverEmoji[s._id.toString()]||[]);
+      if(fl) list=list.filter(function(e){return e.name.toLowerCase().includes(fl);});
+      if(!list.length) return;
+      hasAny=true;
+      var label=document.createElement('div');
+      label.style.cssText='font-size:10px;font-weight:700;color:#999;text-transform:uppercase;padding:6px 0 3px;letter-spacing:.05em;width:100%';
+      label.textContent=s.name;g.appendChild(label);
+      list.forEach(function(e){g.appendChild(makeCustomEmojiBtn(e,s.owner===myName));});
+    });
+    if(!hasAny){var em=document.createElement('div');em.style.cssText='color:#999;font-size:12px;padding:12px;text-align:center';em.textContent='No custom emoji yet.';g.appendChild(em);}
+  } else if(_emojiTab==='fav'){
+    if(!_favEmoji.length){var em2=document.createElement('div');em2.style.cssText='color:#999;font-size:12px;padding:12px;text-align:center';em2.textContent='No favorites yet. Right-click any emoji to favorite.';g.appendChild(em2);return;}
+    _favEmoji.forEach(function(item){
+      if(typeof item==='string'){
+        var b2=document.createElement('button');b2.textContent=item;
+        b2.style.cssText='font-size:22px;background:none;border:none;cursor:pointer;width:36px;height:36px;border-radius:6px';
+        b2.onmouseenter=function(){this.style.background='rgba(0,0,0,.1)';};
+        b2.onmouseleave=function(){this.style.background='none';};
+        b2.oncontextmenu=(function(ch){return function(ev){ev.preventDefault();toggleEmojiFav(ch);fillEmojiGrid(fl);};})(item);
+        (function(ch){b2.onclick=function(){
+          if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+          else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
+          closeEmoji();
+        };})(item);
+        g.appendChild(b2);
+      } else {
+        g.appendChild(makeCustomEmojiBtn(item));
+      }
+    });
   }
 }
+
 
 /* ══════════════════════════════════════════════
    MIC MODAL
@@ -4556,7 +4686,47 @@ function loadSavedAppearance(){
 /* ══════════════════════════════════════════════
    STICKERS
 ══════════════════════════════════════════════ */
-var _stickers={};  // serverId → [{_id,name,url}]
+/* ══════════════════════════════════════════════
+   STICKER & EMOJI LIBRARY
+══════════════════════════════════════════════ */
+var _stickers={};        // serverId → [{_id,name,url}]
+var _serverEmoji={};     // serverId → [{_id,name,url}]
+var _favStickers=[];     // array of {_id,name,url,serverId}
+var _favEmoji=[];        // array of emoji char or {_id,name,url,serverId} for custom
+var _slibTab='stickers'; // current tab
+
+function loadFavs(){
+  try{_favStickers=JSON.parse(localStorage.getItem('vt_favStickers')||'[]');}catch(e){_favStickers=[];}
+  try{_favEmoji=JSON.parse(localStorage.getItem('vt_favEmoji')||'[]');}catch(e){_favEmoji=[];}
+}
+function saveFavStickers(){localStorage.setItem('vt_favStickers',JSON.stringify(_favStickers));}
+function saveFavEmoji(){localStorage.setItem('vt_favEmoji',JSON.stringify(_favEmoji));}
+
+function isStickerFav(id){return _favStickers.some(function(s){return s._id===id;});}
+function isEmojiFav(key){
+  // key = char for standard, _id for custom
+  return _favEmoji.some(function(e){return (typeof e==='string'?e:e._id)===key;});
+}
+function toggleStickerFav(sticker){
+  if(isStickerFav(sticker._id)){
+    _favStickers=_favStickers.filter(function(s){return s._id!==sticker._id;});
+  } else {
+    _favStickers.unshift(sticker);
+    if(_favStickers.length>50) _favStickers=_favStickers.slice(0,50);
+  }
+  saveFavStickers();
+}
+function toggleEmojiFav(item){
+  // item = char string or custom emoji object
+  var key=typeof item==='string'?item:item._id;
+  if(isEmojiFav(key)){
+    _favEmoji=_favEmoji.filter(function(e){return (typeof e==='string'?e:e._id)!==key;});
+  } else {
+    _favEmoji.unshift(item);
+    if(_favEmoji.length>80) _favEmoji=_favEmoji.slice(0,80);
+  }
+  saveFavEmoji();
+}
 
 async function loadStickers(serverId){
   if(_stickers[serverId]) return _stickers[serverId];
@@ -4565,66 +4735,336 @@ async function loadStickers(serverId){
     var d=await r.json();_stickers[serverId]=d;return d;
   }catch(e){return [];}
 }
+async function loadServerEmoji(serverId){
+  if(_serverEmoji[serverId]) return _serverEmoji[serverId];
+  try{
+    var r=await fetch('/servers/'+serverId+'/emoji',{headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();_serverEmoji[serverId]=d;return d;
+  }catch(e){return [];}
+}
 
-async function openStickerPicker(){
-  var serverId=activeServerId;
-  if(!serverId||serverId==='__dm__'){toast('Join a server to use stickers');return;}
-  var existing=document.getElementById('stickerPickerPanel');
-  if(existing){existing.remove();return;}
-  var stickers=await loadStickers(serverId);
-  var panel=document.createElement('div');
-  panel.id='stickerPickerPanel';
-  panel.style.cssText='position:absolute;bottom:calc(100% + 8px);right:0;width:min(320px,95vw);background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:14px;z-index:60;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-  var srv=myServers.find(function(s){return s._id===serverId;});
-  var isOwner=srv&&srv.owner===myName;
-  var header='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)">'
-    +'<span style="font-size:13px;font-weight:700">🎭 Stickers</span>'
-    +(isOwner?'<button onclick="openUploadSticker(\''+serverId+'\')" style="font-size:11px;padding:4px 10px;border-radius:6px;background:var(--accent);color:#fff;border:none;cursor:pointer">+ Upload</button>':'')
-    +'<button onclick="document.getElementById(\'stickerPickerPanel\').remove()" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;margin-left:6px">✕</button>'
-    +'</div>';
-  var grid='<div class="sticker-grid">';
-  if(!stickers.length){grid+='<div style="grid-column:span 4;text-align:center;color:var(--muted);font-size:12px;padding:12px">'+(isOwner?'No stickers yet — upload some!':'No stickers on this server')+'</div>';}
-  stickers.forEach(function(st){
-    grid+='<div class="sticker-item" onclick="sendSticker(\''+escHtml(st.url)+'\',\''+escHtml(st.name)+'\')" title="'+escHtml(st.name)+'">'
-      +'<img src="'+escHtml(st.url)+'" alt="'+escHtml(st.name)+'" loading="lazy">'
-      +'<div class="sticker-name">'+escHtml(st.name)+'</div>'
-      +(isOwner?'<div onclick="event.stopPropagation();deleteSticker(\''+serverId+'\',\''+st._id+'\')" style="position:absolute;top:2px;right:2px;background:rgba(255,50,50,.7);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:#fff">✕</div>':'');
-    grid+='</div>';
+// ── Open library ──
+async function openStickerLibrary(defaultTab){
+  loadFavs();
+  _slibTab=defaultTab||'stickers';
+  document.getElementById('stickerLibrary').classList.add('open');
+  document.getElementById('slibSearch').value='';
+  // Set active tab
+  document.querySelectorAll('.slib-tab').forEach(function(t){
+    t.classList.toggle('active', t.dataset.slib===_slibTab);
   });
-  grid+='</div>';
-  panel.innerHTML=header+grid;
-  panel.querySelectorAll('.sticker-item').forEach(function(el){el.style.position='relative';});
-  document.getElementById('composeBar').appendChild(panel);
-  document.addEventListener('click',function handler(e){
-    if(!panel.contains(e.target)&&e.target!==document.getElementById('stickerBtn')){panel.remove();document.removeEventListener('click',handler);}
+  // Pre-load current server data
+  if(activeServerId&&activeServerId!=='__dm__'){
+    await Promise.all([loadStickers(activeServerId), loadServerEmoji(activeServerId)]);
+  }
+  renderSlibTab();
+  // Close on backdrop click
+  document.getElementById('stickerLibrary').onclick=function(e){
+    if(e.target===document.getElementById('stickerLibrary')) closeStickerLibrary();
+  };
+}
+function closeStickerLibrary(){document.getElementById('stickerLibrary').classList.remove('open');}
+function switchSlibTab(tab,btn){
+  _slibTab=tab;
+  document.querySelectorAll('.slib-tab').forEach(function(t){t.classList.remove('active');});
+  btn.classList.add('active');
+  document.getElementById('slibSearch').value='';
+  renderSlibTab();
+}
+
+function renderSlibTab(){
+  var body=document.getElementById('slibBody');
+  var q=(document.getElementById('slibSearch').value||'').toLowerCase();
+  body.innerHTML='';
+
+  if(_slibTab==='stickers') renderStickerTab(body,q);
+  else if(_slibTab==='emoji') renderEmojiLibTab(body,q);
+  else if(_slibTab==='favorites') renderFavTab(body,q);
+}
+
+function renderStickerTab(body,q){
+  var sid=activeServerId;
+  var allStickers=[];
+  // gather stickers from ALL servers the user is in
+  myServers.forEach(function(s){
+    var list=_stickers[s._id]||[];
+    list.forEach(function(st){ allStickers.push(Object.assign({},st,{serverName:s.name,serverId:s._id.toString()})); });
+  });
+  if(q) allStickers=allStickers.filter(function(s){return s.name.toLowerCase().includes(q);});
+
+  // Favorites row
+  var favs=_favStickers.filter(function(s){return !q||s.name.toLowerCase().includes(q);});
+  if(favs.length){
+    body.appendChild(makeSectionTitle('⭐ Favorites'));
+    body.appendChild(makeStickerGrid(favs,true));
+  }
+
+  // Group remaining by server
+  var servers=[];
+  myServers.forEach(function(s){
+    var list=(q?allStickers.filter(function(st){return st.serverId===s._id.toString();}):(_stickers[s._id]||[]).map(function(st){return Object.assign({},st,{serverId:s._id.toString(),serverName:s.name});}));
+    if(list.length) servers.push({name:s.name,id:s._id.toString(),stickers:list,owner:s.owner,admins:s.admins||[]});
+  });
+
+  if(!servers.length&&!favs.length){
+    body.innerHTML='<div class="slib-empty">No stickers yet.<br>Admins can upload stickers to their servers.</div>';
+    return;
+  }
+
+  servers.forEach(function(srv){
+    var titleEl=makeSectionTitle(srv.name);
+    var isOwner=srv.owner===myName||(srv.admins||[]).includes(myName);
+    if(isOwner){
+      var upBtn=document.createElement('button');upBtn.textContent='+ Upload';
+      upBtn.style.cssText='font-size:11px;padding:2px 8px;border-radius:5px;background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--accent);border:none;cursor:pointer';
+      upBtn.onclick=function(){openUploadSticker(srv.id);};
+      titleEl.appendChild(upBtn);
+    }
+    body.appendChild(titleEl);
+    body.appendChild(makeStickerGrid(srv.stickers,false,srv.id,isOwner));
   });
 }
-function sendSticker(url, name){
-  var panel=document.getElementById('stickerPickerPanel');if(panel)panel.remove();
+
+function makeStickerGrid(stickers,isFavSection,serverId,isOwner){
+  var grid=document.createElement('div');grid.className='slib-grid';
+  stickers.forEach(function(st){
+    var item=document.createElement('div');item.className='slib-item';
+    if(isStickerFav(st._id)) item.classList.add('favorited');
+    var img=document.createElement('img');img.src=st.url;img.alt=st.name;img.loading='lazy';
+    var name=document.createElement('div');name.className='slib-item-name';name.textContent=st.name;
+    var favBtn=document.createElement('button');favBtn.className='slib-fav-btn';favBtn.textContent=isStickerFav(st._id)?'★':'☆';
+    favBtn.title=isStickerFav(st._id)?'Remove from favorites':'Add to favorites';
+    favBtn.onclick=function(e){
+      e.stopPropagation();
+      toggleStickerFav(st);
+      item.classList.toggle('favorited',isStickerFav(st._id));
+      favBtn.textContent=isStickerFav(st._id)?'★':'☆';
+    };
+    item.onclick=function(){sendSticker(st.url,st.name);closeStickerLibrary();};
+    item.appendChild(img);item.appendChild(name);item.appendChild(favBtn);
+    if(isOwner&&!isFavSection){
+      var delBtn=document.createElement('button');
+      delBtn.style.cssText='position:absolute;top:2px;left:3px;background:rgba(255,50,50,.7);border:none;border-radius:50%;width:16px;height:16px;display:none;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:#fff';
+      delBtn.textContent='✕';
+      delBtn.onclick=function(e){e.stopPropagation();deleteSticker(serverId,st._id);item.remove();};
+      item.appendChild(delBtn);
+      item.onmouseenter=function(){delBtn.style.display='flex';};
+      item.onmouseleave=function(){delBtn.style.display='none';};
+    }
+    grid.appendChild(item);
+  });
+  // Upload slot
+  if(isOwner&&!isFavSection){
+    var upSlot=document.createElement('div');upSlot.className='slib-upload-btn';upSlot.textContent='+';upSlot.title='Upload sticker';
+    upSlot.onclick=function(){openUploadSticker(serverId);};
+    grid.appendChild(upSlot);
+  }
+  return grid;
+}
+
+function renderEmojiLibTab(body,q){
+  var sid=activeServerId;
+  // Server custom emoji section
+  var customList=[];
+  myServers.forEach(function(s){
+    var list=_serverEmoji[s._id]||[];
+    list.forEach(function(e){customList.push(Object.assign({},e,{serverId:s._id.toString(),serverName:s.name}));});
+  });
+  if(q) customList=customList.filter(function(e){return e.name.toLowerCase().includes(q);});
+
+  // Fav standard emoji
+  var favStdEmoji=_favEmoji.filter(function(e){return typeof e==='string'&&(!q||e.includes(q));});
+
+  if(favStdEmoji.length||_favEmoji.filter(function(e){return typeof e!=='string';}).length){
+    body.appendChild(makeSectionTitle('⭐ Favorite Emoji'));
+    var favGrid=document.createElement('div');favGrid.className='elib-grid';
+    _favEmoji.forEach(function(item){
+      if(typeof item==='string'){
+        if(q&&!item.includes(q)) return;
+        var btn=makeStdEmojiBtn(item);favGrid.appendChild(btn);
+      } else {
+        if(q&&!item.name.toLowerCase().includes(q)) return;
+        var btn=makeCustomEmojiBtn(item);favGrid.appendChild(btn);
+      }
+    });
+    body.appendChild(favGrid);
+  }
+
+  // Server custom emoji grouped by server
+  myServers.forEach(function(s){
+    var list=(q?customList.filter(function(e){return e.serverId===s._id.toString();}):(_serverEmoji[s._id]||[]).map(function(e){return Object.assign({},e,{serverId:s._id.toString(),serverName:s.name});}));
+    if(!list.length) return;
+    var isOwner=s.owner===myName||(s.admins||[]).includes(myName);
+    var titleEl=makeSectionTitle(s.name+' Emoji');
+    if(isOwner){
+      var upBtn=document.createElement('button');upBtn.textContent='+ Upload';
+      upBtn.style.cssText='font-size:11px;padding:2px 8px;border-radius:5px;background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--accent);border:none;cursor:pointer';
+      upBtn.onclick=function(){openUploadEmoji(s._id.toString());};
+      titleEl.appendChild(upBtn);
+    }
+    body.appendChild(titleEl);
+    var grid=document.createElement('div');grid.className='elib-grid';
+    list.forEach(function(e){grid.appendChild(makeCustomEmojiBtn(e,isOwner));});
+    body.appendChild(grid);
+  });
+
+  // Standard emoji (filtered)
+  if(!q||(q&&q.length>=1)){
+    body.appendChild(makeSectionTitle('Standard Emoji'));
+    var stdGrid=document.createElement('div');stdGrid.className='elib-grid';
+    var count=0;
+    for(var i=0;i<allEmojis.length;i++){
+      var e=allEmojis[i];
+      if(q&&!e.n.toLowerCase().includes(q)) continue;
+      stdGrid.appendChild(makeStdEmojiBtn(e.c));
+      if(++count>400) break;
+    }
+    body.appendChild(stdGrid);
+  }
+}
+
+function makeStdEmojiBtn(ch){
+  var btn=document.createElement('button');btn.className='elib-item';
+  if(isEmojiFav(ch)) btn.classList.add('favorited');
+  btn.textContent=ch;btn.title=ch;
+  btn.onclick=function(){
+    if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+    else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
+    closeEmoji();
+  };
+  btn.oncontextmenu=function(e){
+    e.preventDefault();toggleEmojiFav(ch);
+    btn.classList.toggle('favorited',isEmojiFav(ch));
+    renderSlibFavCount();
+  };
+  return btn;
+}
+function makeCustomEmojiBtn(e,isOwner){
+  var btn=document.createElement('button');btn.className='elib-item custom';
+  if(isEmojiFav(e._id)) btn.classList.add('favorited');
+  btn.title=':'+e.name+':';
+  var img=document.createElement('img');img.src=e.url;img.alt=':'+e.name+':';
+  btn.appendChild(img);
+  btn.onclick=function(){
+    // Custom emoji sent as image-in-message
+    var token=':'+e.name+':';
+    if(pickerFor==='__c'){
+      document.getElementById('msgInput').value+=token;
+      // Also store URL mapping so we can render it
+      if(!window._customEmojiMap) window._customEmojiMap={};
+      window._customEmojiMap[token]=e.url;
+    } else if(pickerFor){
+      wsSend({type:'reaction',messageId:pickerFor,emoji:token,emojiUrl:e.url});
+    }
+    closeEmoji();
+  };
+  btn.oncontextmenu=function(ev){
+    ev.preventDefault();toggleEmojiFav(e);
+    btn.classList.toggle('favorited',isEmojiFav(e._id));
+  };
+  if(isOwner){
+    btn.ondblclick=function(ev){
+      ev.preventDefault();
+      if(confirm('Delete :'+e.name+':?')) deleteServerEmoji(e.serverId,e._id);
+    };
+    btn.title+=' (dbl-click to delete)';
+  }
+  return btn;
+}
+
+function renderFavTab(body,q){
+  var hasFavs=_favStickers.length||_favEmoji.length;
+  if(!hasFavs){body.innerHTML='<div class="slib-empty">No favorites yet!<br>Hover stickers and click ★, or right-click emoji to favorite.</div>';return;}
+  if(_favStickers.length){
+    body.appendChild(makeSectionTitle('⭐ Favorite Stickers'));
+    body.appendChild(makeStickerGrid(_favStickers.filter(function(s){return !q||s.name.toLowerCase().includes(q);}),true));
+  }
+  if(_favEmoji.length){
+    body.appendChild(makeSectionTitle('⭐ Favorite Emoji'));
+    var grid=document.createElement('div');grid.className='elib-grid';
+    _favEmoji.forEach(function(item){
+      if(typeof item==='string') grid.appendChild(makeStdEmojiBtn(item));
+      else grid.appendChild(makeCustomEmojiBtn(item));
+    });
+    body.appendChild(grid);
+  }
+}
+
+function makeSectionTitle(text){
+  var el=document.createElement('div');el.className='slib-section-title';
+  el.innerHTML='<span>'+escHtml(text)+'</span>';return el;
+}
+function renderSlibFavCount(){}  // placeholder
+
+// ── Sending stickers ──
+function sendSticker(url,name){
   wsSend({type:'message',text:'',fileUrl:url,fileName:name,fileType:'sticker/vyntra'});
 }
-async function deleteSticker(serverId, stickerId){
-  if(!confirm('Delete this sticker?')) return;
-  await fetch('/servers/'+serverId+'/stickers/'+stickerId,{method:'DELETE',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
-  delete _stickers[serverId];
-  toast('Sticker deleted');
-}
+
+// ── Upload sticker ──
 function openUploadSticker(serverId){
-  var panel=document.getElementById('stickerPickerPanel');if(panel)panel.remove();
-  var name=prompt('Sticker name (short, no spaces):');
-  if(!name)return;
-  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  closeStickerLibrary();
+  var name=prompt('Sticker name (e.g. wave, pog, sadge):');
+  if(!name) return;
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*,image/gif';
   inp.onchange=async function(){
     var file=inp.files[0];if(!file)return;
     var fd=new FormData();fd.append('file',file);fd.append('name',name);
     toast('Uploading sticker…');
     var r=await fetch('/servers/'+serverId+'/stickers',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')},body:fd});
     var d=await r.json();
-    if(d._id){_stickers[serverId]=null;toast('🎭 Sticker uploaded!');}
-    else{toast('❌ '+(d.error||'Failed'));}
+    if(d._id){
+      if(!_stickers[serverId]) _stickers[serverId]=[];
+      _stickers[serverId].push(d);
+      toast('🎭 Sticker "'+d.name+'" uploaded!');
+    } else { toast('❌ '+(d.error||'Failed')); }
   };
   inp.click();
 }
+
+// ── Upload custom emoji ──
+function openUploadEmoji(serverId){
+  closeStickerLibrary();
+  var name=prompt('Emoji shortcode (letters/numbers/underscore only, e.g. pepe, pogchamp):');
+  if(!name) return;
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*,image/gif';
+  inp.onchange=async function(){
+    var file=inp.files[0];if(!file)return;
+    var fd=new FormData();fd.append('file',file);fd.append('name',name);
+    toast('Uploading emoji…');
+    var r=await fetch('/servers/'+serverId+'/emoji',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')},body:fd});
+    var d=await r.json();
+    if(d._id){
+      if(!_serverEmoji[serverId]) _serverEmoji[serverId]=[];
+      _serverEmoji[serverId].push(d);
+      toast('😄 Emoji :'+d.name+': uploaded!');
+    } else { toast('❌ '+(d.error||'Failed')); }
+  };
+  inp.click();
+}
+
+// ── Delete helpers ──
+async function deleteSticker(serverId,stickerId){
+  await fetch('/servers/'+serverId+'/stickers/'+stickerId,{method:'DELETE',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  if(_stickers[serverId]) _stickers[serverId]=_stickers[serverId].filter(function(s){return s._id!==stickerId;});
+  _favStickers=_favStickers.filter(function(s){return s._id!==stickerId;});
+  saveFavStickers();toast('Sticker deleted');
+}
+async function deleteServerEmoji(serverId,emojiId){
+  await fetch('/servers/'+serverId+'/emoji/'+emojiId,{method:'DELETE',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  if(_serverEmoji[serverId]) _serverEmoji[serverId]=_serverEmoji[serverId].filter(function(e){return e._id!==emojiId;});
+  _favEmoji=_favEmoji.filter(function(e){return typeof e==='string'||e._id!==emojiId;});
+  saveFavEmoji();toast('Emoji deleted');renderSlibTab();
+}
+
+// Preload all server stickers+emoji when joining app
+async function preloadAllStickerEmoji(){
+  if(!myServers||!myServers.length) return;
+  await Promise.all(myServers.map(function(s){
+    return Promise.all([loadStickers(s._id.toString()), loadServerEmoji(s._id.toString())]);
+  }));
+}
+
 
 /* ══════════════════════════════════════════════
    AI ASSISTANT
