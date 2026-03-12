@@ -15,7 +15,13 @@
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
 :root{
-  --bg:#0f1220;--panel:#161827;--panel-dark:#0d0f1a;--panel-card:#13152a;--panel-input:#0b0d16;--muted:#9aa0b4;--accent:#6c7cff;--border:rgba(255,255,255,.07);--selection:color-mix(in srgb, var(--accent) 18%, transparent);
+  --bg:#0f1220;--accent:#6c7cff;--muted:#9aa0b4;
+  --panel:       color-mix(in srgb, var(--bg) 60%, #fff 4%);
+  --panel-dark:  color-mix(in srgb, var(--bg) 80%, #000);
+  --panel-card:  color-mix(in srgb, var(--bg) 50%, #fff 6%);
+  --panel-input: color-mix(in srgb, var(--bg) 85%, #000);
+  --border:      rgba(255,255,255,.07);
+  --selection:   color-mix(in srgb, var(--accent) 18%, transparent);
   --bubble:#20233a;--system:#8b8f9f;--white:#eef2ff;--green:#39d353;--red:#ff5050;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -45,7 +51,7 @@ html,body{height:100%;font-family:Inter,Segoe UI,system-ui,Arial;background:var(
 
 /* ── APP SHELL ── */
 #appShell{display:none;flex-direction:column;height:100%}
-header{height:60px;background:linear-gradient(90deg,#11121b,#15172b);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.03);z-index:100;position:relative}
+header{height:60px;background:var(--panel-dark);display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);z-index:100;position:relative}
 .header-left{display:flex;gap:10px;align-items:center}
 .logo{font-size:16px;font-weight:700;color:var(--white)}
 #headerUsername{color:var(--muted);font-size:13px}
@@ -832,7 +838,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
   <main style="position:relative">
     <!-- Server column -->
-    <div id="serverCol" style="width:60px;background:#080a12;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
+    <div id="serverCol" style="width:60px;background:var(--panel-dark);border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;flex-shrink:0"></div>
     <!-- Channel column -->
     <div id="channelCol" style="width:220px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,.02);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden">
       <div id="chHeader" style="padding:14px 12px 10px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0">
@@ -1115,26 +1121,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <div class="settings-row">
           <div class="settings-label">Background</div>
           <div class="color-picker-row" id="bgPicker"></div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Sidebar / Panels</div>
-          <div class="color-picker-row" id="panelPicker"></div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Topbar / Bars</div>
-          <div class="color-picker-row" id="panelDarkPicker"></div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Cards / Modals</div>
-          <div class="color-picker-row" id="panelCardPicker"></div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Input Fields</div>
-          <div class="color-picker-row" id="panelInputPicker"></div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label">Borders</div>
-          <div class="color-picker-row" id="borderPicker"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Panels, sidebar &amp; topbar auto-derive from this</div>
         </div>
         <div class="settings-row">
           <div class="settings-label">Font Size</div>
@@ -4761,19 +4748,13 @@ function getAccentHex(){
 }
 
 var ACCENT_PRESETS=['#6c7cff','#9b6cff','#ff6cb4','#ff4f4f','#ff8c5a','#39d353','#28c8d4','#f5c842'];
-var BG_PRESETS=['#0f1220','#0a0a0a','#0d1117','#120f20','#0f120a','#1a0f0f','#ffffff','#f4f1eb'];
-var PANEL_PRESETS=['#161827','#111111','#13151f','#1a1a2e','#0f1a0f','#1a0f0f','#e8e8e8','#dddad4'];
-var PANEL_DARK_PRESETS=['#0d0f1a','#080808','#0a0d12','#100d1a','#0a120a','#120a0a','#d8d8d8','#ccc9c0'];
-var PANEL_CARD_PRESETS=['#13152a','#101010','#111520','#160d28','#0f1a10','#1a0d0d','#f0f0f0','#e8e5de'];
-var PANEL_INPUT_PRESETS=['#0b0d16','#060606','#080c10','#0d0816','#080d08','#0d0808','#fafafa','#f5f2ea'];
-var BORDER_PRESETS=['rgba(255,255,255,.07)','rgba(255,255,255,.12)','rgba(255,255,255,.18)','rgba(0,0,0,.15)','rgba(108,124,255,.2)','rgba(255,100,100,.2)','rgba(57,211,83,.2)','rgba(255,255,255,.03)'];
+var BG_PRESETS=['#0f1220','#0a0a0a','#0d1117','#120f20','#0f120a','#1a0f0f','#1a1510','#f4f1eb'];
 function initAppearancePicker(){
   function makePicker(containerId,presets,cssVar){
     var el=document.getElementById(containerId);if(!el)return;
+    el.innerHTML='';
     presets.forEach(function(c){
       var s=document.createElement('div');s.className='color-swatch';s.style.background=c;
-      var cur=getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
-      if(cur===c) s.classList.add('active');
       s.onclick=function(){
         document.documentElement.style.setProperty(cssVar,c);
         el.querySelectorAll('.color-swatch').forEach(function(x){x.classList.remove('active');});
@@ -4782,24 +4763,18 @@ function initAppearancePicker(){
       };
       el.appendChild(s);
     });
-    // Custom color input
     var inp=document.createElement('input');inp.type='color';
-    inp.value=getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()||'#6c7cff';
+    inp.value=localStorage.getItem('vt_'+cssVar)||presets[0];
     inp.style.cssText='width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;cursor:pointer;padding:1px';
     inp.oninput=function(){
       document.documentElement.style.setProperty(cssVar,inp.value);
       localStorage.setItem('vt_'+cssVar,inp.value);
+      el.querySelectorAll('.color-swatch').forEach(function(x){x.classList.remove('active');});
     };
     el.appendChild(inp);
   }
   makePicker('accentPicker',ACCENT_PRESETS,'--accent');
   makePicker('bgPicker',BG_PRESETS,'--bg');
-  makePicker('panelPicker',PANEL_PRESETS,'--panel');
-  makePicker('panelDarkPicker',PANEL_DARK_PRESETS,'--panel-dark');
-  makePicker('panelCardPicker',PANEL_CARD_PRESETS,'--panel-card');
-  makePicker('panelInputPicker',PANEL_INPUT_PRESETS,'--panel-input');
-  makePicker('borderPicker',BORDER_PRESETS,'--border');
-  // Font size
   var stored=localStorage.getItem('vt_fontSize');
   if(stored){document.getElementById('fontSizeSlider').value=stored;applyFontSize(stored);}
   var bubbles=localStorage.getItem('vt_bubbles')==='true';
@@ -4815,21 +4790,20 @@ function applyFontSize(v){
 function applyBubbleStyle(on){
   var s=document.getElementById('_bubbleCss');
   if(!s&&on){s=document.createElement('style');s.id='_bubbleCss';document.head.appendChild(s);}
-  if(s) s.textContent=on?'.msg .text{background:var(--bubble);padding:7px 11px;border-radius:14px;display:inline-block;max-width:80%}':'';
+  if(s) s.textContent=on?'.msg .text{background:var(--panel-card);padding:7px 11px;border-radius:14px;display:inline-block;max-width:80%}':'';
   localStorage.setItem('vt_bubbles',on);
 }
 function saveAppearance(){toast('✅ Appearance saved');}
-var ALL_THEME_VARS=['--accent','--bg','--panel','--panel-dark','--panel-card','--panel-input','--border'];
 function resetAppearance(){
-  ALL_THEME_VARS.forEach(function(v){localStorage.removeItem('vt_'+v);document.documentElement.style.removeProperty(v);});
+  ['--accent','--bg'].forEach(function(v){localStorage.removeItem('vt_'+v);document.documentElement.style.removeProperty(v);});
   localStorage.removeItem('vt_fontSize');localStorage.removeItem('vt_bubbles');
-  applyBubbleStyle(false);document.getElementById('fontSizeSlider').value=14;applyFontSize(14);
+  applyBubbleStyle(false);
+  document.getElementById('fontSizeSlider').value=14;applyFontSize(14);
   document.getElementById('bubbleToggle').checked=false;
-  ['accentPicker','bgPicker','panelPicker','panelDarkPicker','panelCardPicker','panelInputPicker','borderPicker'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML='';});
   initAppearancePicker();toast('✅ Reset to defaults');
 }
 function loadSavedAppearance(){
-  ALL_THEME_VARS.forEach(function(v){var s=localStorage.getItem('vt_'+v);if(s)document.documentElement.style.setProperty(v,s);});
+  ['--accent','--bg'].forEach(function(v){var s=localStorage.getItem('vt_'+v);if(s)document.documentElement.style.setProperty(v,s);});
   var fs=localStorage.getItem('vt_fontSize');if(fs) applyFontSize(fs);
   if(localStorage.getItem('vt_bubbles')==='true') applyBubbleStyle(true);
 }
