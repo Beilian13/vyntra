@@ -57,6 +57,7 @@ const upload = multer({
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
 const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
+const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY  || '';
 const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
@@ -538,6 +539,36 @@ app.patch('/servers/:id/channels/:cid/category', authMiddleware, async (req, res
     broadcastToServer(srv, { type: 'channels_updated', serverId: srv._id.toString(), channels: allChannels });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── AI PROXY ── */
+app.post('/ai/chat', authMiddleware, async (req, res) => {
+  try {
+    if (!ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI not configured' });
+    const { messages, system } = req.body;
+    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages' });
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model:      'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system:     system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.',
+        messages:   messages.slice(-10), // cap context
+      }),
+    });
+    const data = await response.json();
+    if (data.error) return res.status(500).json({ error: data.error.message || 'AI error' });
+    const text = data.content?.[0]?.text || '(no response)';
+    res.json({ text });
+  } catch (e) {
+    console.error('AI proxy error:', e);
+    res.status(500).json({ error: 'AI request failed' });
+  }
 });
 
 /* ── PUSH NOTIFICATIONS ── */
