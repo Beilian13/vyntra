@@ -93,13 +93,13 @@ main{display:flex;flex:1;overflow:hidden}
 .msg .reactions{margin-top:8px;display:flex;gap:5px;flex-wrap:wrap}
 .msg .reply-quote{
   margin-bottom:6px;padding:6px 10px;border-radius:6px;
-  border-left:3px solid rgba(108,124,255,.6);
+  border-left:3px solid color-mix(in srgb, var(--accent) 60%, transparent);
   background:rgba(255,255,255,.04);
   font-size:12px;cursor:pointer;
   display:flex;flex-direction:column;gap:1px;
   transition:background .15s;
 }
-.msg .reply-quote:hover{background:rgba(108,124,255,.12)}
+.msg .reply-quote:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}
 .msg.me .reply-quote{border-left-color:rgba(255,255,255,.5);background:rgba(0,0,0,.15)}
 .msg .reply-quote .rq-user{font-weight:700;color:var(--accent);font-size:11px}
 .msg.me .reply-quote .rq-user{color:rgba(255,255,255,.8)}
@@ -121,7 +121,7 @@ main{display:flex;flex:1;overflow:hidden}
 #replyBar{
   display:none;align-items:center;gap:10px;
   padding:7px 14px;background:#0b0d1e;
-  border-top:1px solid rgba(108,124,255,.2);
+  border-top:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   flex-shrink:0;
 }
 #replyBar .rb-quote{flex:1;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -143,22 +143,22 @@ main{display:flex;flex:1;overflow:hidden}
   flex:1;padding:9px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.06);
   background:#0b0d16;color:var(--white);outline:none;font-size:14px;
 }
-#searchInput:focus{border-color:rgba(108,124,255,.35)}
+#searchInput:focus{border-color:color-mix(in srgb, var(--accent) 35%, transparent)}
 #searchResults{flex:1;overflow-y:auto;padding:8px 10px}
 .sr-item{
   padding:9px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;
   border:1px solid rgba(255,255,255,.04);
 }
-.sr-item:hover{background:rgba(108,124,255,.08)}
+.sr-item:hover{background:color-mix(in srgb, var(--accent) 8%, transparent)}
 .sr-meta{font-size:11px;color:var(--muted);margin-bottom:3px}
 .sr-text{font-size:13px;line-height:1.4}
-.sr-text mark{background:rgba(108,124,255,.35);color:var(--white);border-radius:2px;padding:0 1px}
+.sr-text mark{background:color-mix(in srgb, var(--accent) 35%, transparent);color:var(--white);border-radius:2px;padding:0 1px}
 .sr-empty{color:var(--muted);font-size:13px;text-align:center;padding:32px 0}
 
 /* ── Edit mode inline ── */
 .msg-edit-area{
   width:100%;margin-top:4px;padding:7px 10px;
-  border-radius:8px;border:1px solid rgba(108,124,255,.4);
+  border-radius:8px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   background:#0b0d16;color:var(--white);outline:none;
   font-size:14px;resize:none;font-family:inherit;line-height:1.4;
   box-sizing:border-box;
@@ -213,7 +213,7 @@ main{display:flex;flex:1;overflow:hidden}
 .profile-close{position:absolute;top:10px;right:12px;background:rgba(0,0,0,.4);border:none;color:#fff;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 /* Edit profile */
 .edit-profile-field{width:100%;box-sizing:border-box;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none;margin-bottom:8px}
-.edit-profile-field:focus{border-color:rgba(108,124,255,.35)}
+.edit-profile-field:focus{border-color:color-mix(in srgb, var(--accent) 35%, transparent)}
 textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 /* Avatar on messages */
 .msg-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:#20233a;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;overflow:hidden}
@@ -223,7 +223,7 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 /* User list status */
 .user-status{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
 /* ── AI PANEL ── */
-#aiPanel{display:none;position:absolute;bottom:100%;right:0;width:min(360px,95vw);background:#13152a;border:1px solid rgba(108,124,255,.2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:60;overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
+#aiPanel{display:none;position:absolute;bottom:100%;right:0;width:min(360px,95vw);background:#13152a;border:1px solid color-mix(in srgb, var(--accent) 20%, transparent);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:60;overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
 #aiPanel.open{display:flex}
 .ai-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
 .ai-header h4{flex:1;font-size:13px;font-weight:700;color:var(--accent)}
@@ -237,10 +237,10 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
 .ai-footer{padding:8px 12px;border-top:1px solid rgba(255,255,255,.05);display:flex;gap:6px;flex-shrink:0}
 .ai-inp{flex:1;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:12px;outline:none}
-.ai-inp:focus{border-color:rgba(108,124,255,.3)}
+.ai-inp:focus{border-color:color-mix(in srgb, var(--accent) 30%, transparent)}
 .ai-send{padding:7px 12px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer;font-weight:600}
-.smart-reply{display:inline-block;padding:5px 10px;border-radius:999px;border:1px solid rgba(108,124,255,.25);background:rgba(108,124,255,.08);color:var(--accent);font-size:12px;cursor:pointer;margin:2px;transition:background .15s}
-.smart-reply:hover{background:rgba(108,124,255,.2)}
+.smart-reply{display:inline-block;padding:5px 10px;border-radius:999px;border:1px solid color-mix(in srgb, var(--accent) 25%, transparent);background:color-mix(in srgb, var(--accent) 8%, transparent);color:var(--accent);font-size:12px;cursor:pointer;margin:2px;transition:background .15s}
+.smart-reply:hover{background:color-mix(in srgb, var(--accent) 20%, transparent)}
 /* ── STICKERS ── */
 .sticker-tray{padding:0}
 .sticker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}
@@ -256,13 +256,13 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .settings-sidebar{width:180px;background:#0d0f1a;border-right:1px solid rgba(255,255,255,.05);padding:12px 0;flex-shrink:0}
 .settings-nav-item{padding:9px 16px;font-size:13px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:8px;transition:background .12s}
 .settings-nav-item:hover{background:rgba(255,255,255,.04);color:var(--white)}
-.settings-nav-item.active{background:rgba(108,124,255,.12);color:var(--white);font-weight:600}
+.settings-nav-item.active{background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--white);font-weight:600}
 .settings-content{flex:1;padding:20px;overflow-y:auto}
 .settings-content h3{font-size:15px;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.05)}
 .settings-row{margin-bottom:14px}
 .settings-label{font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .settings-input{width:100%;box-sizing:border-box;padding:8px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
-.settings-input:focus{border-color:rgba(108,124,255,.3)}
+.settings-input:focus{border-color:color-mix(in srgb, var(--accent) 30%, transparent)}
 textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code',monospace;font-size:12px}
 .settings-save{padding:8px 20px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer}
 .settings-save:hover{opacity:.9}
@@ -294,17 +294,17 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .admin-btn{padding:4px 9px;border-radius:6px;font-size:11px;cursor:pointer;border:none;font-weight:600}
 .admin-btn.kick{background:rgba(255,165,0,.12);color:#ffa500}
 .admin-btn.delete{background:rgba(255,50,50,.12);color:#ff5050}
-.admin-btn.reset{background:rgba(108,124,255,.12);color:var(--accent)}
+.admin-btn.reset{background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--accent)}
 .admin-btn.detail{background:rgba(255,255,255,.06);color:var(--muted)}
 .online-badge{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:4px}
 .reaction{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.03);font-size:13px;cursor:pointer;border:1px solid transparent}
-.reaction.you{border-color:rgba(108,124,255,.3);background:rgba(108,124,255,.08)}
+.reaction.you{border-color:color-mix(in srgb, var(--accent) 30%, transparent);background:color-mix(in srgb, var(--accent) 8%, transparent)}
 .ulink{cursor:pointer;font-weight:600}
 .ulink:hover{text-decoration:underline;opacity:.8}
 .sys{font-style:italic;color:var(--system);font-size:13px;text-align:center;padding:6px}
 .compose{display:flex;padding:10px 12px;border-top:1px solid rgba(255,255,255,.03);gap:8px;background:#0e1020;align-items:center}
 .msg-input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.03);background:#0b0d16;color:var(--white);outline:none;font-size:14px}
-.msg-input:focus{border-color:rgba(108,124,255,.3)}
+.msg-input:focus{border-color:color-mix(in srgb, var(--accent) 30%, transparent)}
 .icon-btn{width:36px;height:36px;border-radius:50%;background:#0b0d16;border:1px solid rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;color:var(--white);flex-shrink:0;transition:background .15s}
 .icon-btn:hover{background:rgba(255,255,255,.06)}
 .send-btn{padding:0 16px;border-radius:10px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:14px;font-weight:600;height:36px}
@@ -325,7 +325,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 /* Files pane */
 .file-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
 .file-tile{aspect-ratio:1;border-radius:9px;border:1.5px dashed rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font-size:10px;color:var(--muted);transition:border-color .15s,background .15s;background:rgba(255,255,255,.02)}
-.file-tile:hover{border-color:var(--accent);background:rgba(108,124,255,.08);color:var(--white)}
+.file-tile:hover{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, transparent);color:var(--white)}
 .file-tile .ft-icon{font-size:18px}
 .file-upload-status{font-size:11px;color:var(--muted);text-align:center;min-height:14px}
 /* Camera pane */
@@ -339,11 +339,11 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 /* Poll pane */
 .poll-builder{display:flex;flex-direction:column;gap:6px}
 .pb-q{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.07);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
-.pb-q:focus{border-color:rgba(108,124,255,.35)}
+.pb-q:focus{border-color:color-mix(in srgb, var(--accent) 35%, transparent)}
 .pb-opts{display:flex;flex-direction:column;gap:5px}
 .pb-opt-row{display:flex;gap:5px;align-items:center}
 .pb-opt-row input{flex:1;padding:6px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.06);background:#0b0d16;color:var(--white);font-size:12px;outline:none}
-.pb-opt-row input:focus{border-color:rgba(108,124,255,.3)}
+.pb-opt-row input:focus{border-color:color-mix(in srgb, var(--accent) 30%, transparent)}
 .pb-opt-row button{width:24px;height:24px;border-radius:6px;border:none;background:rgba(255,50,50,.1);color:#ff7070;font-size:14px;cursor:pointer;flex-shrink:0;line-height:1}
 .pb-add{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;align-self:flex-start}
 .pb-launch{background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;padding:7px 0;cursor:pointer;width:100%;margin-top:2px}
@@ -367,7 +367,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .popup-btn:disabled{opacity:.4;cursor:default}
 
 /* ── TOASTS ── */
-#frToast{display:none;position:fixed;bottom:24px;right:24px;background:#13152a;border:1px solid rgba(108,124,255,.3);border-radius:12px;padding:16px 20px;z-index:600;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:260px}
+#frToast{display:none;position:fixed;bottom:24px;right:24px;background:#13152a;border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);border-radius:12px;padding:16px 20px;z-index:600;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:260px}
 .fr-title{font-size:14px;font-weight:600;margin-bottom:4px}
 .fr-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
 .fr-btns{display:flex;gap:8px}
@@ -379,7 +379,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 @keyframes callPulse{from{box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 0 0 rgba(57,211,83,.4)}to{box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 0 10px rgba(57,211,83,0)}}
 .ct-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .ct-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;animation:avatarRing 1.2s ease-in-out infinite;flex-shrink:0}
-@keyframes avatarRing{0%,100%{box-shadow:0 0 0 0 rgba(108,124,255,.5)}50%{box-shadow:0 0 0 8px rgba(108,124,255,0)}}
+@keyframes avatarRing{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent)}}
 .ct-info{}
 .ct-label{font-size:12px;color:var(--muted);margin-bottom:2px}
 .ct-name{font-size:16px;font-weight:700}
@@ -424,7 +424,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 }
 .ctrl-btn .ctrl-icon{font-size:20px;line-height:1}
 .ctrl-btn:hover{background:rgba(255,255,255,.1)}
-.ctrl-btn.active{background:rgba(108,124,255,.2);border-color:rgba(108,124,255,.4);color:var(--accent)}
+.ctrl-btn.active{background:color-mix(in srgb, var(--accent) 20%, transparent);border-color:color-mix(in srgb, var(--accent) 40%, transparent);color:var(--accent)}
 .ctrl-btn.danger{background:rgba(255,80,80,.15);border-color:rgba(255,80,80,.35);color:var(--red)}
 .ctrl-btn.danger:hover{background:rgba(255,80,80,.25)}
 /* Call header bar */
@@ -477,7 +477,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .poll-status{font-size:11px;color:var(--muted)}
 .poll-end-btn{font-size:11px;padding:3px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:5px;color:var(--muted);cursor:pointer}
 /* Chat poll (rendered inside message feed) */
-.chat-poll-msg{background:rgba(108,124,255,.07);border:1px solid rgba(108,124,255,.18);border-radius:10px;padding:10px 14px;margin:2px 0}
+.chat-poll-msg{background:color-mix(in srgb, var(--accent) 7%, transparent);border:1px solid color-mix(in srgb, var(--accent) 18%, transparent);border-radius:10px;padding:10px 14px;margin:2px 0}
 /* New poll form */
 .poll-form{display:flex;flex-direction:column;gap:6px;padding:8px 0}
 .poll-form input,.poll-form textarea{background:#0b0d16;border:1px solid rgba(255,255,255,.08);border-radius:7px;color:var(--white);padding:7px 10px;font-size:13px;outline:none;font-family:inherit}
@@ -488,13 +488,13 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .pf-cancel{background:rgba(255,255,255,.06);color:var(--muted)}
 .sb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .sb-title{font-size:13px;font-weight:600;color:var(--white)}
-.sb-upload{font-size:12px;color:var(--accent);cursor:pointer;background:none;border:1px solid rgba(108,124,255,.3);border-radius:6px;padding:3px 10px}
+.sb-upload{font-size:12px;color:var(--accent);cursor:pointer;background:none;border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);border-radius:6px;padding:3px 10px}
 .sb-upload:hover{background:rgba(108,124,255,.1)}
 .sb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
 .sb-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;cursor:pointer;font-size:11px;color:var(--muted);transition:all .15s;position:relative}
-.sb-btn:hover{background:rgba(108,124,255,.15);border-color:rgba(108,124,255,.35);color:var(--white)}
-.sb-btn.playing{background:rgba(108,124,255,.25);border-color:var(--accent);color:var(--accent);animation:sbpulse .6s ease-in-out infinite alternate}
-@keyframes sbpulse{from{box-shadow:0 0 0 0 rgba(108,124,255,.4)}to{box-shadow:0 0 0 6px rgba(108,124,255,0)}}
+.sb-btn:hover{background:color-mix(in srgb, var(--accent) 15%, transparent);border-color:color-mix(in srgb, var(--accent) 35%, transparent);color:var(--white)}
+.sb-btn.playing{background:color-mix(in srgb, var(--accent) 25%, transparent);border-color:var(--accent);color:var(--accent);animation:sbpulse .6s ease-in-out infinite alternate}
+@keyframes sbpulse{from{box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent)}to{box-shadow:0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent)}}
 .sb-icon{font-size:22px;line-height:1}
 .sb-name{text-align:center;word-break:break-word;line-height:1.2}
 .sb-del{position:absolute;top:3px;right:4px;font-size:10px;color:var(--muted);opacity:0;cursor:pointer;background:none;border:none;padding:0}
@@ -517,7 +517,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .mic-err{color:#ff6b6b;font-size:13px;margin-top:10px;min-height:16px}
 
 /* ── NOTIF BANNER ── */
-#notifBanner{display:none;position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#1a1d30;border:1px solid rgba(108,124,255,.3);border-radius:12px;padding:10px 16px;z-index:700;align-items:center;gap:10px;max-width:92vw}
+#notifBanner{display:none;position:fixed;top:68px;left:50%;transform:translateX(-50%);background:#1a1d30;border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);border-radius:12px;padding:10px 16px;z-index:700;align-items:center;gap:10px;max-width:92vw}
 .nb-text{font-size:13px;flex:1}
 .nb-allow{padding:5px 12px;border-radius:7px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600}
 .nb-dismiss{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0 2px}
@@ -526,7 +526,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 #callingOverlay{display:none;position:fixed;inset:0;z-index:850;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center}
 .calling-box{background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:40px 48px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .calling-avatar{width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 auto 16px;animation:cring 1.4s ease-in-out infinite}
-@keyframes cring{0%,100%{box-shadow:0 0 0 0 rgba(108,124,255,.5)}50%{box-shadow:0 0 0 16px rgba(108,124,255,0)}}
+@keyframes cring{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent)}50%{box-shadow:0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent)}}
 .calling-name{font-size:20px;font-weight:700;margin-bottom:6px}
 .calling-status{color:var(--muted);font-size:14px;margin-bottom:28px}
 .calling-cancel{padding:12px 32px;border-radius:12px;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:15px;font-weight:700}
@@ -539,8 +539,8 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 .srv-divider{width:30px;height:1px;background:rgba(255,255,255,.06);margin:4px 0;flex-shrink:0}
 .srv-add{background:rgba(57,211,83,.08);color:var(--green)!important;border:1.5px dashed rgba(57,211,83,.3)!important}
 .srv-add:hover{background:rgba(57,211,83,.15);border-radius:12px}
-.srv-discover{background:rgba(108,124,255,.08);color:var(--accent)!important;border:1.5px dashed rgba(108,124,255,.3)!important}
-.srv-discover:hover{background:rgba(108,124,255,.15);border-radius:12px}
+.srv-discover{background:color-mix(in srgb, var(--accent) 8%, transparent);color:var(--accent)!important;border:1.5px dashed color-mix(in srgb, var(--accent) 30%, transparent)!important}
+.srv-discover:hover{background:color-mix(in srgb, var(--accent) 15%, transparent);border-radius:12px}
 .ch-hdr-btn{font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);color:var(--muted);cursor:pointer;white-space:nowrap}
 .ch-hdr-btn:hover{color:var(--white);background:rgba(255,255,255,.08)}
 .ch-hdr-btn.danger{color:#ff7070}
@@ -605,7 +605,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
     margin-bottom:4px;
   }
   .msrv-item:active{background:rgba(255,255,255,.06)}
-  .msrv-item.active{background:rgba(108,124,255,.12)}
+  .msrv-item.active{background:color-mix(in srgb, var(--accent) 12%, transparent)}
   .msrv-avatar{
     width:44px;height:44px;border-radius:14px;
     display:flex;align-items:center;justify-content:center;
@@ -4508,8 +4508,13 @@ function initAppearancePicker(){
       el.appendChild(s);
     });
     // Custom color input
-    var inp=document.createElement('input');inp.type='color';inp.style.cssText='width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;cursor:pointer;padding:1px';
-    inp.oninput=function(){document.documentElement.style.setProperty(cssVar,inp.value);localStorage.setItem('vt_'+cssVar,inp.value);};
+    var inp=document.createElement('input');inp.type='color';
+    inp.value=getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()||'#6c7cff';
+    inp.style.cssText='width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:none;cursor:pointer;padding:1px';
+    inp.oninput=function(){
+      document.documentElement.style.setProperty(cssVar,inp.value);
+      localStorage.setItem('vt_'+cssVar,inp.value);
+    };
     el.appendChild(inp);
   }
   makePicker('accentPicker',ACCENT_PRESETS,'--accent');
@@ -4660,19 +4665,15 @@ function getRecentMessages(n){
   var cache=msgCache[currentChannelId||currentRoom]||[];
   return cache.slice(-n).filter(function(m){return m.text;}).map(function(m){return m.user+': '+m.text;}).join('\n');
 }
-async function aiCall(messages){
-  var r=await fetch('https://api.anthropic.com/v1/messages',{
+async function aiCall(messages, system){
+  var r=await fetch('/ai/chat',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:1000,
-      system:'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.',
-      messages:messages
-    })
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+    body:JSON.stringify({messages:messages, system:system||undefined})
   });
   var d=await r.json();
-  return (d.content&&d.content[0])?d.content[0].text:'(no response)';
+  if(d.error) throw new Error(d.error);
+  return d.text||'(no response)';
 }
 async function aiSummarize(){
   var msgs=getRecentMessages(50);
