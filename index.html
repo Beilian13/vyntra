@@ -281,6 +281,45 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .sticker-fav-overlay{position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:8px;padding:2px 7px;font-size:11px;cursor:pointer;color:#fff;opacity:0;transition:opacity .15s}
 .sticker-msg:hover .sticker-fav-overlay{opacity:1}
 .sticker-fav-overlay.active{opacity:1;color:#ffd700}
+/* ── PDF VIEWER ── */
+#pdfModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:800;flex-direction:column}
+#pdfModal.open{display:flex}
+.pdf-topbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0d0f1a;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;flex-wrap:wrap}
+.pdf-title{font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-page-ctrl{display:flex;align-items:center;gap:6px;font-size:13px}
+.pdf-page-ctrl button{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);color:var(--white);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.pdf-page-ctrl button:hover{background:rgba(255,255,255,.13)}
+.pdf-page-ctrl input{width:42px;text-align:center;padding:4px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:#0b0d16;color:var(--white);font-size:13px;outline:none}
+.pdf-zoom-ctrl{display:flex;align-items:center;gap:4px}
+.pdf-zoom-ctrl button{width:26px;height:26px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.06);color:var(--white);cursor:pointer;font-size:14px}
+#pdfClose{background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.25);color:#ff7070;border-radius:7px;padding:5px 12px;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0}
+.pdf-body{display:flex;flex:1;overflow:hidden;min-height:0}
+.pdf-sidebar{width:200px;background:#0b0d16;border-right:1px solid rgba(255,255,255,.05);overflow-y:auto;flex-shrink:0;padding:8px}
+.pdf-sidebar-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 6px 8px}
+.pdf-thumb{display:block;width:100%;margin-bottom:6px;border-radius:6px;border:2px solid transparent;cursor:pointer;background:#13152a;overflow:hidden;transition:border-color .12s}
+.pdf-thumb canvas{width:100%;display:block}
+.pdf-thumb.active{border-color:var(--accent)}
+.pdf-main{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#1a1c2e}
+.pdf-page-wrap{position:relative;box-shadow:0 4px 24px rgba(0,0,0,.5);border-radius:4px;overflow:hidden}
+.pdf-page-wrap canvas{display:block}
+.pdf-ai-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0d0f1a;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.pdf-ai-inp{flex:1;padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.07);background:#13152a;color:var(--white);font-size:13px;outline:none}
+.pdf-ai-inp:focus{border-color:color-mix(in srgb, var(--accent) 35%, transparent)}
+.pdf-ai-btn{padding:8px 16px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0}
+.pdf-ai-actions{display:flex;gap:6px;flex-shrink:0}
+.pdf-ai-action{padding:6px 11px;border-radius:7px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap;transition:all .12s}
+.pdf-ai-action:hover{background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--white);border-color:color-mix(in srgb, var(--accent) 30%, transparent)}
+.pdf-ai-result{padding:10px 14px;background:#0d0f1a;border-top:1px solid rgba(255,255,255,.04);font-size:13px;line-height:1.6;color:var(--white);max-height:200px;overflow-y:auto;flex-shrink:0;display:none}
+.pdf-ai-result.open{display:block}
+/* In-chat PDF card */
+.pdf-card{display:flex;align-items:center;gap:10px;margin-top:6px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);max-width:320px;cursor:pointer;transition:border-color .15s}
+.pdf-card:hover{border-color:color-mix(in srgb, var(--accent) 40%, transparent)}
+.pdf-card-icon{font-size:28px;flex-shrink:0}
+.pdf-card-info{flex:1;overflow:hidden}
+.pdf-card-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-card-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.pdf-card-open{font-size:11px;color:var(--accent);font-weight:600;flex-shrink:0}
+
 /* ── SETTINGS / THEME ENGINE ── */
 #settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
 #settingsModal.open{display:flex}
@@ -956,6 +995,42 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   <button class="popup-btn danger" id="pupAdminDelete" style="display:none">🗑️ Delete Account</button>
   <button class="popup-btn" style="background:rgba(108,124,255,.12);color:var(--accent)" id="pupAdminPanel" style="display:none">🛡️ Admin Panel</button>
   <button class="popup-btn" onclick="closePopup()">✕ Close</button>
+</div>
+
+<!-- PDF Viewer Modal -->
+<div id="pdfModal">
+  <div class="pdf-topbar">
+    <span class="pdf-title" id="pdfTitle">Document</span>
+    <div class="pdf-page-ctrl">
+      <button onclick="pdfPrevPage()">‹</button>
+      <input type="number" id="pdfPageInput" value="1" min="1" onchange="pdfGoToPage(parseInt(this.value))"/>
+      <span style="color:var(--muted);font-size:12px">/ <span id="pdfTotalPages">1</span></span>
+      <button onclick="pdfNextPage()">›</button>
+    </div>
+    <div class="pdf-zoom-ctrl">
+      <button onclick="pdfZoom(-0.25)">−</button>
+      <span id="pdfZoomLabel" style="font-size:12px;color:var(--muted);width:38px;text-align:center">100%</span>
+      <button onclick="pdfZoom(+0.25)">+</button>
+    </div>
+    <button id="pdfClose" onclick="closePdfViewer()">✕ Close</button>
+  </div>
+  <div class="pdf-body">
+    <div class="pdf-sidebar" id="pdfSidebar">
+      <div class="pdf-sidebar-title">Pages</div>
+      <div id="pdfThumbs"></div>
+    </div>
+    <div class="pdf-main" id="pdfMain"></div>
+  </div>
+  <div class="pdf-ai-result" id="pdfAiResult"></div>
+  <div class="pdf-ai-bar">
+    <div class="pdf-ai-actions">
+      <button class="pdf-ai-action" onclick="pdfAiAction('summarize')">✦ Summarize</button>
+      <button class="pdf-ai-action" onclick="pdfAiAction('thispage')">✦ This page</button>
+      <button class="pdf-ai-action" onclick="pdfAiAction('keypoints')">✦ Key points</button>
+    </div>
+    <input class="pdf-ai-inp" id="pdfAiInput" placeholder="Ask AI about this PDF… e.g. find the section about pricing, go to page 3"/>
+    <button class="pdf-ai-btn" onclick="pdfAiAsk()">Ask ✦</button>
+  </div>
 </div>
 
 <!-- Profile modal -->
@@ -2461,11 +2536,22 @@ function renderMsg(msg){
       ac.appendChild(aLabel);ac.appendChild(ael);
       w.appendChild(ac);
     } else {
-      var fc=document.createElement('a');fc.href=msg.fileUrl;fc.target='_blank';fc.download=msg.fileName||'file';
-      fc.style.cssText='display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);color:var(--white);text-decoration:none;font-size:13px;max-width:260px';
-      var icon=ft.includes('pdf')?'📄':ft.includes('video')?'🎬':'📎';
-      fc.innerHTML='<span style="font-size:18px">'+icon+'</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(msg.fileName||'file')+'</span><span style="margin-left:auto;opacity:.5;font-size:11px">↓</span>';
-      w.appendChild(fc);
+      if(ft.includes('pdf')){
+        // Rich PDF card — click to open viewer
+        var pdfCard=document.createElement('div');pdfCard.className='pdf-card';
+        pdfCard.innerHTML='<div class="pdf-card-icon">📄</div>'
+          +'<div class="pdf-card-info"><div class="pdf-card-name">'+escHtml(msg.fileName||'document.pdf')+'</div>'
+          +'<div class="pdf-card-meta">PDF · click to view &amp; chat with AI</div></div>'
+          +'<div class="pdf-card-open">Open ›</div>';
+        (function(url,name){pdfCard.onclick=function(){openPdfViewer(url,name);};})(msg.fileUrl,msg.fileName||'document.pdf');
+        w.appendChild(pdfCard);
+      } else {
+        var fc=document.createElement('a');fc.href=msg.fileUrl;fc.target='_blank';fc.download=msg.fileName||'file';
+        fc.style.cssText='display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);color:var(--white);text-decoration:none;font-size:13px;max-width:260px';
+        var icon=ft.includes('video')?'🎬':'📎';
+        fc.innerHTML='<span style="font-size:18px">'+icon+'</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(msg.fileName||'file')+'</span><span style="margin-left:auto;opacity:.5;font-size:11px">↓</span>';
+        w.appendChild(fc);
+      }
     }
   }
   var rx=document.createElement('div');rx.className='reactions';fillReactions(rx,msg);
@@ -5089,6 +5175,185 @@ async function preloadAllStickerEmoji(){
   }));
 }
 
+
+/* ══════════════════════════════════════════════
+   PDF VIEWER
+══════════════════════════════════════════════ */
+var _pdf=null, _pdfPage=1, _pdfZoom=1.2, _pdfUrl='', _pdfName='', _pdfTextCache={};
+
+function openPdfViewer(url, name){
+  _pdfUrl=url; _pdfName=name||'Document';
+  _pdfPage=1; _pdfZoom=1.2; _pdfTextCache={};
+  document.getElementById('pdfTitle').textContent=name||'Document';
+  document.getElementById('pdfAiResult').classList.remove('open');
+  document.getElementById('pdfAiResult').innerHTML='';
+  document.getElementById('pdfAiInput').value='';
+  document.getElementById('pdfMain').innerHTML='<div style="color:var(--muted);padding:32px;font-size:14px">Loading PDF…</div>';
+  document.getElementById('pdfThumbs').innerHTML='';
+  document.getElementById('pdfModal').classList.add('open');
+  // Load PDF.js from CDN
+  if(!window.pdfjsLib){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=function(){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      _pdfLoad();
+    };
+    document.head.appendChild(s);
+  } else {
+    _pdfLoad();
+  }
+}
+
+function _pdfLoad(){
+  pdfjsLib.getDocument(_pdfUrl).promise.then(function(pdf){
+    _pdf=pdf;
+    var total=pdf.numPages;
+    document.getElementById('pdfTotalPages').textContent=total;
+    document.getElementById('pdfPageInput').max=total;
+    _pdfRenderPage(_pdfPage);
+    _pdfRenderThumbs();
+  }).catch(function(e){
+    document.getElementById('pdfMain').innerHTML='<div style="color:var(--red);padding:32px">❌ Could not load PDF: '+escHtml(e.message)+'</div>';
+  });
+}
+
+function _pdfRenderPage(num){
+  if(!_pdf) return;
+  num=Math.max(1,Math.min(num,_pdf.numPages));
+  _pdfPage=num;
+  document.getElementById('pdfPageInput').value=num;
+  // Highlight active thumb
+  document.querySelectorAll('.pdf-thumb').forEach(function(t,i){
+    t.classList.toggle('active',i+1===num);
+    if(i+1===num) t.scrollIntoView({block:'nearest'});
+  });
+  _pdf.getPage(num).then(function(page){
+    var viewport=page.getViewport({scale:_pdfZoom});
+    var wrap=document.createElement('div');wrap.className='pdf-page-wrap';
+    var canvas=document.createElement('canvas');
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    var ctx=canvas.getContext('2d');
+    wrap.appendChild(canvas);
+    document.getElementById('pdfMain').innerHTML='';
+    document.getElementById('pdfMain').appendChild(wrap);
+    document.getElementById('pdfZoomLabel').textContent=Math.round(_pdfZoom*100)+'%';
+    page.render({canvasContext:ctx,viewport:viewport});
+  });
+}
+
+function _pdfRenderThumbs(){
+  if(!_pdf) return;
+  var container=document.getElementById('pdfThumbs');container.innerHTML='';
+  for(var i=1;i<=_pdf.numPages;i++){
+    (function(n){
+      var wrap=document.createElement('div');wrap.className='pdf-thumb'+(n===_pdfPage?' active':'');
+      var label=document.createElement('div');
+      label.style.cssText='font-size:10px;color:var(--muted);text-align:center;padding:3px 0';
+      label.textContent='Page '+n;
+      var canvas=document.createElement('canvas');
+      wrap.appendChild(canvas);wrap.appendChild(label);
+      wrap.onclick=function(){_pdfRenderPage(n);};
+      container.appendChild(wrap);
+      _pdf.getPage(n).then(function(page){
+        var vp=page.getViewport({scale:0.22});
+        canvas.width=vp.width; canvas.height=vp.height;
+        page.render({canvasContext:canvas.getContext('2d'),viewport:vp});
+      });
+    })(i);
+  }
+}
+
+function pdfPrevPage(){ _pdfRenderPage(_pdfPage-1); }
+function pdfNextPage(){ _pdfRenderPage(_pdfPage+1); }
+function pdfGoToPage(n){ _pdfRenderPage(n); }
+function pdfZoom(delta){
+  _pdfZoom=Math.max(0.5,Math.min(3.0,_pdfZoom+delta));
+  _pdfRenderPage(_pdfPage);
+}
+function closePdfViewer(){
+  document.getElementById('pdfModal').classList.remove('open');
+  _pdf=null; _pdfTextCache={};
+}
+
+// Extract text from all pages (cached)
+async function _pdfExtractText(maxPages){
+  if(!_pdf) return '';
+  maxPages=maxPages||_pdf.numPages;
+  var pages=[];
+  for(var i=1;i<=Math.min(maxPages,_pdf.numPages);i++){
+    if(_pdfTextCache[i]){pages.push('--- Page '+i+' ---\n'+_pdfTextCache[i]);continue;}
+    try{
+      var page=await _pdf.getPage(i);
+      var content=await page.getTextContent();
+      var text=content.items.map(function(it){return it.str;}).join(' ');
+      _pdfTextCache[i]=text;
+      pages.push('--- Page '+i+' ---\n'+text);
+    }catch(e){}
+  }
+  return pages.join('\n\n');
+}
+
+async function pdfAiAction(action){
+  var result=document.getElementById('pdfAiResult');
+  result.classList.add('open');
+  result.innerHTML='<div style="color:var(--muted);display:flex;gap:6px;align-items:center"><span style="animation:pulse 1s infinite">●</span> Thinking…</div>';
+  try{
+    var text, prompt;
+    if(action==='thispage'){
+      if(!_pdfTextCache[_pdfPage]) await _pdfExtractText();
+      text=_pdfTextCache[_pdfPage]||'(no text on this page)';
+      prompt='Summarize this page from a PDF in 3-5 sentences:\n\n'+text;
+    } else if(action==='summarize'){
+      text=await _pdfExtractText(10); // first 10 pages
+      prompt='Give a concise summary (5-8 bullet points) of this PDF document:\n\n'+text.slice(0,12000);
+    } else if(action==='keypoints'){
+      text=await _pdfExtractText(10);
+      prompt='Extract the key points, main arguments, and any important numbers or facts from this PDF:\n\n'+text.slice(0,12000);
+    }
+    var reply=await aiCall([{role:'user',content:prompt}],'You are a PDF analysis assistant. Be concise and well-structured. Use bullet points where appropriate.');
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>');
+  }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
+}
+
+async function pdfAiAsk(){
+  var inp=document.getElementById('pdfAiInput');
+  var q=inp.value.trim();if(!q)return;
+  var result=document.getElementById('pdfAiResult');
+  result.classList.add('open');
+  result.innerHTML='<div style="color:var(--muted);display:flex;gap:6px;align-items:center"><span style="animation:pulse 1s infinite">●</span> Reading PDF…</div>';
+  inp.value='';
+  try{
+    // Check if user wants to navigate to a page
+    var pageMatch=q.match(/(?:go to|page|jump to)\s+(\d+)/i);
+    if(pageMatch){
+      var pg=parseInt(pageMatch[1]);
+      _pdfRenderPage(pg);
+      result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>Jumped to page '+pg+'.';
+      return;
+    }
+    // Extract text and ask AI
+    var text=await _pdfExtractText(20);
+    var prompt='The user is viewing a PDF called "'+_pdfName+'". Answer their question based on the document content.\n\nUser question: '+q+'\n\nDocument content (first 20 pages):\n'+text.slice(0,15000);
+    var reply=await aiCall([{role:'user',content:prompt}],'You are a PDF assistant. If the answer mentions a specific page, start with "📄 Page X:" to indicate which page is relevant. Be concise.');
+    // If AI response mentions a page number, offer to jump there
+    var mentioned=reply.match(/(?:page|p\.)\s*(\d+)/i);
+    var jumpBtn='';
+    if(mentioned){
+      var pg2=parseInt(mentioned[1]);
+      if(pg2>=1&&pg2<=_pdf.numPages){
+        jumpBtn='<br><button onclick="_pdfRenderPage('+pg2+')" style="margin-top:8px;padding:5px 12px;border-radius:6px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer">→ Jump to page '+pg2+'</button>';
+      }
+    }
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>')+jumpBtn;
+  }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
+}
+
+// Allow pressing Enter in the PDF AI input
+document.addEventListener('DOMContentLoaded',function(){
+  var inp=document.getElementById('pdfAiInput');
+  if(inp) inp.addEventListener('keypress',function(e){if(e.key==='Enter')pdfAiAsk();});
+});
 
 /* ══════════════════════════════════════════════
    AI ASSISTANT
