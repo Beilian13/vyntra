@@ -17,6 +17,14 @@ const webpush    = require('web-push');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+// node-fetch fallback for environments without native fetch
+let _fetch = typeof fetch !== 'undefined' ? fetch : null;
+(async () => {
+  if (!_fetch) {
+    try { const nf = await import('node-fetch'); _fetch = nf.default; } catch(e) {}
+  }
+})();
+
 const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
@@ -57,7 +65,7 @@ const upload = multer({
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
 const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
-const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY  || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
@@ -589,30 +597,38 @@ app.patch('/servers/:id/channels/:cid/category', authMiddleware, async (req, res
 /* ── AI PROXY ── */
 app.post('/ai/chat', authMiddleware, async (req, res) => {
   try {
-    if (!ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI not configured' });
+    if (!GEMINI_API_KEY) return res.status(503).json({ error: 'AI not configured — set GEMINI_API_KEY in Render env vars' });
+    if (!_fetch) return res.status(503).json({ error: 'fetch not available on this server' });
     const { messages, system } = req.body;
-    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages' });
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages array' });
+
+    // Convert OpenAI-style messages to Gemini format
+    const systemPrompt = system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.';
+    const contents = messages.slice(-10).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const response = await _fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system:     system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.',
-        messages:   messages.slice(-10), // cap context
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { maxOutputTokens: 1000 },
       }),
     });
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message || 'AI error' });
-    const text = data.content?.[0]?.text || '(no response)';
+    if (!response.ok) {
+      console.error('Gemini API error:', response.status, JSON.stringify(data));
+      return res.status(500).json({ error: data?.error?.message || `Gemini returned ${response.status}` });
+    }
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '(no response)';
     res.json({ text });
   } catch (e) {
-    console.error('AI proxy error:', e);
-    res.status(500).json({ error: 'AI request failed' });
+    console.error('AI proxy exception:', e);
+    res.status(500).json({ error: e.message || 'AI request failed' });
   }
 });
 
