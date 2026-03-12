@@ -65,7 +65,7 @@ const upload = multer({
 /* ── ENV ── */
 const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
 const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
@@ -597,34 +597,34 @@ app.patch('/servers/:id/channels/:cid/category', authMiddleware, async (req, res
 /* ── AI PROXY ── */
 app.post('/ai/chat', authMiddleware, async (req, res) => {
   try {
-    if (!GEMINI_API_KEY) return res.status(503).json({ error: 'AI not configured — set GEMINI_API_KEY in Render env vars' });
+    if (!OPENROUTER_API_KEY) return res.status(503).json({ error: 'AI not configured — set OPENROUTER_API_KEY in Render env vars' });
     if (!_fetch) return res.status(503).json({ error: 'fetch not available on this server' });
     const { messages, system } = req.body;
     if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages array' });
 
-    // Convert OpenAI-style messages to Gemini format
-    const systemPrompt = system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.';
-    const contents = messages.slice(-10).map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-    const response = await _fetch(url, {
+    const response = await _fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer':  'https://vyntra-zlfn.onrender.com',
+        'X-Title':       'Vyntra',
+      },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: { maxOutputTokens: 1000 },
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        max_tokens: 1000,
+        messages: [
+          { role: 'system', content: system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.' },
+          ...messages.slice(-10),
+        ],
       }),
     });
     const data = await response.json();
     if (!response.ok) {
-      console.error('Gemini API error:', response.status, JSON.stringify(data));
-      return res.status(500).json({ error: data?.error?.message || `Gemini returned ${response.status}` });
+      console.error('OpenRouter API error:', response.status, JSON.stringify(data));
+      return res.status(500).json({ error: data?.error?.message || `OpenRouter returned ${response.status}` });
     }
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '(no response)';
+    const text = data.choices?.[0]?.message?.content || '(no response)';
     res.json({ text });
   } catch (e) {
     console.error('AI proxy exception:', e);
