@@ -1356,6 +1356,9 @@ var ws, connected=false, myName='', currentRoom=null, currentChannelId=null;
 var myFriends=[], mutedUsers=[], blockedUsers=[], pendingFriends=[], msgCache={}, allRooms=[];
 var listenersReady=false, pendingFR=null, pendingUser=null;
 var allEmojis=[], pickerFor=null;
+var _emojiTab='std';
+var _slibTab='stickers';
+var _stickers={}, _serverEmoji={}, _favStickers=[], _favEmoji=[];
 var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
 var isAndroid=/Android/i.test(navigator.userAgent);
 var isMobile=isIOS||isAndroid||/Mobile/i.test(navigator.userAgent);
@@ -2395,7 +2398,14 @@ function renderMsg(msg){
   // File/image/sticker attachment
   if(msg.fileUrl){
     var ft=msg.fileType||'';
-    if(ft==='sticker/vyntra'){
+    // Old messages used /uploads/ local paths — those files are gone (moved to Cloudinary)
+    var isDeadUrl=msg.fileUrl.startsWith('/uploads/');
+    if(isDeadUrl){
+      var deadEl=document.createElement('div');
+      deadEl.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-top:5px;padding:7px 11px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:12px;font-style:italic';
+      deadEl.textContent='📎 '+(msg.fileName||'attachment')+' (file no longer available)';
+      w.appendChild(deadEl);
+    } else if(ft==='sticker/vyntra'){
       var sm=document.createElement('div');sm.className='sticker-msg';
       var simg=document.createElement('img');simg.src=msg.fileUrl;simg.alt=msg.fileName||'sticker';simg.loading='lazy';
       var favOv=document.createElement('button');favOv.className='sticker-fav-overlay';
@@ -4689,11 +4699,6 @@ function loadSavedAppearance(){
 /* ══════════════════════════════════════════════
    STICKER & EMOJI LIBRARY
 ══════════════════════════════════════════════ */
-var _stickers={};        // serverId → [{_id,name,url}]
-var _serverEmoji={};     // serverId → [{_id,name,url}]
-var _favStickers=[];     // array of {_id,name,url,serverId}
-var _favEmoji=[];        // array of emoji char or {_id,name,url,serverId} for custom
-var _slibTab='stickers'; // current tab
 
 function loadFavs(){
   try{_favStickers=JSON.parse(localStorage.getItem('vt_favStickers')||'[]');}catch(e){_favStickers=[];}
