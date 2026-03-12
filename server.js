@@ -185,6 +185,15 @@ const stickerSchema = new mongoose.Schema({
 });
 const Sticker = mongoose.model('Sticker', stickerSchema);
 
+const customEmojiSchema = new mongoose.Schema({
+  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
+  name:      { type: String, required: true },   // :name: shortcode
+  url:       { type: String, required: true },
+  uploadedBy:{ type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const CustomEmoji = mongoose.model('CustomEmoji', customEmojiSchema);
+
 async function pushToUser(username, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
   const subs = await PushSub.find({ username }).lean();
@@ -478,6 +487,42 @@ app.delete('/servers/:id/stickers/:sid', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     await Sticker.deleteOne({ _id: req.params.sid, serverId: srv._id });
     broadcastToServer(srv, { type: 'sticker_removed', serverId: srv._id.toString(), stickerId: req.params.sid });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── CUSTOM EMOJI ── */
+app.get('/servers/:id/emoji', authMiddleware, async (req, res) => {
+  try {
+    const emoji = await CustomEmoji.find({ serverId: req.params.id }).lean();
+    res.json(emoji);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/servers/:id/emoji', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
+      return res.status(403).json({ error: 'Forbidden' });
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    let { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    name = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+    // Check for duplicates within this server
+    const exists = await CustomEmoji.findOne({ serverId: srv._id, name });
+    if (exists) return res.status(400).json({ error: 'Emoji name already exists on this server' });
+    const emoji = await CustomEmoji.create({ serverId: srv._id, name, url: req.file.path, uploadedBy: req.user.username });
+    broadcastToServer(srv, { type: 'emoji_added', serverId: srv._id.toString(), emoji });
+    res.json(emoji);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+app.delete('/servers/:id/emoji/:eid', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv || (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)))
+      return res.status(403).json({ error: 'Forbidden' });
+    await CustomEmoji.deleteOne({ _id: req.params.eid, serverId: srv._id });
+    broadcastToServer(srv, { type: 'emoji_removed', serverId: srv._id.toString(), emojiId: req.params.eid });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
