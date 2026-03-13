@@ -389,6 +389,95 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .nt-submit{background:var(--accent);color:#fff}
 .nt-submit:hover{opacity:.9}
 
+/* ── PINS PANEL ── */
+.pin-count-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;transition:all .12s;margin-left:6px}
+.pin-count-badge:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
+#pinsPanel{position:absolute;top:0;right:0;width:min(360px,100%);height:100%;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:31;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1)}
+#pinsPanel.open{transform:translateX(0)}
+.pins-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--panel-dark)}
+.pins-header h3{flex:1;font-size:14px;font-weight:700;margin:0}
+.pins-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.pin-card{background:var(--panel-card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;position:relative}
+.pin-card:hover .pin-unpin{display:block}
+.pin-card-user{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px}
+.pin-card-text{font-size:13px;line-height:1.5;word-break:break-word}
+.pin-card-meta{font-size:10px;color:var(--muted);margin-top:5px}
+.pin-unpin{display:none;position:absolute;top:7px;right:8px;background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.25);border-radius:5px;color:#ff7070;font-size:11px;padding:2px 7px;cursor:pointer}
+.pin-unpin:hover{background:rgba(255,80,80,.25)}
+/* pin button in msg actions */
+.pin-msg-btn{}
+
+/* ── SERVER EVENTS ── */
+#eventsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
+.events-panel{background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(520px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.events-header{display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.events-header h3{flex:1;font-size:15px;font-weight:700;margin:0}
+.events-body{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.event-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.event-date-box{background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);border-radius:8px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:48px}
+.event-date-box .edb-month{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--accent)}
+.event-date-box .edb-day{font-size:20px;font-weight:800;color:var(--white);line-height:1}
+.event-info{flex:1;min-width:0}
+.event-title{font-size:14px;font-weight:700;margin-bottom:3px}
+.event-desc{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px}
+.event-meta{font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.event-rsvp-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:all .12s}
+.event-rsvp-btn.going{background:color-mix(in srgb,var(--accent) 15%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent)}
+.event-rsvp-btn.not-going{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:var(--muted)}
+.event-rsvp-btn:hover{opacity:.85}
+.new-event-form{background:var(--panel-dark);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.new-event-form input,.new-event-form textarea,.new-event-form select{padding:8px 11px;border-radius:8px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;font-family:inherit}
+.new-event-form input:focus,.new-event-form textarea:focus{border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.new-event-form textarea{resize:vertical;min-height:55px}
+.new-event-row{display:flex;gap:8px}
+.new-event-row input{flex:1}
+
+/* ── BOOKMARKS ── */
+#bookmarksModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
+.bookmarks-panel{background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(520px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.bookmarks-header{display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.bookmarks-header h3{flex:1;font-size:15px;font-weight:700;margin:0}
+.bookmarks-body{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.bookmark-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+.bookmark-card:hover{border-color:color-mix(in srgb,var(--accent) 20%,transparent)}
+.bm-icon{font-size:20px;flex-shrink:0;margin-top:2px}
+.bm-body{flex:1;min-width:0}
+.bm-user{font-size:11px;font-weight:700;color:var(--accent)}
+.bm-text{font-size:13px;line-height:1.5;word-break:break-word;margin:2px 0}
+.bm-meta{font-size:10px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.bm-del{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 4px;flex-shrink:0;align-self:center}
+.bm-del:hover{color:#ff7070}
+
+/* ── MINI GAMES ── */
+#gamesPanel{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center}
+.games-container{background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(480px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.games-header{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--panel-dark)}
+.games-header h3{flex:1;font-size:15px;font-weight:700;margin:0}
+.games-body{flex:1;overflow-y:auto;padding:14px 16px}
+.games-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.game-tile{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .15s}
+.game-tile:hover{border-color:color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--panel) 80%,var(--accent) 5%)}
+.game-tile .gt-icon{font-size:30px;margin-bottom:6px}
+.game-tile .gt-name{font-size:13px;font-weight:700}
+.game-tile .gt-desc{font-size:11px;color:var(--muted);margin-top:2px}
+.game-area{display:none;flex-direction:column;gap:10px}
+.game-area.active{display:flex}
+.game-result{padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);font-size:14px;line-height:1.6;text-align:center}
+.game-btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.game-btn{flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .12s}
+.game-btn.primary{background:var(--accent);color:#fff}
+.game-btn.primary:hover{opacity:.88}
+.game-btn.secondary{background:rgba(255,255,255,.07);color:var(--white);border:1px solid var(--border)}
+.game-btn.secondary:hover{background:rgba(255,255,255,.12)}
+.game-share-btn{width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;transition:all .12s}
+.game-share-btn:hover{background:rgba(255,255,255,.11);color:var(--white)}
+/* Trivia specific */
+.trivia-q{font-size:14px;font-weight:600;line-height:1.5;margin-bottom:10px;text-align:center}
+.trivia-opts{display:flex;flex-direction:column;gap:6px}
+.trivia-opt{padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.04);cursor:pointer;font-size:13px;text-align:left;color:var(--white);transition:all .1s}
+.trivia-opt:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.trivia-opt.correct{background:rgba(57,211,83,.15)!important;border-color:#39d353!important;color:#39d353!important}
+.trivia-opt.wrong{background:rgba(255,80,80,.12)!important;border-color:#ff5050!important;color:#ff5050!important}
 /* ── SETTINGS / THEME ENGINE ── */
 #settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
 #settingsModal.open{display:flex}
@@ -928,7 +1017,10 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         </div>
         <div class="rh-right" style="display:flex;align-items:center;gap:6px">
           <button id="searchBtn" onclick="openSearch()" title="Search" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:15px;padding:4px 8px;cursor:pointer">🔍</button>
+          <button id="pinsBtn" onclick="openPinsPanel()" title="Pinned Messages" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">📌</button>
           <button id="threadsBtn" onclick="openThreadsPanel()" title="Threads" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 10px;cursor:pointer;font-weight:600">🧵 Threads</button>
+          <button id="bookmarksHeaderBtn" onclick="openBookmarks()" title="Bookmarks" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">🔖</button>
+          <button id="gamesHeaderBtn" onclick="openGames()" title="Mini Games" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">🎮</button>
           <div id="roomUsersCount"></div>
         </div>
       </div>
@@ -1028,6 +1120,16 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <input class="msg-input" id="msgInput" placeholder="Type a message…"/>
         <div id="settingsGear" onclick="openSettings()" title="Settings">⚙️</div>
         <button class="send-btn" id="sendBtn">↑</button>
+      </div>
+
+      <!-- Pins Panel -->
+      <div id="pinsPanel">
+        <div class="pins-header">
+          <span style="font-size:16px">📌</span>
+          <h3>Pinned Messages</h3>
+          <button onclick="closePinsPanel()" style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+        </div>
+        <div class="pins-body" id="pinsBody"></div>
       </div>
 
       <!-- Reddit-style Thread Panel -->
@@ -1530,6 +1632,70 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 </div>
 
 
+<!-- ══ EVENTS MODAL ══ -->
+<div id="eventsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center">
+  <div class="events-panel">
+    <div class="events-header">
+      <span style="font-size:18px">📅</span>
+      <h3>Server Events</h3>
+      <button onclick="closeEvents()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div class="events-body" id="eventsBody">
+      <div class="new-event-form" id="newEventForm" style="display:none">
+        <div style="font-size:13px;font-weight:700;margin-bottom:2px">New Event</div>
+        <input id="evTitle" placeholder="Event title *" maxlength="120"/>
+        <textarea id="evDesc" placeholder="Description (optional)…" rows="2"></textarea>
+        <div class="new-event-row">
+          <input type="datetime-local" id="evStart"/>
+          <input type="datetime-local" id="evEnd"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('newEventForm').style.display='none'" style="flex:1;padding:8px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);font-size:13px;cursor:pointer">Cancel</button>
+          <button onclick="doCreateEvent()" style="flex:1;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">Create</button>
+        </div>
+      </div>
+      <div id="eventsList" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BOOKMARKS MODAL ══ -->
+<div id="bookmarksModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center">
+  <div class="bookmarks-panel">
+    <div class="bookmarks-header">
+      <span style="font-size:18px">🔖</span>
+      <h3>Bookmarks</h3>
+      <button onclick="closeBookmarks()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div class="bookmarks-body" id="bookmarksBody"></div>
+  </div>
+</div>
+
+<!-- ══ MINI GAMES ══ -->
+<div id="gamesPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center">
+  <div class="games-container">
+    <div class="games-header">
+      <span style="font-size:18px">🎮</span>
+      <h3 id="gamesTitle">Mini Games</h3>
+      <button id="gamesBackBtn" onclick="gamesGoHome()" style="display:none;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 9px;cursor:pointer">‹ Back</button>
+      <button onclick="closeGames()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div class="games-body">
+      <div id="gamesHome">
+        <div class="games-grid">
+          <div class="game-tile" onclick="gameStart('coinflip')"><div class="gt-icon">🪙</div><div class="gt-name">Coin Flip</div><div class="gt-desc">Heads or tails?</div></div>
+          <div class="game-tile" onclick="gameStart('dice')"><div class="gt-icon">🎲</div><div class="gt-name">Dice Roll</div><div class="gt-desc">Roll up to 6 dice</div></div>
+          <div class="game-tile" onclick="gameStart('rps')"><div class="gt-icon">✊</div><div class="gt-name">Rock Paper Scissors</div><div class="gt-desc">vs. the bot</div></div>
+          <div class="game-tile" onclick="gameStart('trivia')"><div class="gt-icon">🧠</div><div class="gt-name">Trivia</div><div class="gt-desc">AI-powered questions</div></div>
+          <div class="game-tile" onclick="gameStart('8ball')"><div class="gt-icon">🎱</div><div class="gt-name">Magic 8-Ball</div><div class="gt-desc">Ask anything</div></div>
+          <div class="game-tile" onclick="gameStart('number')"><div class="gt-icon">🔢</div><div class="gt-name">Number Guess</div><div class="gt-desc">1–100, 7 tries</div></div>
+        </div>
+      </div>
+      <div id="gameArea" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -1926,6 +2092,11 @@ function handleMsg(raw){
     case 'emoji_removed':   if(_serverEmoji[d.serverId]){_serverEmoji[d.serverId]=_serverEmoji[d.serverId].filter(function(e){return e._id!==d.emojiId;});}break;
     case 'thread_new':      tpOnNewThread(d);break;
     case 'thread_comment':  tpOnNewComment(d);break;
+    case 'pin_added':       onPinAdded(d);break;
+    case 'pin_removed':     onPinRemoved(d);break;
+    case 'event_new':       onEventNew(d);break;
+    case 'event_rsvp':      onEventRsvp(d);break;
+    case 'event_deleted':   onEventDeleted(d);break;
     case 'call_chat':       recvCallChat(d);break;
     case 'call_room_members': recvCallMembers(d);break;
     case 'call_poll_new':   recvCallPoll(d);break;
@@ -2080,6 +2251,7 @@ function renderChannelCol(serverId){
   var isOwner=!isGuest&&srv.owner===myName;
   function addBtns(container){
     if(!isGuest){
+      addHdrBtn(container,'📅 Events',false,function(){openEvents(serverId);});
       if(isOwner&&!srv.isOfficial){
         addHdrBtn(container,'🔗 Invite',false,function(){createInvite(serverId);});
         addHdrBtn(container,'+ Ch',false,function(){openAddChannel(serverId);});
@@ -2216,6 +2388,7 @@ function joinChannel(ch,srv){
     wsSend({type:'join',channelId:ch._id});
     var sb=document.getElementById('searchBtn');if(sb) sb.style.display='';
     var tb=document.getElementById('threadsBtn');if(tb) tb.style.display='';
+    var pb=document.getElementById('pinsBtn');if(pb) pb.style.display='';
   }
 }
 function openDM(user){
@@ -2557,6 +2730,16 @@ function renderMsg(msg){
     setReply(m.id, m.user, m.text||(m.fileName||''));
   };})(msg);
   acts.appendChild(replyBtn);
+  // Bookmark button — always shown
+  var bmBtn=document.createElement('button');bmBtn.title='Bookmark';bmBtn.textContent='🔖';
+  bmBtn.onclick=(function(m){return function(e){e.stopPropagation();bookmarkMessage(m);};})(msg);
+  acts.appendChild(bmBtn);
+  // Pin button — only in server channels
+  if(currentChannelId){
+    var pinBtn=document.createElement('button');pinBtn.title='Pin message';pinBtn.textContent='📌';
+    pinBtn.onclick=(function(m){return function(e){e.stopPropagation();pinMessage(m);};})(msg);
+    acts.appendChild(pinBtn);
+  }
   if(msg.text){
     var xlBtn=document.createElement('button');xlBtn.title='Translate';xlBtn.textContent='🌐';
     xlBtn.onclick=(function(m){return function(e){e.stopPropagation();translateMessage(m.text);};})(msg);
@@ -5571,6 +5754,450 @@ function timeAgo(ts){
   if(diff<3600000) return Math.floor(diff/60000)+'m ago';
   if(diff<86400000) return Math.floor(diff/3600000)+'h ago';
   return Math.floor(diff/86400000)+'d ago';
+}
+
+/* ══════════════════════════════════════════════
+   PINNED MESSAGES
+══════════════════════════════════════════════ */
+var _pins = [];
+var _pinsChannelId = null;
+
+function openPinsPanel(){
+  if(!currentChannelId) return;
+  _pinsChannelId = currentChannelId;
+  document.getElementById('pinsPanel').classList.add('open');
+  // Close threads panel if open
+  document.getElementById('threadPanel').classList.remove('open');
+  loadPins();
+}
+function closePinsPanel(){
+  document.getElementById('pinsPanel').classList.remove('open');
+}
+async function loadPins(){
+  var body = document.getElementById('pinsBody');
+  body.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:14px 0;text-align:center">Loading…</div>';
+  try{
+    var r = await fetch('/channels/'+_pinsChannelId+'/pins',{headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _pins = await r.json();
+    renderPins();
+  }catch(e){ body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:14px 0;text-align:center">Failed to load.</div>'; }
+}
+function renderPins(){
+  var body = document.getElementById('pinsBody'); body.innerHTML='';
+  if(!_pins.length){
+    body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">No pinned messages yet.<br><span style="font-size:11px;opacity:.6">Hover a message and click 📌 to pin it.</span></div>';
+    return;
+  }
+  _pins.forEach(function(p){
+    var card=document.createElement('div'); card.className='pin-card';
+    var userEl=document.createElement('div'); userEl.className='pin-card-user'; userEl.textContent=p.messageUser||'Unknown';
+    var textEl=document.createElement('div'); textEl.className='pin-card-text';
+    textEl.textContent=p.messageText||(p.messageFileName?'📎 '+p.messageFileName:'(attachment)');
+    var metaEl=document.createElement('div'); metaEl.className='pin-card-meta';
+    metaEl.textContent='Pinned by '+p.pinnedBy+' · '+timeAgo(p.createdAt);
+    var unpin=document.createElement('button'); unpin.className='pin-unpin'; unpin.textContent='Unpin';
+    (function(pin){ unpin.onclick=function(){ unpinMessage(pin.messageId); }; })(p);
+    // click to scroll to message
+    (function(pin){ card.onclick=function(e){ if(e.target===unpin) return; var el=document.getElementById('m-'+pin.messageId); if(el){closePinsPanel();el.scrollIntoView({behavior:'smooth',block:'center'});el.style.transition='background .2s';el.style.background='color-mix(in srgb,var(--accent) 18%,transparent)';setTimeout(function(){el.style.background='';},1200);} }; })(p);
+    card.appendChild(userEl); card.appendChild(textEl); card.appendChild(metaEl); card.appendChild(unpin);
+    body.appendChild(card);
+  });
+}
+async function pinMessage(msg){
+  if(!currentChannelId) return;
+  try{
+    var r=await fetch('/channels/'+currentChannelId+'/pins',{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body:JSON.stringify({messageId:msg.id,messageText:msg.text,messageUser:msg.user,messageFileUrl:msg.fileUrl,messageFileName:msg.fileName})
+    });
+    var d=await r.json();
+    if(d.error==='Already pinned') return toast('Already pinned!');
+    if(d.ok) toast('📌 Message pinned!');
+  }catch(e){ toast('Failed to pin'); }
+}
+async function unpinMessage(messageId){
+  try{
+    await fetch('/channels/'+_pinsChannelId+'/pins/'+messageId,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _pins=_pins.filter(function(p){return p.messageId!==messageId;});
+    renderPins();
+  }catch(e){}
+}
+function onPinAdded(d){
+  if(d.channelId!==currentChannelId) return;
+  if(!_pins.find(function(p){return p.messageId===d.pin.messageId;})) _pins.unshift(d.pin);
+  if(document.getElementById('pinsPanel').classList.contains('open')) renderPins();
+  toast('📌 Message pinned by '+d.pin.pinnedBy);
+}
+function onPinRemoved(d){
+  if(d.channelId!==currentChannelId) return;
+  _pins=_pins.filter(function(p){return p.messageId!==d.messageId;});
+  if(document.getElementById('pinsPanel').classList.contains('open')) renderPins();
+}
+
+/* ══════════════════════════════════════════════
+   SERVER EVENTS
+══════════════════════════════════════════════ */
+var _events=[], _eventsServerId=null;
+
+async function openEvents(serverId){
+  _eventsServerId=serverId;
+  document.getElementById('eventsModal').style.display='flex';
+  document.getElementById('newEventForm').style.display='none';
+  document.getElementById('eventsList').innerHTML='<div style="color:var(--muted);font-size:13px;padding:14px 0;text-align:center">Loading…</div>';
+  try{
+    var r=await fetch('/servers/'+serverId+'/events',{headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _events=await r.json();
+    renderEvents();
+  }catch(e){ document.getElementById('eventsList').innerHTML='<div style="color:var(--muted);font-size:13px">Failed to load.</div>'; }
+}
+function closeEvents(){ document.getElementById('eventsModal').style.display='none'; }
+
+function renderEvents(){
+  var list=document.getElementById('eventsList'); list.innerHTML='';
+  // Create button
+  var createBtn=document.createElement('button');
+  createBtn.style.cssText='width:100%;padding:9px;border-radius:9px;background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px dashed color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:4px';
+  createBtn.textContent='+ Create Event';
+  createBtn.onclick=function(){
+    var f=document.getElementById('newEventForm'); f.style.display=f.style.display==='none'?'flex':'none';
+    document.getElementById('evTitle').value=''; document.getElementById('evDesc').value='';
+    document.getElementById('evStart').value=''; document.getElementById('evEnd').value='';
+  };
+  list.appendChild(createBtn);
+  if(!_events.length){
+    var em=document.createElement('div'); em.style.cssText='color:var(--muted);font-size:13px;padding:20px 0;text-align:center'; em.textContent='No events yet. Create the first one!';
+    list.appendChild(em); return;
+  }
+  var now=Date.now();
+  _events.forEach(function(ev){
+    var card=document.createElement('div'); card.className='event-card';
+    var d=new Date(ev.startTime);
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var dateBox=document.createElement('div'); dateBox.className='event-date-box';
+    dateBox.innerHTML='<div class="edb-month">'+months[d.getMonth()]+'</div><div class="edb-day">'+d.getDate()+'</div>';
+    var info=document.createElement('div'); info.className='event-info';
+    var isPast=new Date(ev.startTime).getTime()<now;
+    var going=(ev.rsvp||[]).includes(myName);
+    info.innerHTML='<div class="event-title">'+(isPast?'<span style="color:var(--muted);font-size:11px;margin-right:5px">[Past]</span>':'')+escHtml(ev.title)+'</div>'
+      +(ev.description?'<div class="event-desc">'+escHtml(ev.description)+'</div>':'')
+      +'<div class="event-meta"><span>🕐 '+d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</span><span>👥 '+(ev.rsvp||[]).length+' going</span></div>';
+    var rsvpBtn=document.createElement('button');
+    rsvpBtn.className='event-rsvp-btn '+(going?'going':'not-going');
+    rsvpBtn.textContent=going?'✓ Going':'RSVP';
+    (function(e,btn){ btn.onclick=function(){ doRsvp(e,btn); }; })(ev,rsvpBtn);
+    info.appendChild(rsvpBtn);
+    if(ev.createdBy===myName){
+      var delBtn=document.createElement('button');
+      delBtn.style.cssText='background:none;border:none;cursor:pointer;color:var(--muted);font-size:12px;padding:3px 6px;margin-left:4px';
+      delBtn.textContent='🗑';
+      (function(e){ delBtn.onclick=function(){ if(confirm('Delete event?')) doDeleteEvent(e.id); }; })(ev);
+      info.appendChild(delBtn);
+    }
+    card.appendChild(dateBox); card.appendChild(info);
+    list.appendChild(card);
+  });
+}
+async function doCreateEvent(){
+  var title=document.getElementById('evTitle').value.trim();
+  var start=document.getElementById('evStart').value;
+  if(!title||!start) return toast('Title and start time required');
+  try{
+    var r=await fetch('/servers/'+_eventsServerId+'/events',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body:JSON.stringify({title,description:document.getElementById('evDesc').value.trim(),startTime:new Date(start).toISOString(),endTime:document.getElementById('evEnd').value?new Date(document.getElementById('evEnd').value).toISOString():null})
+    });
+    var d=await r.json(); if(!r.ok) return toast(d.error||'Failed');
+    _events.push(d.event); _events.sort(function(a,b){return new Date(a.startTime)-new Date(b.startTime);});
+    document.getElementById('newEventForm').style.display='none';
+    renderEvents(); toast('✅ Event created!');
+  }catch(e){ toast('Network error'); }
+}
+async function doRsvp(ev,btn){
+  try{
+    var r=await fetch('/servers/'+_eventsServerId+'/events/'+ev.id+'/rsvp',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();
+    ev.rsvp=d.rsvp;
+    var going=d.rsvp.includes(myName);
+    btn.className='event-rsvp-btn '+(going?'going':'not-going');
+    btn.textContent=going?'✓ Going':'RSVP';
+    // update count
+    var meta=btn.parentElement.querySelector('.event-meta');
+    if(meta){ var spans=meta.querySelectorAll('span'); if(spans[1]) spans[1].textContent='👥 '+d.rsvp.length+' going'; }
+  }catch(e){}
+}
+async function doDeleteEvent(eid){
+  try{
+    await fetch('/servers/'+_eventsServerId+'/events/'+eid,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _events=_events.filter(function(e){return e.id!==eid;}); renderEvents(); toast('🗑 Event deleted');
+  }catch(e){}
+}
+function onEventNew(d){ if(d.serverId===_eventsServerId&&document.getElementById('eventsModal').style.display==='flex'){_events.push(d.event);_events.sort(function(a,b){return new Date(a.startTime)-new Date(b.startTime);});renderEvents();} }
+function onEventRsvp(d){ var ev=_events.find(function(e){return e.id===d.eventId;}); if(ev){ev.rsvp=d.rsvp;if(document.getElementById('eventsModal').style.display==='flex') renderEvents();} }
+function onEventDeleted(d){ _events=_events.filter(function(e){return e.id!==d.eventId;}); if(document.getElementById('eventsModal').style.display==='flex') renderEvents(); }
+
+/* ══════════════════════════════════════════════
+   BOOKMARKS
+══════════════════════════════════════════════ */
+var _bookmarks=[];
+
+async function openBookmarks(){
+  document.getElementById('bookmarksModal').style.display='flex';
+  var body=document.getElementById('bookmarksBody');
+  body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:14px 0;text-align:center">Loading…</div>';
+  try{
+    var r=await fetch('/bookmarks',{headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _bookmarks=await r.json();
+    renderBookmarks();
+  }catch(e){ body.innerHTML='<div style="color:var(--muted);font-size:13px">Failed to load.</div>'; }
+}
+function closeBookmarks(){ document.getElementById('bookmarksModal').style.display='none'; }
+function renderBookmarks(){
+  var body=document.getElementById('bookmarksBody'); body.innerHTML='';
+  if(!_bookmarks.length){
+    body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">No bookmarks yet.<br><span style="font-size:11px;opacity:.6">Hover a message and click 🔖 to save it.</span></div>';
+    return;
+  }
+  _bookmarks.forEach(function(bm){
+    var card=document.createElement('div'); card.className='bookmark-card';
+    var icon=document.createElement('div'); icon.className='bm-icon'; icon.textContent=bm.fileUrl?'📎':'💬';
+    var bodyEl=document.createElement('div'); bodyEl.className='bm-body';
+    var userEl=document.createElement('div'); userEl.className='bm-user'; userEl.textContent=bm.messageUser||'Unknown';
+    var textEl=document.createElement('div'); textEl.className='bm-text'; textEl.textContent=bm.messageText||(bm.fileName?'📎 '+bm.fileName:'(attachment)');
+    var metaEl=document.createElement('div'); metaEl.className='bm-meta';
+    metaEl.innerHTML=(bm.serverName?'<span>'+escHtml(bm.serverName)+'</span>':'')+(bm.channelName?'<span>#'+escHtml(bm.channelName)+'</span>':'')+'<span>'+timeAgo(bm.createdAt)+'</span>';
+    bodyEl.appendChild(userEl); bodyEl.appendChild(textEl); bodyEl.appendChild(metaEl);
+    var del=document.createElement('button'); del.className='bm-del'; del.textContent='🗑';
+    (function(b){ del.onclick=function(){ fetch('/bookmarks/'+b._id,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}}).then(function(){ _bookmarks=_bookmarks.filter(function(x){return x._id!==b._id;}); renderBookmarks(); }); }; })(bm);
+    card.appendChild(icon); card.appendChild(bodyEl); card.appendChild(del);
+    body.appendChild(card);
+  });
+}
+async function bookmarkMessage(msg){
+  var srv=myServers.find(function(s){return s._id===activeServerId;})||{name:''};
+  var ch=(myChannels[activeServerId]||[]).find(function(c){return c._id===currentChannelId;})||{name:''};
+  try{
+    var r=await fetch('/bookmarks',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body:JSON.stringify({messageId:msg.id,messageText:msg.text,messageUser:msg.user,channelId:currentChannelId,channelName:ch.name,serverName:srv.name,fileUrl:msg.fileUrl,fileName:msg.fileName})
+    });
+    var d=await r.json();
+    if(d.removed) toast('🔖 Bookmark removed');
+    else { toast('🔖 Bookmarked!'); if(d.bookmark) _bookmarks.unshift(d.bookmark); }
+  }catch(e){ toast('Failed'); }
+}
+
+/* ══════════════════════════════════════════════
+   MINI GAMES
+══════════════════════════════════════════════ */
+var _game=null, _gameState={};
+
+function openGames(){ document.getElementById('gamesPanel').style.display='flex'; gamesGoHome(); }
+function closeGames(){ document.getElementById('gamesPanel').style.display='none'; _game=null; _gameState={}; }
+function gamesGoHome(){
+  _game=null; _gameState={};
+  document.getElementById('gamesHome').style.display='';
+  document.getElementById('gameArea').style.display='none';
+  document.getElementById('gamesTitle').textContent='Mini Games';
+  document.getElementById('gamesBackBtn').style.display='none';
+}
+
+function gameStart(name){
+  _game=name; _gameState={};
+  document.getElementById('gamesHome').style.display='none';
+  document.getElementById('gameArea').style.display='flex';
+  document.getElementById('gamesBackBtn').style.display='';
+  var area=document.getElementById('gameArea'); area.innerHTML=''; area.style.flexDirection='column'; area.style.gap='10px';
+  if(name==='coinflip') gameCoinflip(area);
+  else if(name==='dice') gameDice(area);
+  else if(name==='rps') gameRps(area);
+  else if(name==='trivia') gameTrivia(area);
+  else if(name==='8ball') game8ball(area);
+  else if(name==='number') gameNumber(area);
+}
+
+/* ── Coin Flip ── */
+function gameCoinflip(area){
+  document.getElementById('gamesTitle').textContent='🪙 Coin Flip';
+  var result=document.createElement('div'); result.className='game-result'; result.style.fontSize='48px'; result.textContent='?';
+  var lbl=document.createElement('div'); lbl.style.cssText='text-align:center;font-size:14px;color:var(--muted)'; lbl.textContent='Click to flip!';
+  var row=document.createElement('div'); row.className='game-btn-row';
+  var btn=document.createElement('button'); btn.className='game-btn primary'; btn.textContent='Flip!';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.textContent='📤 Share to Chat'; shareBtn.style.display='none';
+  btn.onclick=function(){
+    var coins=['Heads','Tails']; var r=coins[Math.floor(Math.random()*2)];
+    result.textContent=r==='Heads'?'🟡':'⚫';
+    lbl.textContent=r+'!'; _gameState.result=r; shareBtn.style.display='';
+    btn.textContent='Flip Again!';
+  };
+  shareBtn.onclick=function(){ if(_gameState.result) shareMsgToChat('🪙 Coin Flip result: **'+_gameState.result+'**!'); };
+  row.appendChild(btn); area.appendChild(result); area.appendChild(lbl); area.appendChild(row); area.appendChild(shareBtn);
+}
+
+/* ── Dice Roll ── */
+function gameDice(area){
+  document.getElementById('gamesTitle').textContent='🎲 Dice Roll';
+  var diceFaces=['⚀','⚁','⚂','⚃','⚄','⚅'];
+  var countRow=document.createElement('div'); countRow.style.cssText='display:flex;align-items:center;gap:8px;justify-content:center';
+  countRow.innerHTML='<span style="font-size:13px;color:var(--muted)">Dice:</span>';
+  var countSel=document.createElement('select'); countSel.style.cssText='padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none';
+  [1,2,3,4,5,6].forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;countSel.appendChild(o);});
+  countSel.value='2'; countRow.appendChild(countSel);
+  var result=document.createElement('div'); result.className='game-result'; result.style.fontSize='36px'; result.textContent='🎲';
+  var lbl=document.createElement('div'); lbl.style.cssText='text-align:center;font-size:14px;color:var(--muted)'; lbl.textContent='Pick dice count and roll!';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent='📤 Share to Chat';
+  var btn=document.createElement('button'); btn.className='game-btn primary'; btn.textContent='Roll!';
+  btn.onclick=function(){
+    var count=parseInt(countSel.value); var rolls=[]; var total=0;
+    for(var i=0;i<count;i++){var v=Math.floor(Math.random()*6)+1;rolls.push(v);total+=v;}
+    result.textContent=rolls.map(function(v){return diceFaces[v-1];}).join(' ');
+    lbl.textContent=count>1?'Total: '+total:'Rolled a '+rolls[0]+'!';
+    _gameState.rolls=rolls; _gameState.total=total; shareBtn.style.display='';
+  };
+  shareBtn.onclick=function(){
+    if(_gameState.rolls) shareMsgToChat('🎲 Rolled '+_gameState.rolls.length+' dice: '+_gameState.rolls.join(', ')+' (Total: '+_gameState.total+')');
+  };
+  var row=document.createElement('div'); row.className='game-btn-row'; row.appendChild(btn);
+  area.appendChild(countRow); area.appendChild(result); area.appendChild(lbl); area.appendChild(row); area.appendChild(shareBtn);
+}
+
+/* ── Rock Paper Scissors ── */
+function gameRps(area){
+  document.getElementById('gamesTitle').textContent='✊ Rock Paper Scissors';
+  var choices={rock:'🪨',paper:'📄',scissors:'✂️'};
+  var keys=Object.keys(choices);
+  var result=document.createElement('div'); result.className='game-result'; result.textContent='Pick your move!';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent='📤 Share to Chat';
+  var row=document.createElement('div'); row.className='game-btn-row';
+  keys.forEach(function(k){
+    var btn=document.createElement('button'); btn.className='game-btn secondary'; btn.style.flex='1';
+    btn.innerHTML=choices[k]+'<br><span style="font-size:11px">'+k.charAt(0).toUpperCase()+k.slice(1)+'</span>';
+    btn.onclick=function(){
+      var botPick=keys[Math.floor(Math.random()*3)];
+      var wins={rock:'scissors',paper:'rock',scissors:'paper'};
+      var outcome=k===botPick?'Draw!':(wins[k]===botPick?'You win! 🎉':'Bot wins! 🤖');
+      result.innerHTML='<div style="font-size:28px">'+choices[k]+' vs '+choices[botPick]+'</div><div style="font-size:16px;margin-top:6px">'+outcome+'</div>';
+      _gameState={player:k,bot:botPick,outcome}; shareBtn.style.display='';
+    };
+    row.appendChild(btn);
+  });
+  shareBtn.onclick=function(){if(_gameState.player) shareMsgToChat('✊ RPS: I picked '+choices[_gameState.player]+' vs Bot\'s '+choices[_gameState.bot]+' — '+_gameState.outcome);};
+  area.appendChild(result); area.appendChild(row); area.appendChild(shareBtn);
+}
+
+/* ── Magic 8-Ball ── */
+function game8ball(area){
+  document.getElementById('gamesTitle').textContent='🎱 Magic 8-Ball';
+  var answers=['It is certain','It is decidedly so','Without a doubt','Yes definitely','You may rely on it','As I see it, yes','Most likely','Outlook good','Yes','Signs point to yes','Reply hazy, try again','Ask again later','Better not tell you now','Cannot predict now','Concentrate and ask again','Don\'t count on it','My reply is no','My sources say no','Outlook not so good','Very doubtful'];
+  var inp=document.createElement('input'); inp.placeholder='Ask your question…'; inp.style.cssText='padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;width:100%';
+  var result=document.createElement('div'); result.className='game-result'; result.style.cssText+='font-size:20px;min-height:60px;display:flex;align-items:center;justify-content:center'; result.textContent='🎱';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent='📤 Share to Chat';
+  var btn=document.createElement('button'); btn.className='game-btn primary'; btn.textContent='Shake!';
+  btn.onclick=function(){
+    if(!inp.value.trim()) return toast('Ask a question first!');
+    result.textContent='🎱…'; result.style.opacity='.5';
+    setTimeout(function(){
+      var ans=answers[Math.floor(Math.random()*answers.length)];
+      result.textContent=ans; result.style.opacity='1';
+      _gameState={q:inp.value,ans}; shareBtn.style.display='';
+    },600);
+  };
+  inp.onkeypress=function(e){if(e.key==='Enter') btn.click();};
+  shareBtn.onclick=function(){if(_gameState.ans) shareMsgToChat('🎱 Asked: "'+_gameState.q+'" → Magic 8-Ball says: *'+_gameState.ans+'*');};
+  var row=document.createElement('div'); row.className='game-btn-row'; row.appendChild(btn);
+  area.appendChild(inp); area.appendChild(result); area.appendChild(row); area.appendChild(shareBtn);
+}
+
+/* ── Number Guess ── */
+function gameNumber(area){
+  document.getElementById('gamesTitle').textContent='🔢 Number Guess';
+  _gameState={secret:Math.floor(Math.random()*100)+1,tries:0,max:7,done:false};
+  var status=document.createElement('div'); status.style.cssText='text-align:center;font-size:13px;color:var(--muted)'; status.textContent='I\'m thinking of a number 1–100. You have 7 tries!';
+  var result=document.createElement('div'); result.className='game-result'; result.textContent='Make your first guess!';
+  var inp=document.createElement('input'); inp.type='number'; inp.min=1; inp.max=100; inp.placeholder='Enter a number 1–100';
+  inp.style.cssText='padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;width:100%;text-align:center';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent='📤 Share to Chat';
+  var btn=document.createElement('button'); btn.className='game-btn primary'; btn.textContent='Guess';
+  function guess(){
+    if(_gameState.done) return;
+    var n=parseInt(inp.value); if(!n||n<1||n>100) return toast('Enter a number 1–100');
+    _gameState.tries++;
+    var left=_gameState.max-_gameState.tries;
+    if(n===_gameState.secret){
+      result.innerHTML='🎉 Correct! It was <b>'+_gameState.secret+'</b>! Got it in '+_gameState.tries+' tries.';
+      result.style.borderColor='#39d353'; status.textContent='You won!';
+      btn.disabled=true; inp.disabled=true; _gameState.done=true; shareBtn.style.display='';
+      _gameState.shareText='🔢 Guessed the number '+_gameState.secret+' in '+_gameState.tries+'/7 tries!';
+    } else if(_gameState.tries>=_gameState.max){
+      result.innerHTML='😢 Out of tries! The number was <b>'+_gameState.secret+'</b>.';
+      result.style.borderColor='#ff6b6b'; btn.disabled=true; inp.disabled=true; _gameState.done=true; shareBtn.style.display='';
+      _gameState.shareText='🔢 Failed to guess '+_gameState.secret+' in 7 tries!';
+    } else {
+      result.textContent=n<_gameState.secret?'📈 Too low! Try higher.':'📉 Too high! Try lower.';
+      status.textContent=left+' tries left';
+    }
+    inp.value='';
+  }
+  btn.onclick=guess; inp.onkeypress=function(e){if(e.key==='Enter') guess();};
+  shareBtn.onclick=function(){if(_gameState.shareText) shareMsgToChat(_gameState.shareText);};
+  var row=document.createElement('div'); row.className='game-btn-row'; row.appendChild(btn);
+  area.appendChild(status); area.appendChild(result); area.appendChild(inp); area.appendChild(row); area.appendChild(shareBtn);
+}
+
+/* ── Trivia (AI-powered) ── */
+var _triviaQ=null, _triviaAnswered=false;
+async function gameTrivia(area){
+  document.getElementById('gamesTitle').textContent='🧠 Trivia';
+  _triviaAnswered=false;
+  var status=document.createElement('div'); status.style.cssText='text-align:center;font-size:13px;color:var(--muted)'; status.textContent='Loading question…';
+  var qEl=document.createElement('div'); qEl.className='trivia-q'; qEl.textContent='';
+  var opts=document.createElement('div'); opts.className='trivia-opts';
+  var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent='📤 Share to Chat';
+  var newBtn=document.createElement('button'); newBtn.className='game-btn secondary'; newBtn.textContent='New Question'; newBtn.style.display='none';
+  newBtn.onclick=function(){ opts.innerHTML=''; shareBtn.style.display='none'; newBtn.style.display='none'; status.textContent='Loading…'; qEl.textContent=''; loadTriviaQ(); };
+  area.appendChild(status); area.appendChild(qEl); area.appendChild(opts); area.appendChild(shareBtn); area.appendChild(newBtn);
+  async function loadTriviaQ(){
+    _triviaAnswered=false;
+    try{
+      var r=await fetch('/ai/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+        body:JSON.stringify({messages:[{role:'user',content:'Generate a trivia question. Respond ONLY with valid JSON in this exact format: {"question":"...","options":["A","B","C","D"],"answer":"A"} where answer is the letter of the correct option. No extra text.'}]})});
+      var d=await r.json();
+      var text=d.content&&d.content[0]&&d.content[0].text||'';
+      var clean=text.replace(/```json|```/g,'').trim();
+      _triviaQ=JSON.parse(clean);
+      qEl.textContent=_triviaQ.question;
+      status.textContent='Pick the correct answer:';
+      opts.innerHTML='';
+      var letters=['A','B','C','D'];
+      _triviaQ.options.forEach(function(opt,i){
+        var btn=document.createElement('button'); btn.className='trivia-opt';
+        btn.textContent=letters[i]+'. '+opt;
+        btn.onclick=function(){
+          if(_triviaAnswered) return; _triviaAnswered=true;
+          var correct=letters[i]===_triviaQ.answer;
+          btn.classList.add(correct?'correct':'wrong');
+          // Show correct answer
+          opts.querySelectorAll('.trivia-opt').forEach(function(b,j){
+            b.disabled=true;
+            if(letters[j]===_triviaQ.answer) b.classList.add('correct');
+          });
+          status.textContent=correct?'✅ Correct!':'❌ Wrong! The answer was '+_triviaQ.answer;
+          shareBtn.style.display=''; newBtn.style.display='';
+          _gameState.triviaResult=correct?'got it right':'got it wrong';
+          _gameState.triviaQ=_triviaQ.question;
+        };
+        opts.appendChild(btn);
+      });
+    }catch(e){ status.textContent='Failed to load question. Try again.'; qEl.textContent=''; newBtn.style.display=''; }
+  }
+  shareBtn.onclick=function(){if(_gameState.triviaQ) shareMsgToChat('🧠 Trivia: "'+_gameState.triviaQ+'" — I '+_gameState.triviaResult+'!');};
+  loadTriviaQ();
+}
+
+function shareMsgToChat(text){
+  if(!currentChannelId&&!currentRoom) return toast('Join a channel first!');
+  wsSend({type:'message',text});
+  closeGames();
+  toast('📤 Shared to chat!');
 }
 
 /* ══════════════════════════════════════════════
