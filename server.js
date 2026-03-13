@@ -203,6 +203,53 @@ const customEmojiSchema = new mongoose.Schema({
 });
 const CustomEmoji = mongoose.model('CustomEmoji', customEmojiSchema);
 
+/* ── Pinned Messages ── */
+const pinnedMsgSchema = new mongoose.Schema({
+  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
+  messageId: { type: String, required: true },
+  messageText: String,
+  messageUser: String,
+  messageFileUrl: String,
+  messageFileName: String,
+  pinnedBy: String,
+  createdAt: { type: Date, default: Date.now },
+});
+pinnedMsgSchema.index({ channelId: 1 });
+const PinnedMsg = mongoose.model('PinnedMsg', pinnedMsgSchema);
+
+/* ── Server Events ── */
+const serverEventSchema = new mongoose.Schema({
+  serverId:    { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
+  id:          { type: String, required: true, unique: true },
+  title:       String,
+  description: String,
+  channelId:   String,
+  startTime:   Date,
+  endTime:     Date,
+  createdBy:   String,
+  rsvp:        { type: [String], default: [] },
+  createdAt:   { type: Date, default: Date.now },
+});
+serverEventSchema.index({ serverId: 1, startTime: 1 });
+const ServerEvent = mongoose.model('ServerEvent', serverEventSchema);
+
+/* ── Bookmarks ── */
+const bookmarkSchema = new mongoose.Schema({
+  username:    { type: String, required: true },
+  messageId:   String,
+  messageText: String,
+  messageUser: String,
+  channelId:   String,
+  channelName: String,
+  serverName:  String,
+  fileUrl:     String,
+  fileName:    String,
+  note:        String,
+  createdAt:   { type: Date, default: Date.now },
+});
+bookmarkSchema.index({ username: 1, createdAt: -1 });
+const Bookmark = mongoose.model('Bookmark', bookmarkSchema);
+
 async function pushToUser(username, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
   const subs = await PushSub.find({ username }).lean();
@@ -1044,6 +1091,114 @@ app.post('/threads/comment/:cid/vote', authMiddleware, async (req, res) => {
     if (dir === 'up') c.upvotes.push(u);
     await c.save();
     res.json({ ok: true, upvotes: c.upvotes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ══════════════════════════════════════════════
+   PINNED MESSAGES
+══════════════════════════════════════════════ */
+app.get('/channels/:id/pins', authMiddleware, async (req, res) => {
+  try {
+    const pins = await PinnedMsg.find({ channelId: req.params.id }).sort({ createdAt: -1 }).lean();
+    res.json(pins);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.post('/channels/:id/pins', authMiddleware, async (req, res) => {
+  try {
+    const { messageId, messageText, messageUser, messageFileUrl, messageFileName } = req.body;
+    if (!messageId) return res.status(400).json({ error: 'messageId required' });
+    const existing = await PinnedMsg.findOne({ channelId: req.params.id, messageId });
+    if (existing) return res.status(409).json({ error: 'Already pinned' });
+    const pin = await PinnedMsg.create({ channelId: req.params.id, messageId, messageText, messageUser, messageFileUrl, messageFileName, pinnedBy: req.user.username });
+    // Broadcast to channel
+    const members = activeChannels[req.params.id] || new Set();
+    members.forEach(u => sendTo(u, { type: 'pin_added', channelId: req.params.id, pin: pin.toObject() }));
+    res.json({ ok: true, pin: pin.toObject() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/channels/:id/pins/:messageId', authMiddleware, async (req, res) => {
+  try {
+    await PinnedMsg.deleteOne({ channelId: req.params.id, messageId: req.params.messageId });
+    const members = activeChannels[req.params.id] || new Set();
+    members.forEach(u => sendTo(u, { type: 'pin_removed', channelId: req.params.id, messageId: req.params.messageId }));
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ══════════════════════════════════════════════
+   SERVER EVENTS
+══════════════════════════════════════════════ */
+app.get('/servers/:id/events', authMiddleware, async (req, res) => {
+  try {
+    const events = await ServerEvent.find({ serverId: req.params.id }).sort({ startTime: 1 }).lean();
+    res.json(events);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.post('/servers/:id/events', authMiddleware, async (req, res) => {
+  try {
+    const { title, description, channelId, startTime, endTime } = req.body;
+    if (!title || !startTime) return res.status(400).json({ error: 'title and startTime required' });
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const event = await ServerEvent.create({ serverId: req.params.id, id, title, description, channelId, startTime: new Date(startTime), endTime: endTime ? new Date(endTime) : null, createdBy: req.user.username });
+    const srv = await VyntraServer.findById(req.params.id).lean();
+    if (srv) broadcastToServer(srv, { type: 'event_new', serverId: req.params.id, event: event.toObject() });
+    res.json({ ok: true, event: event.toObject() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/servers/:id/events/:eid/rsvp', authMiddleware, async (req, res) => {
+  try {
+    const event = await ServerEvent.findOne({ id: req.params.eid });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+    const u = req.user.username;
+    const idx = event.rsvp.indexOf(u);
+    if (idx >= 0) event.rsvp.splice(idx, 1); else event.rsvp.push(u);
+    await event.save();
+    const srv = await VyntraServer.findById(req.params.id).lean();
+    if (srv) broadcastToServer(srv, { type: 'event_rsvp', eventId: req.params.eid, rsvp: event.rsvp });
+    res.json({ ok: true, rsvp: event.rsvp });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/servers/:id/events/:eid', authMiddleware, async (req, res) => {
+  try {
+    const event = await ServerEvent.findOne({ id: req.params.eid });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+    if (event.createdBy !== req.user.username) return res.status(403).json({ error: 'Not yours' });
+    await ServerEvent.deleteOne({ id: req.params.eid });
+    const srv = await VyntraServer.findById(req.params.id).lean();
+    if (srv) broadcastToServer(srv, { type: 'event_deleted', eventId: req.params.eid });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ══════════════════════════════════════════════
+   BOOKMARKS
+══════════════════════════════════════════════ */
+app.get('/bookmarks', authMiddleware, async (req, res) => {
+  try {
+    const bm = await Bookmark.find({ username: req.user.username }).sort({ createdAt: -1 }).limit(200).lean();
+    res.json(bm);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.post('/bookmarks', authMiddleware, async (req, res) => {
+  try {
+    const { messageId, messageText, messageUser, channelId, channelName, serverName, fileUrl, fileName, note } = req.body;
+    const existing = await Bookmark.findOne({ username: req.user.username, messageId });
+    if (existing) { await Bookmark.deleteOne({ _id: existing._id }); return res.json({ ok: true, removed: true }); }
+    const bm = await Bookmark.create({ username: req.user.username, messageId, messageText, messageUser, channelId, channelName, serverName, fileUrl, fileName, note });
+    res.json({ ok: true, removed: false, bookmark: bm.toObject() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/bookmarks/:id', authMiddleware, async (req, res) => {
+  try {
+    await Bookmark.deleteOne({ _id: req.params.id, username: req.user.username });
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
