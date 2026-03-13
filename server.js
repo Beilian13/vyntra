@@ -152,7 +152,26 @@ const msgSchema = new mongoose.Schema({
   seenBy:    { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
 });
+msgSchema.add({ threadCount: { type: Number, default: 0 } });
 const Message = mongoose.model('Message', msgSchema);
+
+/* ── Thread replies — each reply belongs to a parent message ── */
+const threadReplySchema = new mongoose.Schema({
+  parentId:  { type: String, required: true, index: true }, // parent message id
+  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
+  room:      String,
+  user:      String,
+  text:      String,
+  fileUrl:   String,
+  fileName:  String,
+  fileType:  String,
+  reactions: { type: Map, of: [String], default: {} },
+  id:        String,
+  editedAt:  { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+});
+threadReplySchema.index({ parentId: 1, createdAt: 1 });
+const ThreadReply = mongoose.model('ThreadReply', threadReplySchema);
 
 const inviteSchema = new mongoose.Schema({
   token:     { type: String, unique: true, required: true },
@@ -908,8 +927,85 @@ app.get('/channels/:id/search', authMiddleware, async (req, res) => {
 });
 
 /* ══════════════════════════════════════════════
-   LIVEKIT TOKEN
+   THREADS
 ══════════════════════════════════════════════ */
+/* GET replies for a parent message */
+app.get('/threads/:parentId', authMiddleware, async (req, res) => {
+  try {
+    const replies = await ThreadReply.find({ parentId: req.params.parentId })
+      .sort({ createdAt: 1 }).limit(200).lean();
+    res.json(replies.map(r => {
+      const reactions = {};
+      if (r.reactions) Object.entries(r.reactions).forEach(([k,v]) => { reactions[k] = v; });
+      return { ...r, reactions };
+    }));
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* POST a new thread reply */
+app.post('/threads/:parentId', authMiddleware, async (req, res) => {
+  try {
+    const { text, fileUrl, fileName, fileType, channelId, room } = req.body;
+    if (!text && !fileUrl) return res.status(400).json({ error: 'Empty reply' });
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const reply = await ThreadReply.create({
+      parentId: req.params.parentId, channelId, room,
+      user: req.user.username, text, fileUrl, fileName, fileType,
+      id, reactions: {}, createdAt: new Date(),
+    });
+    // Increment parent threadCount
+    await Message.updateOne({ id: req.params.parentId }, { $inc: { threadCount: 1 } });
+    const out = { type: 'thread_reply', parentId: req.params.parentId, reply: { ...reply.toObject(), reactions: {} } };
+    // Broadcast to all channel members
+    if (channelId) {
+      const members = activeChannels[channelId.toString()] || new Set();
+      members.forEach(u => sendTo(u, out));
+    }
+    res.json({ ok: true, reply: { ...reply.toObject(), reactions: {} } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* DELETE a thread reply */
+app.delete('/threads/reply/:replyId', authMiddleware, async (req, res) => {
+  try {
+    const reply = await ThreadReply.findOne({ id: req.params.replyId });
+    if (!reply) return res.status(404).json({ error: 'Not found' });
+    if (reply.user !== req.user.username) return res.status(403).json({ error: 'Not yours' });
+    await ThreadReply.deleteOne({ id: req.params.replyId });
+    await Message.updateOne({ id: reply.parentId }, { $inc: { threadCount: -1 } });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* PATCH edit a thread reply */
+app.patch('/threads/reply/:replyId', authMiddleware, async (req, res) => {
+  try {
+    const reply = await ThreadReply.findOne({ id: req.params.replyId });
+    if (!reply) return res.status(404).json({ error: 'Not found' });
+    if (reply.user !== req.user.username) return res.status(403).json({ error: 'Not yours' });
+    reply.text = req.body.text || reply.text;
+    reply.editedAt = new Date();
+    await reply.save();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* POST react to a thread reply */
+app.post('/threads/reply/:replyId/react', authMiddleware, async (req, res) => {
+  try {
+    const { emoji } = req.body;
+    const reply = await ThreadReply.findOne({ id: req.params.replyId });
+    if (!reply) return res.status(404).json({ error: 'Not found' });
+    const users = reply.reactions.get(emoji) || [];
+    const idx = users.indexOf(req.user.username);
+    if (idx >= 0) users.splice(idx, 1); else users.push(req.user.username);
+    reply.reactions.set(emoji, users);
+    await reply.save();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
 app.post('/livekit/token', authMiddleware, async (req, res) => {
   try {
     const { room } = req.body;
