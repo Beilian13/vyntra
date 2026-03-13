@@ -896,6 +896,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         </div>
         <div class="rh-right" style="display:flex;align-items:center;gap:6px">
           <button id="searchBtn" onclick="openSearch()" title="Search" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:15px;padding:4px 8px;cursor:pointer">🔍</button>
+          <button id="threadsBtn" onclick="openThreadsPanel()" title="Threads" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:15px;padding:4px 9px;cursor:pointer">🧵</button>
           <div id="roomUsersCount"></div>
         </div>
       </div>
@@ -1000,13 +1001,14 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
       <!-- Thread Panel — slides in from right -->
       <div id="threadPanel">
         <div class="thread-header">
+          <button id="threadBack" onclick="openThreadsPanel()" title="All threads" style="display:none;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 9px;cursor:pointer">‹</button>
           <span style="font-size:16px">🧵</span>
-          <h3 id="threadTitle">Thread</h3>
+          <h3 id="threadTitle">Threads</h3>
           <button id="threadClose" onclick="closeThread()">✕</button>
         </div>
-        <div class="thread-parent" id="threadParent"></div>
+        <div class="thread-parent" id="threadParent" style="display:none"></div>
         <div class="thread-msgs" id="threadMsgs"></div>
-        <div class="thread-compose">
+        <div class="thread-compose" id="threadCompose" style="display:none">
           <input id="threadInput" placeholder="Reply in thread…" autocomplete="off"/>
           <button onclick="sendThreadReply()">Send</button>
         </div>
@@ -2162,7 +2164,8 @@ function joinChannel(ch,srv){
     fetch('/channels/'+ch._id+'/messages').then(function(r){return r.json();}).then(function(msgs){msgs.forEach(function(m){cacheMsg({type:'chat',channelId:ch._id,room:ch._id,user:m.user,text:m.text,replyTo:m.replyTo||null,id:m.id,reactions:m.reactions||{}});});}).catch(function(){});
   } else {
     wsSend({type:'join',channelId:ch._id});
-    var sb=document.getElementById('searchBtn');if(sb) sb.style.display=''
+    var sb=document.getElementById('searchBtn');if(sb) sb.style.display='';
+    var tb=document.getElementById('threadsBtn');if(tb) tb.style.display='';
   }
 }
 function openDM(user){
@@ -2174,6 +2177,8 @@ function openDM(user){
   document.getElementById('roomTitle').textContent='💬 '+user;
   document.getElementById('roomMeta').textContent='Direct message';
   document.getElementById('callBtn').style.display='flex';updateCallBtn();
+  var tb=document.getElementById('threadsBtn');if(tb) tb.style.display='none';
+  closeThread();
   wsSend({type:'join',room:dmRoom});
   setTimeout(function(){ markDMSeen(dmRoom, user); }, 600);
 }
@@ -5253,28 +5258,70 @@ var _threadReplies = [];   // cached replies
 function openThread(msg){
   _threadMsg = msg;
   _threadReplies = [];
+  _threadPanelMode = 'thread';
 
   // Populate parent preview
   var par = document.getElementById('threadParent');
+  par.style.display = '';
   par.innerHTML = '<div class="tp-user">'+escHtml(msg.user)+'</div>'
     + '<div class="tp-text">'+escHtml(msg.text||(msg.fileName?'📎 '+msg.fileName:'(attachment)'))+'</div>';
 
-  // Set title
-  document.getElementById('threadTitle').textContent = 'Thread · #'+(document.getElementById('roomTitle').textContent||'channel');
-
-  // Clear & show panel
+  document.getElementById('threadTitle').textContent = 'Thread';
+  document.getElementById('threadCompose').style.display = 'flex';
   document.getElementById('threadMsgs').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">Loading…</div>';
   document.getElementById('threadInput').value = '';
   document.getElementById('threadPanel').classList.add('open');
-
-  // Load replies
+  var bb = document.getElementById('threadBack'); if(bb) bb.style.display = '';
   _threadLoad();
+}
+
+// Browse all threads in channel
+var _threadPanelMode = 'list'; // 'list' | 'thread'
+async function openThreadsPanel(){
+  if(!currentChannelId) return;
+  _threadPanelMode = 'list';
+  _threadMsg = null;
+  var par = document.getElementById('threadParent');
+  par.style.display = 'none';
+  document.getElementById('threadCompose').style.display = 'none';
+  document.getElementById('threadTitle').textContent = 'Threads';
+  document.getElementById('threadPanel').classList.add('open');
+  var bb = document.getElementById('threadBack'); if(bb) bb.style.display = 'none';
+  var c = document.getElementById('threadMsgs');
+  c.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">Loading…</div>';
+  // Fetch messages that have threads
+  try{
+    var r = await fetch('/channels/'+currentChannelId+'/messages', {
+      headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}
+    });
+    var msgs = await r.json();
+    var threaded = msgs.filter(function(m){ return m.threadCount && m.threadCount > 0; });
+    c.innerHTML = '';
+    if(!threaded.length){
+      c.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">No threads yet.<br><span style="font-size:11px;opacity:.6">Hover a message and click 🧵 to start one.</span></div>';
+      return;
+    }
+    threaded.forEach(function(m){
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:10px 12px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:background .12s';
+      row.onmouseenter=function(){this.style.background='rgba(255,255,255,.04)';};
+      row.onmouseleave=function(){this.style.background='';};
+      row.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:3px">'+escHtml(m.user)+'</div>'
+        +'<div style="font-size:13px;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px">'+escHtml(m.text||(m.fileName?'📎 '+m.fileName:'(attachment)'))+'</div>'
+        +'<div style="font-size:11px;color:var(--muted)">🧵 '+m.threadCount+' repl'+(m.threadCount===1?'y':'ies')+'</div>';
+      row.onclick = function(){ openThread(m); };
+      c.appendChild(row);
+    });
+  }catch(e){
+    c.innerHTML = '<div style="color:var(--muted);font-size:13px">Failed to load.</div>';
+  }
 }
 
 function closeThread(){
   document.getElementById('threadPanel').classList.remove('open');
   _threadMsg = null;
   _threadReplies = [];
+  _threadPanelMode = 'list';
 }
 
 async function _threadLoad(){
