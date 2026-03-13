@@ -152,26 +152,8 @@ const msgSchema = new mongoose.Schema({
   seenBy:    { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
 });
-msgSchema.add({ threadCount: { type: Number, default: 0 } });
 const Message = mongoose.model('Message', msgSchema);
 
-/* ── Thread replies — each reply belongs to a parent message ── */
-const threadReplySchema = new mongoose.Schema({
-  parentId:  { type: String, required: true, index: true }, // parent message id
-  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
-  room:      String,
-  user:      String,
-  text:      String,
-  fileUrl:   String,
-  fileName:  String,
-  fileType:  String,
-  reactions: { type: Map, of: [String], default: {} },
-  id:        String,
-  editedAt:  { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now },
-});
-threadReplySchema.index({ parentId: 1, createdAt: 1 });
-const ThreadReply = mongoose.model('ThreadReply', threadReplySchema);
 
 const inviteSchema = new mongoose.Schema({
   token:     { type: String, unique: true, required: true },
@@ -927,84 +909,143 @@ app.get('/channels/:id/search', authMiddleware, async (req, res) => {
 });
 
 /* ══════════════════════════════════════════════
-   THREADS
+   THREADS  (Reddit-style: standalone posts per channel)
 ══════════════════════════════════════════════ */
-/* GET replies for a parent message */
-app.get('/threads/:parentId', authMiddleware, async (req, res) => {
+const threadSchema = new mongoose.Schema({
+  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true, index: true },
+  id:        { type: String, required: true, unique: true },
+  author:    String,
+  title:     String,
+  body:      String,
+  fileUrl:   String,
+  fileName:  String,
+  fileType:  String,
+  upvotes:   { type: [String], default: [] },
+  downvotes: { type: [String], default: [] },
+  commentCount: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+});
+const channelThread = mongoose.model('ChannelThread', threadSchema);
+
+const threadCommentSchema = new mongoose.Schema({
+  threadId:  { type: String, required: true, index: true },
+  id:        String,
+  author:    String,
+  text:      String,
+  upvotes:   { type: [String], default: [] },
+  editedAt:  { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+});
+threadCommentSchema.index({ threadId: 1, createdAt: 1 });
+const ThreadComment = mongoose.model('ThreadComment', threadCommentSchema);
+
+/* GET all threads for a channel */
+app.get('/channels/:id/threads', authMiddleware, async (req, res) => {
   try {
-    const replies = await ThreadReply.find({ parentId: req.params.parentId })
-      .sort({ createdAt: 1 }).limit(200).lean();
-    res.json(replies.map(r => {
-      const reactions = {};
-      if (r.reactions) Object.entries(r.reactions).forEach(([k,v]) => { reactions[k] = v; });
-      return { ...r, reactions };
-    }));
+    const threads = await channelThread.find({ channelId: req.params.id })
+      .sort({ createdAt: -1 }).limit(100).lean();
+    res.json(threads);
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
 
-/* POST a new thread reply */
-app.post('/threads/:parentId', authMiddleware, async (req, res) => {
+/* POST create a thread */
+app.post('/channels/:id/threads', authMiddleware, async (req, res) => {
   try {
-    const { text, fileUrl, fileName, fileType, channelId, room } = req.body;
-    if (!text && !fileUrl) return res.status(400).json({ error: 'Empty reply' });
+    const { title, body, fileUrl, fileName, fileType } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required' });
     const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const reply = await ThreadReply.create({
-      parentId: req.params.parentId, channelId, room,
-      user: req.user.username, text, fileUrl, fileName, fileType,
-      id, reactions: {}, createdAt: new Date(),
+    const thread = await channelThread.create({
+      channelId: req.params.id, id,
+      author: req.user.username, title, body, fileUrl, fileName, fileType,
     });
-    // Increment parent threadCount
-    await Message.updateOne({ id: req.params.parentId }, { $inc: { threadCount: 1 } });
-    const out = { type: 'thread_reply', parentId: req.params.parentId, reply: { ...reply.toObject(), reactions: {} } };
-    // Broadcast to all channel members
+    // Broadcast to channel members
+    const members = activeChannels[req.params.id] || new Set();
+    members.forEach(u => sendTo(u, { type: 'thread_new', channelId: req.params.id, thread: thread.toObject() }));
+    res.json({ ok: true, thread: thread.toObject() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* DELETE a thread */
+app.delete('/channels/:cid/threads/:tid', authMiddleware, async (req, res) => {
+  try {
+    const t = await channelThread.findOne({ id: req.params.tid });
+    if (!t) return res.status(404).json({ error: 'Not found' });
+    if (t.author !== req.user.username) return res.status(403).json({ error: 'Not yours' });
+    await channelThread.deleteOne({ id: req.params.tid });
+    await ThreadComment.deleteMany({ threadId: req.params.tid });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* POST vote on a thread */
+app.post('/threads/:tid/vote', authMiddleware, async (req, res) => {
+  try {
+    const { dir } = req.body; // 'up' | 'down' | null
+    const t = await channelThread.findOne({ id: req.params.tid });
+    if (!t) return res.status(404).json({ error: 'Not found' });
+    const u = req.user.username;
+    t.upvotes   = t.upvotes.filter(x => x !== u);
+    t.downvotes = t.downvotes.filter(x => x !== u);
+    if (dir === 'up')   t.upvotes.push(u);
+    if (dir === 'down') t.downvotes.push(u);
+    await t.save();
+    res.json({ ok: true, upvotes: t.upvotes, downvotes: t.downvotes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* GET comments for a thread */
+app.get('/threads/:tid/comments', authMiddleware, async (req, res) => {
+  try {
+    const comments = await ThreadComment.find({ threadId: req.params.tid })
+      .sort({ createdAt: 1 }).limit(200).lean();
+    res.json(comments);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* POST add a comment */
+app.post('/threads/:tid/comments', authMiddleware, async (req, res) => {
+  try {
+    const { text, channelId } = req.body;
+    if (!text) return res.status(400).json({ error: 'Empty comment' });
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const comment = await ThreadComment.create({
+      threadId: req.params.tid, id,
+      author: req.user.username, text,
+    });
+    await channelThread.updateOne({ id: req.params.tid }, { $inc: { commentCount: 1 } });
     if (channelId) {
-      const members = activeChannels[channelId.toString()] || new Set();
-      members.forEach(u => sendTo(u, out));
+      const members = activeChannels[channelId] || new Set();
+      members.forEach(u => sendTo(u, { type: 'thread_comment', threadId: req.params.tid, comment: comment.toObject() }));
     }
-    res.json({ ok: true, reply: { ...reply.toObject(), reactions: {} } });
+    res.json({ ok: true, comment: comment.toObject() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-/* DELETE a thread reply */
-app.delete('/threads/reply/:replyId', authMiddleware, async (req, res) => {
+/* DELETE a comment */
+app.delete('/threads/comment/:cid', authMiddleware, async (req, res) => {
   try {
-    const reply = await ThreadReply.findOne({ id: req.params.replyId });
-    if (!reply) return res.status(404).json({ error: 'Not found' });
-    if (reply.user !== req.user.username) return res.status(403).json({ error: 'Not yours' });
-    await ThreadReply.deleteOne({ id: req.params.replyId });
-    await Message.updateOne({ id: reply.parentId }, { $inc: { threadCount: -1 } });
+    const c = await ThreadComment.findOne({ id: req.params.cid });
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    if (c.author !== req.user.username) return res.status(403).json({ error: 'Not yours' });
+    await ThreadComment.deleteOne({ id: req.params.cid });
+    await channelThread.updateOne({ id: c.threadId }, { $inc: { commentCount: -1 } });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-/* PATCH edit a thread reply */
-app.patch('/threads/reply/:replyId', authMiddleware, async (req, res) => {
+/* POST vote on a comment */
+app.post('/threads/comment/:cid/vote', authMiddleware, async (req, res) => {
   try {
-    const reply = await ThreadReply.findOne({ id: req.params.replyId });
-    if (!reply) return res.status(404).json({ error: 'Not found' });
-    if (reply.user !== req.user.username) return res.status(403).json({ error: 'Not yours' });
-    reply.text = req.body.text || reply.text;
-    reply.editedAt = new Date();
-    await reply.save();
-    res.json({ ok: true });
+    const { dir } = req.body;
+    const c = await ThreadComment.findOne({ id: req.params.cid });
+    if (!c) return res.status(404).json({ error: 'Not found' });
+    const u = req.user.username;
+    c.upvotes = c.upvotes.filter(x => x !== u);
+    if (dir === 'up') c.upvotes.push(u);
+    await c.save();
+    res.json({ ok: true, upvotes: c.upvotes });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
-/* POST react to a thread reply */
-app.post('/threads/reply/:replyId/react', authMiddleware, async (req, res) => {
-  try {
-    const { emoji } = req.body;
-    const reply = await ThreadReply.findOne({ id: req.params.replyId });
-    if (!reply) return res.status(404).json({ error: 'Not found' });
-    const users = reply.reactions.get(emoji) || [];
-    const idx = users.indexOf(req.user.username);
-    if (idx >= 0) users.splice(idx, 1); else users.push(req.user.username);
-    reply.reactions.set(emoji, users);
-    await reply.save();
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 
 app.post('/livekit/token', authMiddleware, async (req, res) => {
   try {
