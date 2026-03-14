@@ -3055,6 +3055,7 @@ function renderMobileChannels(serverId){
   title.textContent=srv.name;meta.textContent=srv.description||'';
   var isOwner=!isGuest&&srv.owner===myName;
   if(!isGuest){
+    addHdrBtn(actions,'📅 Events',false,function(){openEvents(serverId);});
     if(isOwner&&!srv.isOfficial){
       addHdrBtn(actions,'🔗 Invite',false,function(){createInvite(serverId);});
       addHdrBtn(actions,'+ Ch',false,function(){openAddChannel(serverId);});
@@ -3432,20 +3433,31 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
   });
 
   room.on(LivekitClient.RoomEvent.ParticipantConnected,function(p){
-    toast('👋 '+p.identity+' joined');renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
+    toast('👋 '+p.identity+' joined');
+    // Attach any already-published tracks from this new participant
+    p.trackPublications.forEach(function(pub){
+      if(pub.isSubscribed&&pub.track) attachTrack(pub.track,pub,p);
+    });
+    renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
   });
   room.on(LivekitClient.RoomEvent.ParticipantDisconnected,function(p){
     toast('👋 '+p.identity+' left');
     var tile=document.getElementById('tile-'+p.sid);if(tile)tile.remove();
-    var audio=document.getElementById('audio-'+p.sid);if(audio)audio.remove();
+    var audio=document.getElementById('audio-'+p.sid);if(audio){audio.pause();audio.remove();}
     renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
   });
   room.on(LivekitClient.RoomEvent.TrackSubscribed,function(track,pub,participant){
-    attachTrack(track,pub,participant);renderVideoGrid();
+    attachTrack(track,pub,participant);
+    if(track.kind===LivekitClient.Track.Kind.Video) renderVideoGrid();
   });
   room.on(LivekitClient.RoomEvent.TrackUnsubscribed,function(track,pub,participant){
-    var tile=document.getElementById('tile-'+participant.sid+'-'+pub.trackSid);if(tile)tile.remove();
-    renderVideoGrid();
+    if(track.kind===LivekitClient.Track.Kind.Audio){
+      var audio=document.getElementById('audio-'+participant.sid);
+      if(audio){audio.pause();audio.remove();}
+    } else {
+      var tile=document.getElementById('tile-'+participant.sid+'-'+pub.trackSid);if(tile)tile.remove();
+      renderVideoGrid();
+    }
   });
   room.on(LivekitClient.RoomEvent.TrackMuted,function(pub,participant){
     var tileId=participant.isLocal?'tile-local':'tile-'+participant.sid;
@@ -3459,13 +3471,24 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     if(tile){var m=tile.querySelector('.tile-muted');if(m)m.textContent='';}
   });
   room.on(LivekitClient.RoomEvent.Disconnected,function(reason){
-    var msg='Call disconnected';
-    if(reason===LivekitClient.DisconnectReason.CLIENT_INITIATED) return cleanupCall();
-    toast('⚠️ '+msg+' (reason: '+(reason||'unknown')+') — check LiveKit API keys in Render');
+    // Only show error toast for unexpected disconnects
+    var clientInitiated = reason===LivekitClient.DisconnectReason.CLIENT_INITIATED
+      || reason==='client-initiated' || reason===0 || !reason;
+    if(clientInitiated) return cleanupCall();
+    toast('⚠️ Call disconnected unexpectedly — try rejoining');
     cleanupCall();
   });
   room.on(LivekitClient.RoomEvent.Reconnecting,function(){toast('🔄 Reconnecting call…');});
-  room.on(LivekitClient.RoomEvent.Reconnected,function(){toast('✅ Reconnected!');});
+  room.on(LivekitClient.RoomEvent.Reconnected,function(){
+    toast('✅ Reconnected!');
+    // Re-attach all remote audio after reconnect
+    room.remoteParticipants.forEach(function(p){
+      p.trackPublications.forEach(function(pub){
+        if(pub.isSubscribed&&pub.track) attachTrack(pub.track,pub,p);
+      });
+    });
+    renderVideoGrid();updateParticipantCount();
+  });
   room.on(LivekitClient.RoomEvent.LocalTrackPublished,function(){renderVideoGrid();});
   room.on(LivekitClient.RoomEvent.LocalTrackUnpublished,function(){renderVideoGrid();});
 
@@ -3473,13 +3496,19 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
 
   // Publish mic — let Livekit + browser handle noise suppression natively
   getMic(async function(stream){
-    lk.micStream = stream; // keep ref so we can stop tracks on cleanup
-    setupVAD(stream); // VAD meter — dB threshold from slider
-    setupSbMixer(stream); // soundboard mixer — blends sounds into mic
+    lk.micStream = stream;
+    setupVAD(stream);
+    setupSbMixer(stream);
     await room.localParticipant.setMicrophoneEnabled(true);
     lk.micEnabled=true;
     updateCtrl('ctrlMic',true);
     showCallWindow(chatRoom||lvRoomName);
+    // Attach all remote tracks that published before mic was ready
+    room.remoteParticipants.forEach(function(p){
+      p.trackPublications.forEach(function(pub){
+        if(pub.isSubscribed&&pub.track) attachTrack(pub.track,pub,p);
+      });
+    });
     renderVideoGrid();updateParticipantCount();startTimer();
   });
 }
@@ -3494,10 +3523,18 @@ function renderVideoGrid(){
   // Local participant
   ensureLocalTile(grid);
 
-  // Remote participants
+  // Remote participants — attach any tracks not yet attached
   lk.room.remoteParticipants.forEach(function(participant){
     participant.trackPublications.forEach(function(pub){
-      if(pub.isSubscribed&&pub.track) attachTrack(pub.track,pub,participant);
+      if(!pub.isSubscribed||!pub.track) return;
+      if(pub.track.kind===LivekitClient.Track.Kind.Audio){
+        // Ensure audio element exists and is playing
+        if(!document.getElementById('audio-'+participant.sid)){
+          attachTrack(pub.track,pub,participant);
+        }
+      } else {
+        attachTrack(pub.track,pub,participant);
+      }
     });
   });
 }
