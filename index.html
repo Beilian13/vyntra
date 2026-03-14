@@ -6473,95 +6473,17 @@ function updateSettingsNowPlaying(){
 }
 
 function showCompanionInstructions(){
-  var token=localStorage.getItem('vt')||'YOUR_TOKEN_HERE';
-  var host=location.origin;
-  var code=`#!/usr/bin/env python3
-"""
-Vyntra Presence Companion
-Detects running games and updates your Vyntra status automatically.
-Supports: Roblox (Windows), Sober (Linux), and common games.
-"""
-import time, requests, platform
-try:
-    import psutil
-except ImportError:
-    print("Run: pip install psutil requests")
-    exit(1)
-
-VYNTRA_URL = "${host}"
-TOKEN = "${token}"
-POLL_INTERVAL = 10  # seconds
-
-GAMES = {
-    # process_name: (display_name, type)
-    "RobloxPlayerBeta.exe":  ("Roblox", "roblox"),
-    "RobloxPlayer.exe":      ("Roblox", "roblox"),
-    "sober":                 ("Roblox (Sober)", "sober"),
-    "Sober":                 ("Roblox (Sober)", "sober"),
-    "Minecraft.exe":         ("Minecraft", "custom"),
-    "javaw.exe":             ("Minecraft", "custom"),
-    "FortniteClient-Win64-Shipping.exe": ("Fortnite", "custom"),
-    "GenshinImpact.exe":     ("Genshin Impact", "custom"),
-    "steam.exe":             ("Steam", "custom"),
-    "Discord.exe":           ("Discord", "custom"),
-}
-
-def get_running_game():
-    try:
-        procs = {p.name() for p in psutil.process_iter(['name'])}
-        for proc, (name, gtype) in GAMES.items():
-            if proc in procs:
-                return name, gtype
-    except Exception:
-        pass
-    return None, None
-
-def set_presence(game, detail, gtype):
-    try:
-        requests.post(
-            f"{VYNTRA_URL}/presence",
-            json={"game": game, "detail": detail, "type": gtype},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            timeout=5
-        )
-    except Exception as e:
-        print(f"Error updating presence: {e}")
-
-def clear_presence():
-    try:
-        requests.post(
-            f"{VYNTRA_URL}/presence",
-            json={"game": None},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            timeout=5
-        )
-    except Exception:
-        pass
-
-print(f"Vyntra Presence running on {platform.system()} — polling every {POLL_INTERVAL}s")
-print(f"Server: {VYNTRA_URL}")
-last_game = None
-
-while True:
-    game, gtype = get_running_game()
-    if game != last_game:
-        if game:
-            print(f"▶ Detected: {game}")
-            set_presence(game, "In a game", gtype)
-        else:
-            print("■ No game detected — clearing presence")
-            clear_presence()
-        last_game = game
-    time.sleep(POLL_INTERVAL)
-`;
-  document.getElementById('companionCode').textContent=code;
+  var token=localStorage.getItem('vt')||'(not logged in)';
+  var hint=document.getElementById('companionTokenHint');
+  if(hint) hint.textContent='Find line:  VYNTRA_TOKEN = "PASTE_YOUR_TOKEN_HERE"\nReplace with: VYNTRA_TOKEN = "'+token+'"';
   document.getElementById('presenceModal').style.display='none';
   document.getElementById('companionModal').style.display='flex';
 }
 
-function copyCompanionCode(){
-  var code=document.getElementById('companionCode').textContent;
-  navigator.clipboard.writeText(code).then(function(){toast('📋 Script copied!');}).catch(function(){toast('Select and copy manually');});
+function copyCompanionToken(){
+  var token=localStorage.getItem('vt')||'';
+  if(!token){toast('Not logged in');return;}
+  navigator.clipboard.writeText(token).then(function(){toast('📋 Token copied!');}).catch(function(){toast('Open DevTools → Console → localStorage.getItem("vt")');});
 }
 
 /* ══════════════════════════════════════════════
