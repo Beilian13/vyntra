@@ -478,6 +478,41 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .trivia-opt:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
 .trivia-opt.correct{background:rgba(57,211,83,.15)!important;border-color:#39d353!important;color:#39d353!important}
 .trivia-opt.wrong{background:rgba(255,80,80,.12)!important;border-color:#ff5050!important;color:#ff5050!important}
+/* ── RICH PRESENCE ── */
+.now-playing{display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);font-size:11px;color:var(--accent);font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now-playing .np-icon{font-size:13px;flex-shrink:0}
+.np-roblox{background:color-mix(in srgb,#e53935 10%,transparent);border-color:color-mix(in srgb,#e53935 25%,transparent);color:#e57373}
+.np-sober{background:color-mix(in srgb,#43a047 10%,transparent);border-color:color-mix(in srgb,#43a047 25%,transparent);color:#66bb6a}
+/* presence pill in friend list */
+.friend-presence{font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── ACTIVITY FEED ── */
+#activityModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center}
+.activity-panel{background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(480px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.activity-header{display:flex;align-items:center;gap:8px;padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--panel-dark)}
+.activity-header h3{flex:1;font-size:15px;font-weight:700;margin:0}
+.activity-body{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:4px}
+.activity-item{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:9px;transition:background .1s}
+.activity-item:hover{background:rgba(255,255,255,.03)}
+.ai-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;color:#fff}
+.ai-body{flex:1;min-width:0}
+.ai-text{font-size:13px;line-height:1.45}
+.ai-text b{color:var(--accent)}
+.ai-time{font-size:10px;color:var(--muted);margin-top:1px}
+.ai-type-icon{font-size:15px;flex-shrink:0;margin-top:6px}
+.activity-day-sep{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 10px 2px}
+
+/* ── MESSAGE FORMATTING ── */
+.msg-fmt-bold{font-weight:700}
+.msg-fmt-italic{font-style:italic}
+.msg-fmt-strike{text-decoration:line-through}
+.msg-fmt-code{font-family:monospace;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;font-size:12px;color:#e8e8e8}
+.msg-fmt-codeblock{display:block;font-family:monospace;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px 12px;font-size:12px;color:#e8e8e8;white-space:pre-wrap;word-break:break-all;margin:4px 0;overflow-x:auto}
+.msg-fmt-quote{border-left:3px solid var(--accent);padding:2px 0 2px 10px;margin:3px 0;color:rgba(255,255,255,.7);font-style:italic}
+.msg-fmt-spoiler{background:rgba(255,255,255,.12);border-radius:4px;padding:1px 5px;cursor:pointer;color:transparent;transition:color .2s}
+.msg-fmt-spoiler:hover,.msg-fmt-spoiler.revealed{color:var(--white);background:rgba(255,255,255,.08)}
+.msg-fmt-mention{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);border-radius:4px;padding:1px 5px;font-weight:600;font-size:12px}
+
 /* ── SETTINGS / THEME ENGINE ── */
 #settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
 #settingsModal.open{display:flex}
@@ -1019,6 +1054,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
           <button id="searchBtn" onclick="openSearch()" title="Search" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:15px;padding:4px 8px;cursor:pointer">🔍</button>
           <button id="pinsBtn" onclick="openPinsPanel()" title="Pinned Messages" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">📌</button>
           <button id="threadsBtn" onclick="openThreadsPanel()" title="Threads" style="display:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 10px;cursor:pointer;font-weight:600">🧵 Threads</button>
+          <button onclick="openActivity()" title="Activity Feed" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">📡</button>
           <button id="bookmarksHeaderBtn" onclick="openBookmarks()" title="Bookmarks" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">🔖</button>
           <button id="gamesHeaderBtn" onclick="openGames()" title="Mini Games" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);border-radius:7px;color:var(--muted);font-size:14px;padding:4px 9px;cursor:pointer">🎮</button>
           <div id="roomUsersCount"></div>
@@ -1308,6 +1344,8 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <div style="text-align:center;margin-bottom:16px">
           <div id="settingsAvatar" style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 auto 10px;overflow:hidden;cursor:pointer" onclick="openEditProfile()"></div>
           <button class="settings-save" onclick="openEditProfile()">Edit Profile</button>
+          <button class="settings-save" style="margin-top:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent)" onclick="closeSettings();openPresence()">🎮 Now Playing</button>
+          <div id="settingsNowPlaying" style="display:none;margin-top:8px;font-size:12px;color:var(--muted)"></div>
         </div>
       </div>
       <!-- Appearance tab -->
@@ -1694,6 +1732,81 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
       <div id="gameArea" style="display:none"></div>
     </div>
   </div>
+</div>
+
+<!-- ══ ACTIVITY FEED ══ -->
+<div id="activityModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center">
+  <div class="activity-panel">
+    <div class="activity-header">
+      <span style="font-size:18px">📡</span>
+      <h3>Friend Activity</h3>
+      <button onclick="closeActivity()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div class="activity-body" id="activityBody"></div>
+  </div>
+</div>
+
+<!-- ══ RICH PRESENCE ══ -->
+<div id="presenceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1200;align-items:center;justify-content:center">
+  <div style="background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(400px,94vw);padding:24px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🎮</span>
+      <h3 style="margin:0;font-size:15px;font-weight:700">Now Playing</h3>
+      <button onclick="closePresence()" style="margin-left:auto;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div id="presenceCurrent" style="display:none;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);font-size:13px"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label style="font-size:12px;color:var(--muted);font-weight:600">GAME / APP NAME</label>
+      <input id="presenceGame" placeholder="e.g. Roblox, Minecraft, Fortnite…" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none"/>
+      <label style="font-size:12px;color:var(--muted);font-weight:600">DETAIL (optional)</label>
+      <input id="presenceDetail" placeholder="e.g. In a game · Adopt Me" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none"/>
+      <label style="font-size:12px;color:var(--muted);font-weight:600">TYPE</label>
+      <select id="presenceType" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none">
+        <option value="custom">🎮 Custom</option>
+        <option value="roblox">🟥 Roblox (Windows)</option>
+        <option value="sober">🟩 Sober (Linux)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="clearPresence()" style="flex:1;padding:10px;border-radius:9px;background:rgba(255,80,80,.1);border:1px solid rgba(255,80,80,.2);color:#ff7070;font-size:13px;font-weight:600;cursor:pointer">Clear</button>
+      <button onclick="setPresence()" style="flex:1;padding:10px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">Set Status</button>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Auto-Detect (companion script)</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6">Run the companion script on your PC to auto-detect Roblox, Sober, and other games.</div>
+      <button onclick="showCompanionInstructions()" style="margin-top:8px;width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--white);font-size:12px;cursor:pointer">📥 Get Companion Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPANION INSTRUCTIONS ══ -->
+<div id="companionModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1300;align-items:center;justify-content:center">
+  <div style="background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(560px,96vw);max-height:90vh;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🤖</span>
+      <h3 style="margin:0;font-size:15px;font-weight:700">Companion Script Setup</h3>
+      <button onclick="document.getElementById('companionModal').style.display='none'" style="margin-left:auto;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:4px 10px;cursor:pointer">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.7">
+      The companion script runs in the background on your PC, detects running games (Roblox, Sober, Steam games), and automatically updates your Vyntra status.
+      <br><br>
+      <b style="color:var(--white)">Requirements:</b> Python 3.7+ (Windows/Linux/macOS)
+    </div>
+    <!-- Direct download -->
+    <a id="companionDownloadLink" href="/companion" download="vyntra_presence.py" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:10px;background:var(--accent);color:#fff;text-decoration:none;font-size:14px;font-weight:700">
+      ⬇️ Download vyntra_presence.py
+    </a>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Or set up manually:</div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Step 1 — Install dependencies</div>
+    <pre id="companionStep1" style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:#e8e8e8;overflow-x:auto;margin:0">pip install psutil requests</pre>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Step 2 — Open the file and set your token</div>
+    <pre style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:#e8e8e8;overflow-x:auto;margin:0" id="companionTokenHint"></pre>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Step 3 — Run it</div>
+    <pre style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:#e8e8e8;overflow-x:auto;margin:0">python vyntra_presence.py</pre>
+    <div style="font-size:11px;color:var(--muted);line-height:1.6">The script will auto-detect Roblox, Sober, Minecraft, and 30+ other games. Press Ctrl+C to stop — it clears your status automatically.</div>
+    <button onclick="copyCompanionToken()" style="padding:10px;border-radius:9px;background:rgba(255,255,255,.07);color:var(--white);border:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer">📋 Copy My Token</button>
+  </div>
+</div>
 </div>
 
 <script>
@@ -2389,6 +2502,8 @@ function joinChannel(ch,srv){
     var sb=document.getElementById('searchBtn');if(sb) sb.style.display='';
     var tb=document.getElementById('threadsBtn');if(tb) tb.style.display='';
     var pb=document.getElementById('pinsBtn');if(pb) pb.style.display='';
+    if(srv) logJoinActivity(srv.name, ch.name);
+    updateSettingsNowPlaying();
   }
 }
 function openDM(user){
@@ -2511,9 +2626,17 @@ function renderFriends(){
     c.innerHTML='';
     if(!myFriends.length){c.innerHTML='<div class="no-friends">No friends yet!<br>Click a username to add one.</div>';return;}
     myFriends.forEach(function(f){
+      var p=_profiles[f]||{};
+      var np=p.nowPlaying;
+      var npHtml='';
+      if(np&&np.game){
+        var npClass=np.type==='roblox'?'np-roblox':np.type==='sober'?'np-sober':'';
+        var npIcon=np.type==='roblox'?'🟥':np.type==='sober'?'🟩':'🎮';
+        npHtml='<div class="friend-presence '+npClass+'">'+npIcon+' '+escHtml(np.game)+(np.detail?' · '+escHtml(np.detail):'')+'</div>';
+      }
       var el=document.createElement('div');el.className='friend-item';
       el.innerHTML='<div class="friend-avatar">'+f[0].toUpperCase()+'</div>'+
-        '<div class="friend-name">'+f+'</div>'+
+        '<div style="flex:1;min-width:0"><div class="friend-name">'+f+'</div>'+npHtml+'</div>'+
         '<div class="friend-actions">'+
           '<button class="fbtn" data-action="call">📞</button>'+
           '<button class="fbtn" data-action="dm">💬</button>'+
@@ -2784,7 +2907,9 @@ function renderMsg(msg){
     w.appendChild(rq);
   }
   // Text
-  if(msg.text){var tx=document.createElement('div');tx.className='text';tx.textContent=msg.text;w.appendChild(tx);}
+  if(msg.text){var tx=document.createElement('div');tx.className='text';tx.innerHTML=formatMessage(msg.text);
+    tx.querySelectorAll('.msg-fmt-spoiler').forEach(function(s){s.onclick=function(){s.classList.toggle('revealed');};});
+    w.appendChild(tx);}
   // File/image/sticker attachment
   if(msg.fileUrl){
     var ft=msg.fileType||'';
@@ -2914,7 +3039,7 @@ function applyEdit(d){
   var w=document.getElementById('m-'+d.id);if(!w) return;
   cancelEdit(d.id);
   var txEl=w.querySelector('.text');
-  if(txEl) txEl.textContent=d.text;
+  if(txEl){ txEl.innerHTML=formatMessage(d.text); txEl.querySelectorAll('.msg-fmt-spoiler').forEach(function(s){s.onclick=function(){s.classList.toggle('revealed');};}); }
   var metaSpan=w.querySelector('.meta span:last-child');
   if(metaSpan&&!metaSpan.querySelector('.edited-tag')){
     var etag=document.createElement('span');etag.className='edited-tag';etag.textContent='(edited)';metaSpan.appendChild(etag);
@@ -4994,7 +5119,14 @@ function getAvatarHtml(username, size){
 // Handle status_update from server
 function applyStatusUpdate(d){
   if(!_profiles[d.username]) _profiles[d.username]={};
-  Object.assign(_profiles[d.username],{statusEmoji:d.statusEmoji,statusText:d.statusText,avatarUrl:d.avatarUrl});
+  if(d.statusEmoji!==undefined) _profiles[d.username].statusEmoji=d.statusEmoji;
+  if(d.statusText!==undefined)  _profiles[d.username].statusText=d.statusText;
+  if(d.avatarUrl!==undefined)   _profiles[d.username].avatarUrl=d.avatarUrl;
+  if(d.nowPlaying!==undefined)  _profiles[d.username].nowPlaying=d.nowPlaying;
+  // Update own profile
+  if(d.username===myName && d.nowPlaying!==undefined) myProfile.nowPlaying=d.nowPlaying;
+  // Refresh friend list if visible
+  if(d.username!==myName) renderFriends();
 }
 
 /* ══════════════════════════════════════════════
@@ -6235,6 +6367,257 @@ function shareMsgToChat(text){
   wsSend({type:'message',text});
   closeGames();
   toast('📤 Shared to chat!');
+}
+
+/* ══════════════════════════════════════════════
+   MESSAGE FORMATTING
+══════════════════════════════════════════════ */
+function formatMessage(text){
+  if(!text) return '';
+  // Code blocks first (multi-line) — preserve content verbatim
+  var blocks=[];
+  var s=escHtml(text);
+  // ```code blocks```
+  s=s.replace(/```([\s\S]*?)```/g,function(_,c){
+    var idx=blocks.length;
+    blocks.push('<code class="msg-fmt-codeblock">'+c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')+'</code>');
+    return '\x00BLOCK'+idx+'\x00';
+  });
+  // Inline `code`
+  s=s.replace(/`([^`]+)`/g,function(_,c){return '<code class="msg-fmt-code">'+c+'</code>';});
+  // Spoiler ||text||
+  s=s.replace(/\|\|([^|]+)\|\|/g,'<span class="msg-fmt-spoiler">$1</span>');
+  // Bold **text** or __text__
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<b class="msg-fmt-bold">$1</b>');
+  s=s.replace(/__([^_]+)__/g,'<b class="msg-fmt-bold">$1</b>');
+  // Italic *text* or _text_
+  s=s.replace(/\*([^*]+)\*/g,'<i class="msg-fmt-italic">$1</i>');
+  s=s.replace(/_([^_]+)_/g,'<i class="msg-fmt-italic">$1</i>');
+  // Strikethrough ~~text~~
+  s=s.replace(/~~([^~]+)~~/g,'<span class="msg-fmt-strike">$1</span>');
+  // @mentions
+  s=s.replace(/@(\w+)/g,'<span class="msg-fmt-mention">@$1</span>');
+  // > quotes (line-start)
+  s=s.replace(/(^|\n)&gt;\s?([^\n]+)/g,'$1<span class="msg-fmt-quote">$2</span>');
+  // Newlines to <br>
+  s=s.replace(/\n/g,'<br>');
+  // URLs to links
+  s=s.replace(/(https?:\/\/[^\s<>"]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;text-underline-offset:2px">$1</a>');
+  // Restore code blocks
+  s=s.replace(/\x00BLOCK(\d+)\x00/g,function(_,i){return blocks[parseInt(i)];});
+  return s;
+}
+
+/* ══════════════════════════════════════════════
+   RICH PRESENCE / NOW PLAYING
+══════════════════════════════════════════════ */
+function openPresence(){
+  var np=myProfile.nowPlaying;
+  var cur=document.getElementById('presenceCurrent');
+  if(np&&np.game){
+    cur.style.display='';
+    cur.textContent='Currently: 🎮 '+np.game+(np.detail?' — '+np.detail:'');
+    document.getElementById('presenceGame').value=np.game||'';
+    document.getElementById('presenceDetail').value=np.detail||'';
+    document.getElementById('presenceType').value=np.type||'custom';
+  } else {
+    cur.style.display='none';
+    document.getElementById('presenceGame').value='';
+    document.getElementById('presenceDetail').value='';
+    document.getElementById('presenceType').value='custom';
+  }
+  document.getElementById('presenceModal').style.display='flex';
+  setTimeout(function(){document.getElementById('presenceGame').focus();},80);
+}
+function closePresence(){ document.getElementById('presenceModal').style.display='none'; }
+
+async function setPresence(){
+  var game=document.getElementById('presenceGame').value.trim();
+  var detail=document.getElementById('presenceDetail').value.trim();
+  var type=document.getElementById('presenceType').value;
+  if(!game) return toast('Enter a game name');
+  try{
+    var r=await fetch('/presence',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body:JSON.stringify({game,detail,type})
+    });
+    var d=await r.json();
+    if(d.ok){
+      myProfile.nowPlaying={game,detail,type,since:new Date()};
+      closePresence();
+      toast('🎮 Now Playing: '+game);
+      updateSettingsNowPlaying();
+    }
+  }catch(e){toast('Failed');}
+}
+
+async function clearPresence(){
+  try{
+    await fetch('/presence',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body:JSON.stringify({game:null})
+    });
+    myProfile.nowPlaying=null;
+    closePresence();
+    toast('✅ Presence cleared');
+    updateSettingsNowPlaying();
+  }catch(e){}
+}
+
+function updateSettingsNowPlaying(){
+  var el=document.getElementById('settingsNowPlaying');
+  if(!el) return;
+  var np=myProfile.nowPlaying;
+  if(np&&np.game){ el.style.display=''; el.textContent='🎮 '+np.game+(np.detail?' · '+np.detail:''); }
+  else { el.style.display='none'; }
+}
+
+function showCompanionInstructions(){
+  var token=localStorage.getItem('vt')||'YOUR_TOKEN_HERE';
+  var host=location.origin;
+  var code=`#!/usr/bin/env python3
+"""
+Vyntra Presence Companion
+Detects running games and updates your Vyntra status automatically.
+Supports: Roblox (Windows), Sober (Linux), and common games.
+"""
+import time, requests, platform
+try:
+    import psutil
+except ImportError:
+    print("Run: pip install psutil requests")
+    exit(1)
+
+VYNTRA_URL = "${host}"
+TOKEN = "${token}"
+POLL_INTERVAL = 10  # seconds
+
+GAMES = {
+    # process_name: (display_name, type)
+    "RobloxPlayerBeta.exe":  ("Roblox", "roblox"),
+    "RobloxPlayer.exe":      ("Roblox", "roblox"),
+    "sober":                 ("Roblox (Sober)", "sober"),
+    "Sober":                 ("Roblox (Sober)", "sober"),
+    "Minecraft.exe":         ("Minecraft", "custom"),
+    "javaw.exe":             ("Minecraft", "custom"),
+    "FortniteClient-Win64-Shipping.exe": ("Fortnite", "custom"),
+    "GenshinImpact.exe":     ("Genshin Impact", "custom"),
+    "steam.exe":             ("Steam", "custom"),
+    "Discord.exe":           ("Discord", "custom"),
+}
+
+def get_running_game():
+    try:
+        procs = {p.name() for p in psutil.process_iter(['name'])}
+        for proc, (name, gtype) in GAMES.items():
+            if proc in procs:
+                return name, gtype
+    except Exception:
+        pass
+    return None, None
+
+def set_presence(game, detail, gtype):
+    try:
+        requests.post(
+            f"{VYNTRA_URL}/presence",
+            json={"game": game, "detail": detail, "type": gtype},
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            timeout=5
+        )
+    except Exception as e:
+        print(f"Error updating presence: {e}")
+
+def clear_presence():
+    try:
+        requests.post(
+            f"{VYNTRA_URL}/presence",
+            json={"game": None},
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            timeout=5
+        )
+    except Exception:
+        pass
+
+print(f"Vyntra Presence running on {platform.system()} — polling every {POLL_INTERVAL}s")
+print(f"Server: {VYNTRA_URL}")
+last_game = None
+
+while True:
+    game, gtype = get_running_game()
+    if game != last_game:
+        if game:
+            print(f"▶ Detected: {game}")
+            set_presence(game, "In a game", gtype)
+        else:
+            print("■ No game detected — clearing presence")
+            clear_presence()
+        last_game = game
+    time.sleep(POLL_INTERVAL)
+`;
+  document.getElementById('companionCode').textContent=code;
+  document.getElementById('presenceModal').style.display='none';
+  document.getElementById('companionModal').style.display='flex';
+}
+
+function copyCompanionCode(){
+  var code=document.getElementById('companionCode').textContent;
+  navigator.clipboard.writeText(code).then(function(){toast('📋 Script copied!');}).catch(function(){toast('Select and copy manually');});
+}
+
+/* ══════════════════════════════════════════════
+   ACTIVITY FEED
+══════════════════════════════════════════════ */
+var _activityCache=[];
+
+async function openActivity(){
+  document.getElementById('activityModal').style.display='flex';
+  var body=document.getElementById('activityBody');
+  body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">Loading…</div>';
+  try{
+    var r=await fetch('/activity/friends',{headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    _activityCache=await r.json();
+    renderActivity();
+  }catch(e){
+    body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">Failed to load.</div>';
+  }
+}
+function closeActivity(){ document.getElementById('activityModal').style.display='none'; }
+
+function renderActivity(){
+  var body=document.getElementById('activityBody'); body.innerHTML='';
+  if(!_activityCache.length){
+    body.innerHTML='<div style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center;line-height:1.8">No activity yet.<br><span style="font-size:11px;opacity:.6">Activity from you and your friends will appear here.</span></div>';
+    return;
+  }
+  var typeIcons={playing:'🎮',joined_server:'🏠',posted_thread:'🧵',sent_message:'💬',default:'📡'};
+  var lastDay='';
+  _activityCache.forEach(function(act){
+    var d=new Date(act.createdAt);
+    var dayStr=d.toLocaleDateString([],{weekday:'long',month:'short',day:'numeric'});
+    if(dayStr!==lastDay){
+      var sep=document.createElement('div'); sep.className='activity-day-sep'; sep.textContent=dayStr;
+      body.appendChild(sep); lastDay=dayStr;
+    }
+    var item=document.createElement('div'); item.className='activity-item';
+    var p=_profiles[act.username]||{};
+    var avatarBg=p.bannerColor||getAccentHex();
+    item.innerHTML=
+      '<div class="ai-avatar" style="background:'+avatarBg+'">'+act.username[0].toUpperCase()+'</div>'+
+      '<div class="ai-body">'+
+        '<div class="ai-text"><b>'+escHtml(act.username)+'</b> '+escHtml(act.text)+'</div>'+
+        '<div class="ai-time">'+timeAgo(act.createdAt)+'</div>'+
+      '</div>'+
+      '<div class="ai-type-icon">'+(typeIcons[act.type]||typeIcons.default)+'</div>';
+    body.appendChild(item);
+  });
+}
+
+// Log activity when joining a server channel
+function logJoinActivity(serverName, channelName){
+  fetch('/activity',{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+    body:JSON.stringify({type:'joined_server',text:'joined #'+channelName+' in '+serverName,meta:{serverName,channelName}})
+  }).catch(function(){});
 }
 
 /* ══════════════════════════════════════════════
