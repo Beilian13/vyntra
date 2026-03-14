@@ -373,6 +373,11 @@ function authMiddleware(req, res, next) {
 
 /* ── STATIC / PWA ── */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+// Inline SVG favicon — stops 404 in browser console
+app.get('/favicon.ico', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>');
+});
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
 app.get('/companion', (req, res) => res.download(path.join(__dirname, 'vyntra_presence.py'), 'vyntra_presence.py'));
 
