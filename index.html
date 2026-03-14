@@ -3,8 +3,18 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Vyntra</title>
-<!-- PWA -->
+<title>Vyntra — Chat, Calls & More</title>
+<meta name="description" content="Real-time chat, voice & video calls, threads, AI assistant and more. Free and open source."/>
+<meta name="theme-color" content="#6c7cff"/>
+<meta property="og:title" content="Vyntra — Talk. Call. Build together."/>
+<meta property="og:description" content="Real-time chat, voice & video calls, threads, file sharing and AI. Free and open source."/>
+<meta property="og:url" content="https://vyntra-zlfn.onrender.com/app"/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Vyntra — Talk. Call. Build together."/>
+<meta name="twitter:description" content="Real-time chat, voice & video calls, threads, file sharing and AI. Free and open source."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <link rel="manifest" href="/manifest.json"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -28,7 +38,15 @@
 html,body{height:100%;font-family:Inter,Segoe UI,system-ui,Arial;background:var(--bg);color:var(--white);-webkit-font-smoothing:antialiased}
 
 /* ── AUTH ── */
-#authScreen{display:flex;align-items:center;justify-content:center;height:100%;background:radial-gradient(ellipse at 50% 40%,#1a1c35,var(--bg))}
+#authScreen{display:block;min-height:100%;background:var(--bg);overflow-y:auto;font-family:'DM Sans',sans-serif}
+#authScreen .auth-box{margin:0 auto}
+.ld-feat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:6px;transition:all .25s}
+.ld-feat:hover{border-color:rgba(108,124,255,.25);transform:translateY(-2px)}
+.ld-feat>:first-child{font-size:26px}
+.ld-feat b{font-size:15px;font-weight:700;color:#f0f2ff}
+.ld-feat span{font-size:13px;color:#8892b0;line-height:1.55}
+@keyframes ldPulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes ldFadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .auth-box{width:min(420px,92vw);background:var(--panel-card);border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.04)}
 .auth-box h2{font-size:22px;margin-bottom:6px}
 .auth-box>p{color:var(--muted);font-size:14px;margin-bottom:24px}
@@ -929,51 +947,110 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 </head>
 <body>
 
-<!-- AUTH -->
+<!-- LANDING + AUTH -->
 <div id="authScreen">
-  <div class="auth-box">
-    <h2>Vyntra</h2>
-    <p>Chat with your friends</p>
-    <div id="stepTabs">
-      <div class="auth-tabs">
-        <button class="auth-tab active" onclick="switchTab('login')">Login</button>
-        <button class="auth-tab" onclick="switchTab('register')">Register</button>
+
+  <!-- Noise + orbs -->
+  <div style="position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url('data:image/svg+xml,%3Csvg viewBox=%220 0 512 512%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%22.9%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22 opacity=%22.04%22/%3E%3C/svg%3E');opacity:.5"></div>
+  <div style="position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(108,124,255,.18),transparent 70%);top:-200px;left:-100px;filter:blur(120px);pointer-events:none;z-index:0"></div>
+  <div style="position:fixed;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(155,108,255,.12),transparent 70%);bottom:-150px;right:-80px;filter:blur(120px);pointer-events:none;z-index:0"></div>
+
+  <div style="position:relative;z-index:1;width:100%;display:flex;flex-direction:column;align-items:center;overflow-y:auto;min-height:100vh">
+
+    <!-- NAV -->
+    <nav style="position:sticky;top:0;left:0;right:0;width:100%;display:flex;align-items:center;justify-content:space-between;padding:18px 40px;background:rgba(8,11,20,.75);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);z-index:10;flex-shrink:0">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.5px;background:linear-gradient(135deg,#f0f2ff,#6c7cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">⚡ Vyntra</div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button onclick="showAuth('login')" style="background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:10px;color:rgba(255,255,255,.6);font-size:14px;font-weight:500;padding:8px 18px;cursor:pointer;transition:all .2s">Log in</button>
+        <button onclick="showAuth('register')" style="background:linear-gradient(135deg,#6c7cff,#9b6cff);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;padding:8px 18px;cursor:pointer;box-shadow:0 4px 16px rgba(108,124,255,.3);transition:all .2s">Get started free →</button>
       </div>
-      <div id="formLogin">
-        <div class="auth-field"><label>Username</label><input id="loginUser" type="text" autocomplete="username"/></div>
-        <div class="auth-field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"/></div>
-        <button class="auth-submit" id="loginBtn" onclick="doLogin()">Login</button>
+    </nav>
+
+    <!-- HERO -->
+    <section style="width:100%;max-width:900px;padding:100px 24px 60px;text-align:center;display:flex;flex-direction:column;align-items:center">
+      <div style="display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;background:rgba(108,124,255,.1);border:1px solid rgba(108,124,255,.25);font-size:12px;font-weight:600;color:#6c7cff;letter-spacing:.04em;text-transform:uppercase;margin-bottom:28px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#39d353;box-shadow:0 0 6px #39d353;animation:ldPulse 2s infinite;display:inline-block"></span>
+        Free &amp; open source
       </div>
-      <div id="formReg" style="display:none">
-        <div class="auth-field"><label>Username</label><input id="regUser" type="text" autocomplete="username"/></div>
-        <div class="auth-field"><label>Email (optional)</label><input id="regEmail" type="email" autocomplete="email"/></div>
-        <div class="auth-field"><label>Password</label><input id="regPass" type="password" autocomplete="new-password"/></div>
-        <div class="auth-field">
-          <label>Secret Question</label>
-          <select id="regQuestion" style="padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none">
-            <option value="">— Pick a question —</option>
-            <option>What was the name of your first pet?</option>
-            <option>What city were you born in?</option>
-            <option>What is your mother's maiden name?</option>
-            <option>What was the name of your first school?</option>
-            <option>What was your childhood nickname?</option>
-            <option>What is the name of your favorite childhood friend?</option>
-            <option>What street did you grow up on?</option>
-            <option>What was the make of your first car?</option>
-          </select>
+      <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(44px,8vw,80px);line-height:1.05;letter-spacing:-2px;margin-bottom:22px">
+        <span style="background:linear-gradient(135deg,#f0f2ff 30%,#6c7cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Talk.</span>
+        <span style="background:linear-gradient(135deg,#6c7cff,#9b6cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent"> Call.</span><br>
+        <span style="background:linear-gradient(135deg,#f0f2ff 30%,#6c7cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Build together.</span>
+      </h1>
+      <p style="max-width:520px;font-size:18px;color:#8892b0;font-weight:300;line-height:1.7;margin-bottom:40px">Real-time chat, voice &amp; video calls, threads, file sharing and AI — all in one place. No subscription. No bloat.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+        <button onclick="showAuth('register')" style="background:linear-gradient(135deg,#6c7cff,#9b6cff);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:700;padding:14px 32px;cursor:pointer;box-shadow:0 4px 24px rgba(108,124,255,.4);transition:all .2s">Get started free →</button>
+        <button onclick="guestJoin()" style="background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:12px;color:rgba(255,255,255,.7);font-size:16px;font-weight:500;padding:14px 32px;cursor:pointer;transition:all .2s">👀 Watch as guest</button>
+      </div>
+      <div style="display:flex;gap:48px;margin-top:60px;flex-wrap:wrap;justify-content:center">
+        <div style="text-align:center"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#f0f2ff">100%</div><div style="font-size:11px;color:#8892b0;text-transform:uppercase;letter-spacing:.08em;margin-top:2px">Free forever</div></div>
+        <div style="text-align:center"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#f0f2ff">15+</div><div style="font-size:11px;color:#8892b0;text-transform:uppercase;letter-spacing:.08em;margin-top:2px">Features</div></div>
+        <div style="text-align:center"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#f0f2ff">0</div><div style="font-size:11px;color:#8892b0;text-transform:uppercase;letter-spacing:.08em;margin-top:2px">Tracking / ads</div></div>
+        <div style="text-align:center"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#f0f2ff">∞</div><div style="font-size:11px;color:#8892b0;text-transform:uppercase;letter-spacing:.08em;margin-top:2px">Servers</div></div>
+      </div>
+    </section>
+
+    <!-- FEATURES STRIP -->
+    <section style="width:100%;max-width:1060px;padding:20px 24px 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      <div class="ld-feat">📡<b>Real-time chat</b><span>Messages, reactions, typing indicators and seen receipts — all instant.</span></div>
+      <div class="ld-feat">📞<b>Voice &amp; video calls</b><span>LiveKit-powered calls with VAD, screen share, soundboard and call chat.</span></div>
+      <div class="ld-feat">🧵<b>Threads</b><span>Reddit-style threads with upvotes, downvotes and live comments in any channel.</span></div>
+      <div class="ld-feat">🤖<b>AI assistant</b><span>Summarize chats, get smart replies, translate, analyze PDFs — all built in.</span></div>
+      <div class="ld-feat">🎮<b>Rich presence</b><span>Auto-detect Roblox, Sober (Linux), Minecraft and 30+ games via companion script.</span></div>
+      <div class="ld-feat">📅<b>Server events</b><span>Schedule events, RSVP and coordinate directly inside your server.</span></div>
+    </section>
+
+    <!-- AUTH FORM — scrolled to on CTA click -->
+    <section id="authFormSection" style="width:100%;display:flex;justify-content:center;padding:0 24px 100px">
+      <div class="auth-box" style="width:min(420px,100%);animation:ldFadeUp .4s ease both">
+        <h2 style="font-family:'Syne',sans-serif;font-size:24px;letter-spacing:-.5px">⚡ Vyntra</h2>
+        <p>Chat with your friends</p>
+        <div id="stepTabs">
+          <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+            <button class="auth-tab" onclick="switchTab('register')">Register</button>
+          </div>
+          <div id="formLogin">
+            <div class="auth-field"><label>Username</label><input id="loginUser" type="text" autocomplete="username"/></div>
+            <div class="auth-field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"/></div>
+            <button class="auth-submit" id="loginBtn" onclick="doLogin()">Login</button>
+          </div>
+          <div id="formReg" style="display:none">
+            <div class="auth-field"><label>Username</label><input id="regUser" type="text" autocomplete="username"/></div>
+            <div class="auth-field"><label>Email (optional)</label><input id="regEmail" type="email" autocomplete="email"/></div>
+            <div class="auth-field"><label>Password</label><input id="regPass" type="password" autocomplete="new-password"/></div>
+            <div class="auth-field">
+              <label>Secret Question</label>
+              <select id="regQuestion" style="padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:var(--panel-input);color:var(--white);font-size:14px;outline:none">
+                <option value="">— Pick a question —</option>
+                <option>What was the name of your first pet?</option>
+                <option>What city were you born in?</option>
+                <option>What is your mother's maiden name?</option>
+                <option>What was the name of your first school?</option>
+                <option>What was your childhood nickname?</option>
+                <option>What is the name of your favorite childhood friend?</option>
+                <option>What street did you grow up on?</option>
+                <option>What was the make of your first car?</option>
+              </select>
+            </div>
+            <div class="auth-field"><label>Secret Answer</label><input id="regAnswer" type="text" autocomplete="off" placeholder="Your answer (case insensitive)"/></div>
+            <button class="auth-submit" id="registerBtn" onclick="doRegister()">Create account</button>
+          </div>
         </div>
-        <div class="auth-field"><label>Secret Answer</label><input id="regAnswer" type="text" autocomplete="off" placeholder="Your answer (case insensitive)"/></div>
-        <button class="auth-submit" id="registerBtn" onclick="doRegister()">Create account</button>
+        <div id="step2FA" style="display:none">
+          <p style="color:var(--muted);font-size:14px;margin-bottom:8px">Security question:</p>
+          <p style="color:var(--white);font-size:15px;font-weight:600;margin-bottom:20px" id="secretQuestionText"></p>
+          <div class="auth-field"><label>Your answer</label><input id="secretAnswerInput" type="text" autocomplete="off" placeholder="Case insensitive"/></div>
+          <button class="auth-submit" id="verifyBtn" onclick="doVerify()">Verify</button>
+          <button class="back-btn" onclick="cancelVerify()">← Back</button>
+        </div>
+        <div class="auth-error" id="authError"></div>
+        <div style="margin-top:16px;text-align:center">
+          <button onclick="guestJoin()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline">👀 Continue as guest</button>
+        </div>
       </div>
-    </div>
-    <div id="step2FA" style="display:none">
-      <p style="color:var(--muted);font-size:14px;margin-bottom:8px">Security question:</p>
-      <p style="color:var(--white);font-size:15px;font-weight:600;margin-bottom:20px" id="secretQuestionText"></p>
-      <div class="auth-field"><label>Your answer</label><input id="secretAnswerInput" type="text" autocomplete="off" placeholder="Case insensitive"/></div>
-      <button class="auth-submit" id="verifyBtn" onclick="doVerify()">Verify</button>
-      <button class="back-btn" onclick="cancelVerify()">← Back</button>
-    </div>
-    <div class="auth-error" id="authError"></div>
+    </section>
+
   </div>
 </div>
 
@@ -2139,7 +2216,12 @@ function launchApp(token,username,friends){
 function showAuth(tab){
   if(tab) switchTab(tab);
   document.getElementById('appShell').style.display='none';
-  document.getElementById('authScreen').style.display='flex';
+  document.getElementById('authScreen').style.display='block';
+  // Scroll smoothly to auth form
+  setTimeout(function(){
+    var el=document.getElementById('authFormSection');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+  },60);
 }
 function launchGuestApp(){
   isGuest=true; myName='Guest';
@@ -2605,10 +2687,10 @@ async function loadInvitePage(token){
 async function inviteJoin(){
   var t=localStorage.getItem('vt');
   if(t){var r=await fetch('/api/invite/'+pendingInviteToken+'/accept',{method:'POST',headers:{'Authorization':'Bearer '+t}});if(!r.ok){var d=await r.json();document.getElementById('invError').textContent=d.error||'Failed';return;}history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';launchApp(t,localStorage.getItem('vu'));return;}
-  pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='flex';
+  pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='block';
 }
 function inviteWatch(){isGuest=true;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';launchGuestApp();}
-function inviteLogin(){pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='flex';}
+function inviteLogin(){pendingInviteServerToken=pendingInviteToken;history.pushState({},'','/');document.getElementById('inviteScreen').style.display='none';document.getElementById('authScreen').style.display='block';}
 async function postLoginInvite(token){if(!pendingInviteServerToken)return;try{await fetch('/api/invite/'+pendingInviteServerToken+'/accept',{method:'POST',headers:{'Authorization':'Bearer '+token}});pendingInviteServerToken=null;}catch(e){}}
 
 /* ══════════════════════════════════════════════
