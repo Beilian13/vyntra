@@ -15,6 +15,8 @@
 <meta name="twitter:description" content="Real-time chat, voice & video calls, threads, file sharing and AI. Free and open source."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>"/>
 <link rel="manifest" href="/manifest.json"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -4246,13 +4248,18 @@ function stopSWHeartbeat(){
 var _wakeLock = null;
 async function acquireWakeLock(){
   if(!('wakeLock' in navigator)) return;
+  if(document.visibilityState !== 'visible') return; // browser requires visible page
   try{
     _wakeLock = await navigator.wakeLock.request('screen');
     _wakeLock.addEventListener('release', function(){
-      // Re-acquire if call still active (browser releases on tab switch)
-      if(lk.active) setTimeout(acquireWakeLock, 500);
+      // Re-acquire if call still active and page is visible
+      if(lk.active && document.visibilityState === 'visible'){
+        setTimeout(acquireWakeLock, 500);
+      }
     });
-  } catch(e){ console.warn('Wake lock failed:', e); }
+  } catch(e){
+    // Silently ignore — wake lock is a nice-to-have, not critical
+  }
 }
 function releaseWakeLock(){
   if(_wakeLock){ _wakeLock.release(); _wakeLock=null; }
@@ -7331,6 +7338,21 @@ async function adminDeleteUser(username){
 }
 
 sbLoadCustom();
+
+// Suppress noisy LiveKit internal logs (publishing track, peer connection noise)
+(function(){
+  var _warn = console.warn.bind(console);
+  var _log  = console.log.bind(console);
+  var LK_NOISE = ['publishing track', 'could not createOffer', 'closed peer connection', 'lk-', 'LiveKit'];
+  function isLkNoise(args){
+    return args.some(function(a){
+      var s = typeof a === 'string' ? a : (a && a.message ? a.message : '');
+      return LK_NOISE.some(function(n){ return s.includes(n); });
+    });
+  }
+  console.warn = function(){ if(!isLkNoise([].slice.call(arguments))) _warn.apply(console, arguments); };
+  console.log  = function(){ if(!isLkNoise([].slice.call(arguments))) _log.apply(console, arguments); };
+})();
 
 </script>
 </body>
