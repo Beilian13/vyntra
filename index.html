@@ -143,8 +143,35 @@ main{display:flex;flex:1;overflow:hidden}
   color:var(--muted);transition:background .12s,color .12s;
 }
 .msg-actions button:hover{background:rgba(255,255,255,.08);color:var(--white)}
-/* Reply preview bar above compose */
-#replyBar{
+/* Call minimize button */
+#callMinBtn{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;padding:3px 10px;cursor:pointer;z-index:2}
+#callMinBtn:hover{background:rgba(255,255,255,.12);color:var(--white)}
+/* Minimized call pill */
+#callPill{
+  display:none;position:fixed;bottom:20px;right:20px;z-index:910;
+  background:rgba(10,11,22,.97);backdrop-filter:blur(16px);
+  border:1px solid var(--border);border-radius:999px;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  padding:8px 16px;display:none;align-items:center;gap:12px;
+  cursor:pointer;transition:all .15s;
+}
+#callPill:hover{background:rgba(20,22,40,.97);border-color:rgba(255,255,255,.15)}
+.cp-name{font-size:13px;font-weight:700;color:var(--white)}
+.cp-timer{font-size:12px;color:var(--green);font-variant-numeric:tabular-nums}
+.cp-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:cpPulse 1.5s infinite}
+.cp-expand{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--border)}
+.cp-leave{font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:var(--red);cursor:pointer}
+.cp-leave:hover{background:rgba(255,80,80,.25)}
+@keyframes cpPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+/* Compact reactions — hidden until hover, tiny strip */
+.msg .reactions{margin-top:0;display:none;gap:3px;flex-wrap:wrap;padding:2px 0}
+.msg:hover .reactions{display:flex}
+.reaction{padding:2px 6px;font-size:12px;border-radius:999px}
+.reactions-strip{height:0;overflow:hidden;transition:height .15s}
+.msg:hover .reactions-strip{height:auto}
+/* Poll multi-select toggle */
+.poll-multi-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:6px;cursor:pointer;user-select:none}
+.poll-multi-toggle input{accent-color:var(--accent)}
   display:none;align-items:center;gap:10px;
   padding:7px 14px;background:var(--panel-dark);
   border-top:1px solid color-mix(in srgb, var(--accent) 20%, transparent);
@@ -750,15 +777,30 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 /* ── SOUNDBOARD ── */
 #soundboardPanel{display:none;padding:10px 16px;background:rgba(0,0,0,.25);border-top:1px solid rgba(255,255,255,.03);max-height:220px;overflow-y:auto}
 /* Call Chat */
-#callChatPanel{display:none;flex-direction:column;background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.04);flex:1;min-height:0;max-height:240px}
+#callChatPanel{display:none;flex-direction:column;background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.04);flex:1;min-height:0;max-height:280px}
 #callChatPanel.open{display:flex}
-#callChatMsgs{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:4px}
-.cc-msg{font-size:12.5px;line-height:1.4}
-.cc-msg .cc-user{font-weight:700;margin-right:5px}
+#callChatMsgs{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:3px}
+.cc-msg{font-size:12.5px;line-height:1.45;padding:3px 6px;border-radius:6px;position:relative;cursor:default}
+.cc-msg:hover{background:rgba(255,255,255,.04)}
+.cc-msg .cc-user{font-weight:700;margin-right:4px}
 .cc-msg.me .cc-user{color:var(--accent)}
-#callChatInput{display:flex;gap:6px;padding:7px 10px;border-top:1px solid rgba(255,255,255,.04);flex-shrink:0}
+.cc-reply-quote{font-size:11px;color:var(--muted);border-left:2px solid color-mix(in srgb,var(--accent) 50%,transparent);padding-left:6px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc-reactions{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
+.cc-reaction{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:1px 6px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
+.cc-reaction.me{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
+.cc-actions{display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);gap:2px;background:var(--panel-card);border:1px solid var(--border);border-radius:6px;padding:2px 3px}
+.cc-msg:hover .cc-actions{display:flex}
+.cc-act-btn{background:none;border:none;cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;color:var(--muted)}
+.cc-act-btn:hover{background:rgba(255,255,255,.08);color:var(--white)}
+.cc-typing{font-size:11px;color:var(--muted);padding:2px 12px;font-style:italic;min-height:16px}
+.cc-reply-bar{display:none;align-items:center;gap:8px;padding:4px 10px;background:rgba(255,255,255,.04);border-top:1px solid var(--border);font-size:11px;flex-shrink:0}
+.cc-reply-bar.visible{display:flex}
+.cc-reply-bar span{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-reply-bar button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px}
+#callChatInput{display:flex;gap:6px;padding:7px 10px;border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;align-items:center}
 #callChatInput input{flex:1;background:var(--panel-input);border:1px solid var(--border);border-radius:7px;color:var(--white);padding:6px 10px;font-size:13px;outline:none}
 #callChatInput button{background:var(--accent);border:none;border-radius:7px;color:#fff;padding:6px 12px;cursor:pointer;font-size:13px}
+#callChatInput .cc-emoji-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);padding:5px 9px;cursor:pointer;font-size:14px}
 /* Call poll panel */
 #callPollPanel{display:none;flex-direction:column;background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.04);padding:10px 14px;max-height:260px;overflow-y:auto}
 #callPollPanel.open{display:flex;gap:8px}
@@ -1242,6 +1284,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
                 <div class="pb-opt-row"><input placeholder="Option 1" maxlength="80"/><button onclick="removePollOpt(this)" title="Remove">−</button></div>
                 <div class="pb-opt-row"><input placeholder="Option 2" maxlength="80"/><button onclick="removePollOpt(this)" title="Remove">−</button></div>
               </div>
+              <label class="poll-multi-toggle"><input type="checkbox" id="pbMulti"/> Allow multiple choices</label>
               <button class="pb-add" onclick="addPollOpt()">+ Add option</button>
               <button class="pb-launch" onclick="launchChatPoll()">🚀 Launch Poll</button>
             </div>
@@ -1628,6 +1671,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
      CALL WINDOW (Livekit)
 ══════════════════════════════ -->
 <div id="callWindow">
+  <button id="callMinBtn" onclick="minimizeCall()" title="Minimize">−</button>
   <div id="callHeader">
     <div>
       <div class="call-room-name" id="callRoomName"></div>
@@ -1661,9 +1705,15 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   <!-- Call Chat -->
   <div id="callChatPanel">
     <div id="callChatMsgs"></div>
+    <div class="cc-typing" id="ccTyping"></div>
+    <div class="cc-reply-bar" id="ccReplyBar">
+      <span>↩ <span id="ccReplyText"></span></span>
+      <button onclick="clearCcReply()">✕</button>
+    </div>
     <div id="callChatInput">
+      <button class="cc-emoji-btn" onclick="openCcEmoji()">✦</button>
       <input id="callChatBox" placeholder="Message call members…" autocomplete="off"/>
-      <button onclick="sendCallChat()">Send</button>
+      <button onclick="sendCallChat()">↑</button>
     </div>
   </div>
   <!-- Call Poll Panel -->
@@ -1694,6 +1744,17 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
       <span class="ctrl-icon">📵</span><span>Leave</span>
     </button>
   </div>
+</div>
+
+<!-- Minimized call pill -->
+<div id="callPill">
+  <div class="cp-dot"></div>
+  <div>
+    <div class="cp-name" id="cpName"></div>
+    <div class="cp-timer" id="cpTimer">0:00</div>
+  </div>
+  <div class="cp-expand" onclick="expandCall()">↑ Expand</div>
+  <button class="cp-leave" onclick="leaveCall()">End</button>
 </div>
 
 <!-- Mic modal -->
@@ -2320,6 +2381,8 @@ function handleMsg(raw){
     case 'event_rsvp':      onEventRsvp(d);break;
     case 'event_deleted':   onEventDeleted(d);break;
     case 'call_chat':       recvCallChat(d);break;
+    case 'call_chat_typing':recvCallChatTyping(d);break;
+    case 'call_chat_react': document.dispatchEvent(new CustomEvent('ws_call_chat_react',{detail:d}));break;
     case 'call_room_members': recvCallMembers(d);break;
     case 'call_poll_new':   recvCallPoll(d);break;
     case 'call_poll_update':recvCallPollUpdate(d);break;
@@ -2958,7 +3021,14 @@ function renderMsg(msg){
     if(metaEl&&msg.editedAt&&!metaEl.querySelector('.edited-tag')){
       var etag2=document.createElement('span');etag2.className='edited-tag';etag2.textContent='(edited)';metaEl.appendChild(etag2);
     }
-    fillReactions(ex.querySelector('.reactions'),msg);
+    var rxEl=ex.querySelector('.reactions');
+    var voted2=msg.reactions?Object.keys(msg.reactions).filter(function(k){return msg.reactions[k]&&msg.reactions[k].length>0;}):[];
+    if(voted2.length>0){
+      if(!rxEl){rxEl=document.createElement('div');rxEl.className='reactions';ex.appendChild(rxEl);}
+      fillReactions(rxEl,msg);
+    } else if(rxEl){
+      rxEl.remove();
+    }
     return;
   }
   var ph=c.querySelector('.center-note');if(ph) ph.remove();
@@ -2975,6 +3045,10 @@ function renderMsg(msg){
   var bmBtn=document.createElement('button');bmBtn.title='Bookmark';bmBtn.textContent='🔖';
   bmBtn.onclick=(function(m){return function(e){e.stopPropagation();bookmarkMessage(m);};})(msg);
   acts.appendChild(bmBtn);
+  // React button
+  var reactBtn=document.createElement('button');reactBtn.title='React';reactBtn.textContent='✦';
+  reactBtn.onclick=(function(m){return function(e){e.stopPropagation();openEmoji(m.id);};})(msg);
+  acts.appendChild(reactBtn);
   // Pin button — only in server channels
   if(currentChannelId){
     var pinBtn=document.createElement('button');pinBtn.title='Pin message';pinBtn.textContent='📌';
@@ -3089,8 +3163,11 @@ function renderMsg(msg){
       }
     }
   }
-  var rx=document.createElement('div');rx.className='reactions';fillReactions(rx,msg);
-  w.appendChild(rx);
+  var voted=msg.reactions?Object.keys(msg.reactions).filter(function(k){return msg.reactions[k]&&msg.reactions[k].length>0;}):[];
+  if(voted.length>0){
+    var rx=document.createElement('div');rx.className='reactions';fillReactions(rx,msg);
+    w.appendChild(rx);
+  }
 
   if(msg.user===myName){
     var seenRow=document.createElement('div');seenRow.className='seen-row';seenRow.style.cssText='display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:1px';
@@ -3109,12 +3186,13 @@ function fillReactions(el,msg){
   var voted=msg.reactions?Object.keys(msg.reactions).filter(function(k){return msg.reactions[k].length>0;}):[];
   el.innerHTML='';
   voted.forEach(function(e){
-    var b=document.createElement('button');b.className='reaction'+(msg.reactions[e].indexOf(myName)>=0?' you':'');
-    b.innerHTML='<span style="font-size:15px">'+e+'</span><span style="margin-left:3px">'+msg.reactions[e].length+'</span>';
-    b.onclick=function(){wsSend({type:'reaction',messageId:msg.id,emoji:e});};el.appendChild(b);
+    var b=document.createElement('button');
+    b.className='reaction'+(msg.reactions[e].indexOf(myName)>=0?' you':'');
+    b.innerHTML='<span style="font-size:13px">'+e+'</span><span style="margin-left:2px;font-size:11px">'+msg.reactions[e].length+'</span>';
+    b.onclick=function(){wsSend({type:'reaction',messageId:msg.id,emoji:e});};
+    el.appendChild(b);
   });
-  var pk=document.createElement('button');pk.className='reaction';pk.textContent='✦';pk.style.background='transparent';
-  pk.onclick=function(){openEmoji(msg.id);};el.appendChild(pk);
+  // Add reaction button — always in msg-actions, not in reactions row
 }
 
 /* ── Edit ── */
@@ -3411,7 +3489,7 @@ function fillEmojiGrid(f){
       b.onmouseleave=function(){this.style.background='none';};
       b.oncontextmenu=(function(ch){return function(ev){ev.preventDefault();toggleEmojiFav(ch);fillEmojiGrid(fl);};})(e.c);
       (function(ch){b.onclick=function(){
-        if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+        if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}else if(pickerFor==='__cc__'){document.getElementById('callChatBox').value+=(document.getElementById('callChatBox').value?'':'')+ch;closeEmoji();return;}
         else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
         closeEmoji();
       };})(e.c);
@@ -3440,7 +3518,7 @@ function fillEmojiGrid(f){
         b2.onmouseleave=function(){this.style.background='none';};
         b2.oncontextmenu=(function(ch){return function(ev){ev.preventDefault();toggleEmojiFav(ch);fillEmojiGrid(fl);};})(item);
         (function(ch){b2.onclick=function(){
-          if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+          if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}else if(pickerFor==='__cc__'){document.getElementById('callChatBox').value+=(document.getElementById('callChatBox').value?'':'')+ch;closeEmoji();return;}
             else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
           closeEmoji();
         };})(item);
@@ -4163,18 +4241,35 @@ function toggleMyMic(){
    CALL WINDOW UI
 ══════════════════════════════════════════════ */
 function showCallWindow(roomLabel){
-  document.getElementById('callRoomName').textContent=roomLabel.replace('dm_','').replace(/_/g,' & ').replace('call_','');
+  var label=roomLabel.replace('dm_','').replace(/_/g,' & ').replace('call_','');
+  document.getElementById('callRoomName').textContent=label;
+  document.getElementById('cpName').textContent=label;
   document.getElementById('callWindow').style.display='flex';
+  document.getElementById('callPill').style.display='none';
   updateCallBtn();
+}
+
+function minimizeCall(){
+  document.getElementById('callWindow').style.display='none';
+  var pill=document.getElementById('callPill');
+  pill.style.display='flex';
+}
+
+function expandCall(){
+  document.getElementById('callPill').style.display='none';
+  document.getElementById('callWindow').style.display='flex';
 }
 
 function startTimer(){
   lk.timerSeconds=0;
   document.getElementById('callTimer').textContent='0:00';
+  document.getElementById('cpTimer').textContent='0:00';
   lk.timerInterval=setInterval(function(){
     lk.timerSeconds++;
     var m=Math.floor(lk.timerSeconds/60),s=lk.timerSeconds%60;
-    document.getElementById('callTimer').textContent=m+':'+(s<10?'0':'')+s;
+    var t=m+':'+(s<10?'0':'')+s;
+    document.getElementById('callTimer').textContent=t;
+    document.getElementById('cpTimer').textContent=t;
   },1000);
 }
 
@@ -4212,11 +4307,12 @@ function cleanupCall(){
   if(lk.remoteGainNodes){Object.values(lk.remoteGainNodes).forEach(function(n){try{n.ctx.close();}catch(e){}});lk.remoteGainNodes={};}
   // Reset call chat + poll panels
   var ccp=document.getElementById('callChatPanel');if(ccp){ccp.classList.remove('open');document.getElementById('callChatMsgs').innerHTML='';}
-  var cpp=document.getElementById('callPollPanel');if(cpp){cpp.classList.remove('open');cpp.innerHTML='';}
+  _ccTypers.clear();_ccMsgReactions={};clearCcReply();
+  var ccTypEl=document.getElementById('ccTyping');if(ccTypEl) ccTypEl.textContent='';  var cpp=document.getElementById('callPollPanel');if(cpp){cpp.classList.remove('open');cpp.innerHTML='';}
   stopVAD();
   // Clean up soundboard mixer
   if(lk._sbMixCtx){ try{lk._sbMixCtx.close();}catch(e){} lk._sbMixCtx=null; }
-  lk._sbMixDest=null; lk._sbMixStream=null;
+  lk._sbMixDest=null; lk._sbMixStream=null; lk._sbMasterGain=null;
   if(lk.timerInterval){clearInterval(lk.timerInterval);lk.timerInterval=null;}
   // Stop raw mic stream so the browser mic indicator goes off
   if(lk.micStream){
@@ -4232,6 +4328,7 @@ function cleanupCall(){
   lk.screenEnabled=false;lk.screenTrack=null;lk.timerSeconds=0;lk._micCb=null;lk._pendingDMRoom=null;
   lk.participantVolumes={};lk.participantMuted={};
   document.getElementById('callWindow').style.display='none';
+  document.getElementById('callPill').style.display='none';
   document.getElementById('videoGrid').innerHTML='';
   document.getElementById('participantsPanel').style.display='none';
   document.getElementById('participantsPanel').innerHTML='';
@@ -4354,6 +4451,9 @@ function sbSetVolume(val){
   sbLocalGain = val/100;
   document.getElementById('sbVolVal').textContent=val+'%';
   localStorage.setItem('vt_sbVol', val);
+  // Drive the master soundboard gain in the mixer context (affects ALL sounds)
+  if(lk._sbMasterGain) lk._sbMasterGain.gain.setTargetAtTime(sbLocalGain, lk._sbMixCtx.currentTime, 0.02);
+  // Also update any currently active local monitor gains
   sbActiveSources.forEach(function(s){ if(s.localGain) s.localGain.gain.value=sbLocalGain; });
 }
 
@@ -4458,22 +4558,19 @@ function sbGenerate(id){
   }
 }
 
-/* Route a master gain node to:
-   1. Local speakers (at sbLocalGain volume so you hear it)
-   2. The mic mix stream — BYPASSES the VAD gate so sounds always go out */
+/* Route a master gain node:
+   1. Local speakers — through ctx.destination so YOU hear it
+   2. sbMixDest (sbMasterGain) — goes into mic stream at sbLocalGain volume for everyone */
 function sbRoute(master, dur){
   var ctx = getSbCtx();
-  // Local monitor
-  var localGain = ctx.createGain();
-  localGain.gain.value = sbLocalGain;
-  master.connect(localGain);
-  localGain.connect(ctx.destination);
-  // Direct to mix destination — bypass VAD gate
+  // Local monitor — connect directly to speakers
+  master.connect(ctx.destination);
+  // Into call stream via master sb gain (volume-controlled, bypasses VAD)
   if(lk.active && lk._sbMixDest){
     master.connect(lk._sbMixDest);
     setTimeout(function(){ try{master.disconnect(lk._sbMixDest);}catch(e){} }, (dur+0.5)*1000);
   }
-  return { localGain };
+  return {};
 }
 
 function sbPlayBuiltin(id, btnEl){
@@ -4527,19 +4624,24 @@ function setupSbMixer(micStream){
     var micSrc = mixCtx.createMediaStreamSource(micStream);
     var dest = mixCtx.createMediaStreamDestination();
 
-    // VAD gate — this gain node is driven by the VAD tick loop
-    // When audio is below threshold it ramps to 0, above threshold ramps to 1
+    // VAD gate on mic signal
     var vadGate = mixCtx.createGain();
-    vadGate.gain.value = 1.0; // start open
-
+    vadGate.gain.value = 1.0;
     micSrc.connect(vadGate);
     vadGate.connect(dest);
 
-    lk._sbMixCtx  = mixCtx;
-    lk._sbMixDest = dest;
+    // Master soundboard gain — sbSetVolume drives this
+    // All soundboard sources connect here → dest (bypasses VAD gate)
+    var sbMaster = mixCtx.createGain();
+    sbMaster.gain.value = sbLocalGain;
+    sbMaster.connect(dest);
+
+    lk._sbMixCtx    = mixCtx;
+    lk._sbMixDest   = sbMaster; // soundboard nodes connect to master gain, not directly to dest
     lk._sbMixStream = dest.stream;
-    lk.gainNode   = vadGate;   // VAD tick loop drives this
-    lk.audioCtx   = mixCtx;    // used by toggleMic gain ramp
+    lk._sbMasterGain = sbMaster;
+    lk.gainNode     = vadGate;
+    lk.audioCtx     = mixCtx;
   } catch(e){ lk._sbMixDest=null; }
 }
 
@@ -4646,24 +4748,118 @@ function toggleCallChat(){
     setTimeout(function(){document.getElementById('callChatBox').focus();},80);
   }
 }
+var _ccReply = null; // {user, text, msgId}
+var _ccTypingTimer = null;
+var _ccMsgReactions = {}; // msgId → {emoji: [users]}
+
+function openCcEmoji(){
+  pickerFor='__cc__';
+  _emojiTab='std';
+  document.getElementById('emojiOverlay').style.display='flex';
+  fillEmojiGrid('');
+}
+
+function clearCcReply(){
+  _ccReply=null;
+  document.getElementById('ccReplyBar').classList.remove('visible');
+  document.getElementById('ccReplyText').textContent='';
+}
+
 function sendCallChat(){
   var inp=document.getElementById('callChatBox');
   var txt=inp.value.trim();
   if(!txt||!lk.lvRoomName) return;
-  wsSend({type:'call_chat',lvRoom:lk.lvRoomName,text:txt});
+  var msg={type:'call_chat',lvRoom:lk.lvRoomName,text:txt};
+  if(_ccReply) msg.replyTo=_ccReply;
+  wsSend(msg);
   inp.value='';
+  clearCcReply();
+  // Stop typing indicator
+  wsSend({type:'call_chat_typing',lvRoom:lk.lvRoomName,typing:false});
+  clearTimeout(_ccTypingTimer);
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Enter'&&document.activeElement&&document.activeElement.id==='callChatBox'){
-    e.preventDefault();sendCallChat();
-  }
+
+// Wire up call chat box typing indicator + enter key
+document.addEventListener('DOMContentLoaded',function(){
+  var box=document.getElementById('callChatBox');
+  if(!box) return;
+  box.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();sendCallChat();return;}
+    if(lk.lvRoomName){
+      wsSend({type:'call_chat_typing',lvRoom:lk.lvRoomName,typing:true});
+      clearTimeout(_ccTypingTimer);
+      _ccTypingTimer=setTimeout(function(){
+        wsSend({type:'call_chat_typing',lvRoom:lk.lvRoomName,typing:false});
+      },2000);
+    }
+  });
 });
+
 function recvCallChat(d){
   var msgs=document.getElementById('callChatMsgs');if(!msgs) return;
-  var row=document.createElement('div');row.className='cc-msg'+(d.user===myName?' me':'');
-  var t=new Date(d.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  row.innerHTML='<span class="cc-user">'+escHtml(d.user)+'</span><span style="opacity:.6;font-size:10px;margin-right:5px">'+t+'</span>'+escHtml(d.text);
+  var msgId='ccm-'+(d.ts||Date.now())+'-'+Math.random().toString(36).slice(2,6);
+  _ccMsgReactions[msgId]={};
+
+  var row=document.createElement('div');
+  row.className='cc-msg'+(d.user===myName?' me':'');
+  row.id=msgId;
+
+  // Reply quote
+  if(d.replyTo){
+    var rq=document.createElement('div');rq.className='cc-reply-quote';
+    rq.textContent='↩ '+d.replyTo.user+': '+(d.replyTo.text||'…');
+    row.appendChild(rq);
+  }
+
+  // Message content row
+  var t=new Date(d.ts||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  var content=document.createElement('div');
+  content.innerHTML='<span class="cc-user">'+escHtml(d.user)+'</span>'
+    +'<span style="opacity:.5;font-size:10px;margin-right:4px">'+t+'</span>'
+    +'<span class="cc-text">'+escHtml(d.text)+'</span>';
+  row.appendChild(content);
+
+  // Reactions container
+  var rxRow=document.createElement('div');rxRow.className='cc-reactions';row.appendChild(rxRow);
+
+  // Hover action buttons
+  var acts=document.createElement('div');acts.className='cc-actions';
+  var replyBtn=document.createElement('button');replyBtn.className='cc-act-btn';replyBtn.textContent='↩';replyBtn.title='Reply';
+  replyBtn.onclick=(function(u,tx,id){return function(){
+    _ccReply={user:u,text:tx,msgId:id};
+    document.getElementById('ccReplyText').textContent=u+': '+tx;
+    document.getElementById('ccReplyBar').classList.add('visible');
+    document.getElementById('callChatBox').focus();
+  };})(d.user,d.text,msgId);
+  var reactBtn=document.createElement('button');reactBtn.className='cc-act-btn';reactBtn.textContent='✦';reactBtn.title='React';
+  reactBtn.onclick=(function(id,rxr){return function(e){
+    e.stopPropagation();
+    // Quick emoji picker inline
+    var emojis=['👍','❤️','😂','🔥','👏','😮','😢','💯'];
+    var box=document.createElement('div');
+    box.style.cssText='position:absolute;right:0;top:-36px;background:var(--panel-card);border:1px solid var(--border);border-radius:8px;padding:4px 6px;display:flex;gap:4px;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+    emojis.forEach(function(em){
+      var b=document.createElement('button');b.textContent=em;
+      b.style.cssText='background:none;border:none;cursor:pointer;font-size:16px;padding:2px';
+      b.onclick=function(e){
+        e.stopPropagation();
+        box.remove();
+        addCcReaction(id,em,rxr);
+        wsSend({type:'call_chat_react',lvRoom:lk.lvRoomName,msgId:id,emoji:em});
+      };
+      box.appendChild(b);
+    });
+    acts.style.position='relative';
+    var old=acts.querySelector('.quick-react');if(old) old.remove();
+    box.className='quick-react';
+    acts.appendChild(box);
+    setTimeout(function(){document.addEventListener('click',function h(){box.remove();document.removeEventListener('click',h);},{once:true});},10);
+  };})(msgId,rxRow);
+  acts.appendChild(replyBtn);acts.appendChild(reactBtn);
+  row.appendChild(acts);
+
   msgs.appendChild(row);msgs.scrollTop=msgs.scrollHeight;
+
   // Badge if panel closed
   if(!document.getElementById('callChatPanel').classList.contains('open')){
     var btn=document.getElementById('ctrlCallChat');
@@ -4673,12 +4869,62 @@ function recvCallChat(d){
       btn.style.position='relative';btn.appendChild(dot);
     }
   } else {
-    var dot=document.getElementById('ctrlCallChat')&&document.getElementById('ctrlCallChat').querySelector('.notif-dot');
-    if(dot) dot.remove();
+    var ndot=document.getElementById('ctrlCallChat')&&document.getElementById('ctrlCallChat').querySelector('.notif-dot');
+    if(ndot) ndot.remove();
+  }
+
+  // Toast if panel closed and message is from someone else
+  if(!document.getElementById('callChatPanel').classList.contains('open')&&d.user!==myName){
+    toast('💬 '+d.user+': '+d.text.slice(0,40));
   }
 }
+
+function addCcReaction(msgId,emoji,rxRow){
+  if(!_ccMsgReactions[msgId]) _ccMsgReactions[msgId]={};
+  var rx=_ccMsgReactions[msgId];
+  if(!rx[emoji]) rx[emoji]=[];
+  if(!rx[emoji].includes(myName)) rx[emoji].push(myName);
+  renderCcReactions(msgId,rxRow);
+}
+
+function renderCcReactions(msgId,rxRow){
+  if(!rxRow){var el=document.getElementById(msgId);if(el) rxRow=el.querySelector('.cc-reactions');}
+  if(!rxRow) return;
+  var rx=_ccMsgReactions[msgId]||{};
+  rxRow.innerHTML='';
+  Object.keys(rx).forEach(function(em){
+    if(!rx[em].length) return;
+    var b=document.createElement('span');b.className='cc-reaction'+(rx[em].includes(myName)?' me':'');
+    b.textContent=em+' '+rx[em].length;
+    rxRow.appendChild(b);
+  });
+}
+
+// Handle incoming reactions from others
+document.addEventListener('ws_call_chat_react',function(e){
+  var d=e.detail;
+  if(!_ccMsgReactions[d.msgId]) _ccMsgReactions[d.msgId]={};
+  var rx=_ccMsgReactions[d.msgId];
+  if(!rx[d.emoji]) rx[d.emoji]=[];
+  if(!rx[d.emoji].includes(d.user)) rx[d.emoji].push(d.user);
+  var el=document.getElementById(d.msgId);
+  if(el) renderCcReactions(d.msgId,el.querySelector('.cc-reactions'));
+});
+
+// Typing indicator in call chat
+var _ccTypers=new Set();
+function recvCallChatTyping(d){
+  if(d.user===myName) return;
+  if(d.typing) _ccTypers.add(d.user); else _ccTypers.delete(d.user);
+  var el=document.getElementById('ccTyping');
+  if(!el) return;
+  el.textContent=_ccTypers.size?([..._ccTypers].join(', ')+' is typing…'):'';
+}
+
 function recvCallMembers(d){
-  // Could update a member count badge on Chat button — future enhancement
+  var count=(d.members||[]).length;
+  var el=document.getElementById('callParticipants');
+  if(el) el.textContent=count+' participant'+(count!==1?'s':'');
 }
 
 /* ══════════════════════════════════════════════
@@ -4724,6 +4970,7 @@ function showCallPollForm(container){
       '<input class="pf-o" placeholder="Option 1…" style="width:100%;box-sizing:border-box"/>'+
       '<input class="pf-o" placeholder="Option 2…" style="width:100%;box-sizing:border-box"/>'+
     '</div>'+
+    '<label class="poll-multi-toggle"><input type="checkbox" class="pf-multi"/> Allow multiple choices</label>'+
     '<button onclick="addPollOption(this)" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:var(--muted);font-size:12px;padding:4px 10px;cursor:pointer;align-self:flex-start">+ Add option</button>'+
     '<div class="poll-form-btns"><button class="pf-submit" onclick="submitCallPoll(this)">Launch Poll</button><button class="pf-cancel" onclick="this.closest(\'.poll-form\').remove()">Cancel</button></div>';
   container.insertBefore(form,container.children[1]||null);
@@ -4737,9 +4984,10 @@ function submitCallPoll(btn){
   var form=btn.closest('.poll-form');
   var q=form.querySelector('.pf-q').value.trim();
   var options=Array.from(form.querySelectorAll('.pf-o')).map(function(i){return i.value.trim();}).filter(Boolean);
+  var multiSelect=form.querySelector('.pf-multi')&&form.querySelector('.pf-multi').checked;
   if(!q){alert('Enter a question');return;}
   if(options.length<2){alert('Add at least 2 options');return;}
-  wsSend({type:'call_poll_create',lvRoom:lk.lvRoomName,question:q,options});
+  wsSend({type:'call_poll_create',lvRoom:lk.lvRoomName,question:q,options,multiSelect});
   form.remove();
 }
 function recvCallPoll(d){
@@ -4766,16 +5014,19 @@ function recvCallPollUpdate(d){
 function renderPollCard(poll,scope){
   var card=document.createElement('div');card.className='poll-card';
   var totalVotes=poll.options.reduce(function(s,o){return s+o.votes.length;},0);
-  var myVoteId=null;
-  poll.options.forEach(function(o){if(o.votes.includes(myName)) myVoteId=o.id;});
+  var myVotes=poll.options.filter(function(o){return o.votes.includes(myName);}).map(function(o){return o.id;});
   var html='<div class="poll-q">'+escHtml(poll.question)+'</div>';
+  if(poll.multiSelect) html+='<div style="font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">✓ Multiple choice</div>';
   poll.options.forEach(function(o){
+    var voted=myVotes.includes(o.id);
     var pct=totalVotes?Math.round((o.votes.length/totalVotes)*100):0;
-    var voted=(myVoteId===o.id);
+    var inputType=poll.multiSelect?'checkbox':'radio';
     html+='<div class="poll-opt'+(voted?' voted':'')+'" onclick="voteOnPoll(\''+poll.id+'\','+o.id+',\''+scope+'\')">';
-    html+='<div class="poll-opt-label">'+escHtml(o.text)+'</div>';
+    html+='<div class="poll-opt-label" style="display:flex;align-items:center;gap:6px">'
+      +'<span style="font-size:14px;flex-shrink:0">'+(voted?(poll.multiSelect?'☑':'●'):'○')+'</span>'
+      +escHtml(o.text)+'</div>';
     html+='<div class="poll-opt-bar-wrap"><div class="poll-opt-bar" style="width:'+pct+'%"></div></div>';
-    html+='<div class="poll-opt-count">'+o.votes.length+(totalVotes?(' ('+pct+'%)'):'')+' </div>';
+    html+='<div class="poll-opt-count">'+o.votes.length+(totalVotes?(' · '+pct+'%'):'')+'</div>';
     html+='</div>';
   });
   html+='<div class="poll-footer"><span class="poll-status">'+(poll.open?'🟢 Live':'🔴 Closed')+' · '+totalVotes+' vote'+(totalVotes!==1?'s':'')+'</span>';
@@ -4945,12 +5196,13 @@ function removePollOpt(btn){
 function launchChatPoll(){
   var q=document.getElementById('pbQuestion').value.trim();
   var options=Array.from(document.querySelectorAll('#pbOpts input')).map(function(i){return i.value.trim();}).filter(Boolean);
+  var multiSelect=document.getElementById('pbMulti')&&document.getElementById('pbMulti').checked;
   if(!q){toast('Enter a question');document.getElementById('pbQuestion').focus();return;}
   if(options.length<2){toast('Need at least 2 options');return;}
   if(!currentChannelId&&!currentRoom){toast('Join a channel first');return;}
-  wsSend({type:'chat_poll_create',question:q,options:options});
-  // Reset form
+  wsSend({type:'chat_poll_create',question:q,options:options,multiSelect});
   document.getElementById('pbQuestion').value='';
+  document.getElementById('pbMulti').checked=false;
   document.getElementById('pbOpts').innerHTML=
     '<div class="pb-opt-row"><input placeholder="Option 1" maxlength="80"/><button onclick="removePollOpt(this)">−</button></div>'+
     '<div class="pb-opt-row"><input placeholder="Option 2" maxlength="80"/><button onclick="removePollOpt(this)">−</button></div>';
@@ -5691,7 +5943,7 @@ function makeStdEmojiBtn(ch){
   if(isEmojiFav(ch)) btn.classList.add('favorited');
   btn.textContent=ch;btn.title=ch;
   btn.onclick=function(){
-    if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}
+    if(pickerFor==='__c'){document.getElementById('msgInput').value+=ch;}else if(pickerFor==='__cc__'){document.getElementById('callChatBox').value+=(document.getElementById('callChatBox').value?'':'')+ch;closeEmoji();return;}
     else if(pickerFor){wsSend({type:'reaction',messageId:pickerFor,emoji:ch});}
     closeEmoji();
   };
