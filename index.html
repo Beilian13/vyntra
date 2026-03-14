@@ -3737,12 +3737,28 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
 
   await room.connect(data.url, data.token, { autoSubscribe: true });
 
-  // Publish mic — let Livekit + browser handle noise suppression natively
+  // Publish mic mixed with soundboard — everyone hears both
   getMic(async function(stream){
     lk.micStream = stream;
-    setupVAD(stream);
-    setupSbMixer(stream);
-    await room.localParticipant.setMicrophoneEnabled(true);
+    setupSbMixer(stream); // must run first — creates lk._sbMixCtx and lk.gainNode
+    setupVAD(stream);     // uses lk._sbMixCtx for analyser
+
+    // Publish the MIXED stream so soundboard goes out to all participants
+    var publishStream = (lk._sbMixStream && lk._sbMixStream.getAudioTracks().length)
+      ? lk._sbMixStream
+      : stream;
+    var audioTrack = publishStream.getAudioTracks()[0];
+    if(audioTrack){
+      var lkTrack = new LivekitClient.LocalAudioTrack(audioTrack, undefined, false);
+      await room.localParticipant.publishTrack(lkTrack, {
+        source: LivekitClient.Track.Source.Microphone,
+        audioBitrate: 128000, // 128 kbps — max quality for soundboard
+        dtx: false,           // disable discontinuous transmission (keeps audio flowing)
+        red: true,
+      });
+    } else {
+      await room.localParticipant.setMicrophoneEnabled(true);
+    }
     lk.micEnabled=true;
     updateCtrl('ctrlMic',true);
     showCallWindow(chatRoom||lvRoomName);
@@ -3871,9 +3887,15 @@ function updateParticipantCount(){
 async function toggleMic(){
   if(!lk.room) return;
   lk.micEnabled=!lk.micEnabled;
-  await lk.room.localParticipant.setMicrophoneEnabled(lk.micEnabled);
+  // Mute by disabling the underlying audio track in the mixed stream
+  // (setMicrophoneEnabled would unpublish/republish — breaks the mixed track)
+  var micPub = lk.room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+  if(micPub){
+    if(lk.micEnabled) await micPub.unmute(); else await micPub.mute();
+  } else {
+    await lk.room.localParticipant.setMicrophoneEnabled(lk.micEnabled);
+  }
   updateCtrl('ctrlMic',lk.micEnabled);
-  // Also update VAD gain
   if(lk.gainNode&&lk.audioCtx)
     lk.gainNode.gain.setTargetAtTime(lk.micEnabled?1:0,lk.audioCtx.currentTime,0.02);
 }
@@ -3944,9 +3966,13 @@ function leaveCall(){
    VAD — Web Audio pipeline for volume gating
 ══════════════════════════════════════════════ */
 function setupVAD(rawStream){
+  // VAD uses the mixer's AudioContext (set up by setupSbMixer) so we share one context.
+  // If mixer isn't ready yet (shouldn't happen), fall back to standalone.
   var AC=window.AudioContext||window.webkitAudioContext;
-  try{ var ctx=new AC({sampleRate:16000,latencyHint:'playback'}); lk.audioCtx=ctx; } catch(e){ return; }
+  var ctx = (lk._sbMixCtx && lk._sbMixCtx.state!=='closed') ? lk._sbMixCtx : new AC({sampleRate:48000});
+  if(!lk.audioCtx) lk.audioCtx=ctx;
 
+  // Analyser reads from the raw mic (before VAD gate) for accurate level metering
   var src=ctx.createMediaStreamSource(rawStream);
   var analyser=ctx.createAnalyser();
   analyser.fftSize=512;
@@ -3982,6 +4008,13 @@ function setupVAD(rawStream){
     var now=Date.now();
     if(db > dbThresh) lastSpeak=now;
     var speaking=(now-lastSpeak)<HOLD_MS;
+
+    // ── Gate the mic stream via the VAD gain node ──
+    // Smoothly ramp to 1 when speaking, 0 when silent
+    if(lk.gainNode && lk.audioCtx && lk.micEnabled){
+      var target = speaking ? 1.0 : 0.0;
+      lk.gainNode.gain.setTargetAtTime(target, lk.audioCtx.currentTime, 0.03);
+    }
 
     // Bar: show level relative to threshold
     var pct = Math.max(0, Math.min(100, ((db+100)/100)*100))|0;
@@ -4312,35 +4345,40 @@ var SB_BUILTIN = [
 ];
 
 /* Per-sound AudioContext and active sources so we can stop them */
-var sbCtx = null;
-var sbActiveSources = [];   // {source, gainNode}
-var sbCustomSounds = [];    // {id, name, icon, dataUrl} — loaded from localStorage
-var sbLocalGain = 1.0;      // 0-2, controls how loud YOU hear the soundboard
+var sbActiveSources = [];   // {source?, gainNode, localGain}
+var sbCustomSounds = [];    // {id, name, icon, dataUrl}
+var sbLocalGain = 1.0;      // 0-2
 var sbPlayingId = null;
 
 function sbSetVolume(val){
   sbLocalGain = val/100;
   document.getElementById('sbVolVal').textContent=val+'%';
   localStorage.setItem('vt_sbVol', val);
-  // Update any currently playing sources
   sbActiveSources.forEach(function(s){ if(s.localGain) s.localGain.gain.value=sbLocalGain; });
 }
 
+/* ── Single shared AudioContext ──
+   All soundboard nodes live in lk._sbMixCtx so they can connect to
+   lk._sbMixDest (the mic stream destination) without cross-context errors. */
 function getSbCtx(){
-  if(!sbCtx || sbCtx.state === 'closed'){
-    var AC = window.AudioContext||window.webkitAudioContext;
-    sbCtx = new AC();
+  // In a call: reuse the mixer context so we can route into the mic stream
+  if(lk.active && lk._sbMixCtx && lk._sbMixCtx.state !== 'closed'){
+    if(lk._sbMixCtx.state === 'suspended') lk._sbMixCtx.resume();
+    return lk._sbMixCtx;
   }
-  if(sbCtx.state === 'suspended') sbCtx.resume();
-  return sbCtx;
+  // Outside a call: use a standalone context for local preview only
+  if(!window._sbStandaloneCtx || window._sbStandaloneCtx.state === 'closed'){
+    window._sbStandaloneCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:48000});
+  }
+  if(window._sbStandaloneCtx.state === 'suspended') window._sbStandaloneCtx.resume();
+  return window._sbStandaloneCtx;
 }
 
 /* ── Web Audio sound generators ── */
 function sbGenerate(id){
   var ctx = getSbCtx();
   var master = ctx.createGain();
-  master.gain.value = 0.8;
-  master.connect(ctx.destination);
+  master.gain.value = 0.9;
 
   function osc(type, freq, start, dur, gainStart, gainEnd, detune){
     var o = ctx.createOscillator();
@@ -4420,83 +4458,89 @@ function sbGenerate(id){
   }
 }
 
-/* Play a built-in sound:
-   - Local: through speakers at sbLocalGain volume
-   - Call: mixed into mic stream via lk._sbMixDest (NOT as a separate track) */
-function sbPlayBuiltin(id, btnEl){
-  sbStopAll();
+/* Route a master gain node to:
+   1. Local speakers (at sbLocalGain volume so you hear it)
+   2. The mic mix stream — BYPASSES the VAD gate so sounds always go out */
+function sbRoute(master, dur){
   var ctx = getSbCtx();
-  var result = sbGenerate(id);
-  var dur = result.dur;
-  var master = result.master;
-
-  // Local volume control — separate gain before speakers
+  // Local monitor
   var localGain = ctx.createGain();
   localGain.gain.value = sbLocalGain;
   master.connect(localGain);
   localGain.connect(ctx.destination);
-
-  // Disconnect master from ctx.destination (we'll route separately)
-  try { master.disconnect(ctx.destination); } catch(e){}
-
-  // Route into call mic mix if in a call
+  // Direct to mix destination — bypass VAD gate
   if(lk.active && lk._sbMixDest){
     master.connect(lk._sbMixDest);
-    setTimeout(function(){ try{master.disconnect(lk._sbMixDest);}catch(e){} }, (dur+0.3)*1000);
+    setTimeout(function(){ try{master.disconnect(lk._sbMixDest);}catch(e){} }, (dur+0.5)*1000);
   }
-
-  sbActiveSources.push({ localGain });
-  sbMarkPlaying(id, btnEl, dur);
+  return { localGain };
 }
 
-/* Play a custom uploaded sound */
+function sbPlayBuiltin(id, btnEl){
+  sbStopAll();
+  var result = sbGenerate(id);
+  var entry = sbRoute(result.master, result.dur);
+  sbActiveSources.push(entry);
+  sbMarkPlaying(id, btnEl, result.dur);
+}
+
+/* Play a custom uploaded sound — decode from base64 data URL directly */
 function sbPlayCustom(id, btnEl){
   sbStopAll();
   var sound = sbCustomSounds.find(function(s){return s.id===id;});
-  if(!sound) return;
+  if(!sound){ toast('Sound not found'); return; }
   var ctx = getSbCtx();
-  fetch(sound.dataUrl)
-    .then(function(r){return r.arrayBuffer();})
-    .then(function(buf){return ctx.decodeAudioData(buf);})
-    .then(function(decoded){
+
+  // Convert data URL to ArrayBuffer without fetch (works everywhere)
+  function dataUrlToArrayBuffer(dataUrl){
+    var parts = dataUrl.split(',');
+    var binary = atob(parts[1]);
+    var bytes = new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  try{
+    var arrayBuf = dataUrlToArrayBuffer(sound.dataUrl);
+    ctx.decodeAudioData(arrayBuf, function(decoded){
       var src = ctx.createBufferSource();
       var masterGain = ctx.createGain();
-      masterGain.gain.value = 0.85;
+      masterGain.gain.value = 0.9;
       src.buffer = decoded;
       src.connect(masterGain);
-
-      // Local playback with volume control
-      var localGain = ctx.createGain();
-      localGain.gain.value = sbLocalGain;
-      masterGain.connect(localGain);
-      localGain.connect(ctx.destination);
-
-      // Route into call mic mix
-      if(lk.active && lk._sbMixDest){
-        masterGain.connect(lk._sbMixDest);
-        setTimeout(function(){ try{masterGain.disconnect(lk._sbMixDest);}catch(e){} }, (decoded.duration+0.3)*1000);
-      }
-
       src.start();
-      sbActiveSources.push({ source: src, gainNode: masterGain, localGain });
+      var entry = sbRoute(masterGain, decoded.duration);
+      entry.source = src;
+      sbActiveSources.push(entry);
       sbMarkPlaying(id, btnEl, decoded.duration);
-    }).catch(function(e){console.warn('sbPlayCustom failed:',e);});
+    }, function(e){ toast('⚠️ Could not decode audio: '+e.message); });
+  }catch(e){ toast('⚠️ Playback error: '+e.message); }
 }
 
-/* Set up a persistent mixer node that blends mic + soundboard into one stream.
-   Called once when the mic track is acquired. lk._sbMixDest stays alive for the call. */
+/* Set up mixer: single AudioContext that blends mic + soundboard → mic track
+   Use 48000 Hz to match LiveKit's pipeline for max quality */
 function setupSbMixer(micStream){
   if(!lk.active) return;
   try{
     var AC = window.AudioContext||window.webkitAudioContext;
-    var mixCtx = new AC();
+    var mixCtx = new AC({ sampleRate: 48000 });
     var micSrc = mixCtx.createMediaStreamSource(micStream);
     var dest = mixCtx.createMediaStreamDestination();
-    micSrc.connect(dest);   // mic always flows through
-    lk._sbMixCtx = mixCtx;
-    lk._sbMixDest = dest;   // soundboard nodes connect here too
+
+    // VAD gate — this gain node is driven by the VAD tick loop
+    // When audio is below threshold it ramps to 0, above threshold ramps to 1
+    var vadGate = mixCtx.createGain();
+    vadGate.gain.value = 1.0; // start open
+
+    micSrc.connect(vadGate);
+    vadGate.connect(dest);
+
+    lk._sbMixCtx  = mixCtx;
+    lk._sbMixDest = dest;
     lk._sbMixStream = dest.stream;
-  } catch(e){ console.warn('sbMixer setup failed:', e); lk._sbMixDest=null; }
+    lk.gainNode   = vadGate;   // VAD tick loop drives this
+    lk.audioCtx   = mixCtx;    // used by toggleMic gain ramp
+  } catch(e){ lk._sbMixDest=null; }
 }
 
 function sbMarkPlaying(id, btnEl, dur){
