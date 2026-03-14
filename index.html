@@ -131,12 +131,12 @@ main{display:flex;flex:1;overflow:hidden}
 .msg.me .reply-quote .rq-user{color:rgba(255,255,255,.8)}
 .msg .reply-quote .rq-text{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
 .msg-actions{
-  display:none;position:absolute;right:8px;top:-14px;
+  display:none;position:fixed;
   background:var(--panel-card);border:1px solid rgba(255,255,255,.08);
   border-radius:8px;padding:3px 4px;gap:2px;
-  box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:5;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:500;
+  pointer-events:auto;
 }
-.msg:hover .msg-actions{display:flex}
 .msg-actions button{
   background:none;border:none;cursor:pointer;
   font-size:15px;padding:3px 6px;border-radius:5px;
@@ -1695,6 +1695,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <input type="range" id="sbVolSlider" min="0" max="200" value="100" style="width:60px;accent-color:var(--accent);cursor:pointer" oninput="sbSetVolume(this.value)"/>
         <span id="sbVolVal" style="font-size:11px;color:var(--muted);width:28px">100%</span>
       </div>
+      <button id="sbMuteOthersBtn" onclick="sbToggleMuteOthers()" title="Mute others' soundboard" style="background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:11px;padding:3px 9px;cursor:pointer;white-space:nowrap">🔇 Mute others</button>
       <button class="sb-upload" onclick="document.getElementById('sbFileInput').click()">+ Upload sound</button>
       <input type="file" id="sbFileInput" accept="audio/*" style="display:none" onchange="sbUpload(this)"/>
     </div>
@@ -2650,7 +2651,7 @@ function renderFriendsInCol(container){
 function joinChannel(ch,srv){
   if(!connected&&!isGuest){toast('❌ Not connected');return;}
   currentChannelId=ch._id;currentRoom=ch._id;
-  document.getElementById('messages').innerHTML='';
+  clearMessages();
   document.getElementById('roomTitle').textContent=(ch.type==='announcement'?'📢 ':'# ')+ch.name;
   document.getElementById('roomMeta').textContent=srv?srv.name:'';
   setMobileChatTitle((ch.type==='announcement'?'📢 ':'# ')+ch.name);
@@ -2687,7 +2688,7 @@ function openDM(user){
   activeServerId='__dm__';
   if(isMobileLayout()){renderMobileServers();renderMobileChannels('__dm__');}else{renderServerCol();renderChannelCol('__dm__');}
   currentChannelId=dmRoom;currentRoom=dmRoom;
-  document.getElementById('messages').innerHTML='';
+  clearMessages();
   document.getElementById('roomTitle').textContent='💬 '+user;
   document.getElementById('roomMeta').textContent='Direct message';
   setMobileChatTitle('💬 '+user);
@@ -2987,6 +2988,11 @@ function populateUsers(list){
   window._channelUsers=list||[];
   document.dispatchEvent(new CustomEvent('usersUpdated',{detail:list||[]}));
 }
+function clearMessages(){
+  document.getElementById('messages').innerHTML='';
+  // Remove any floating msg-actions bars that were appended to body
+  document.querySelectorAll('.msg-actions').forEach(function(el){el.remove();});
+}
 function cacheMsg(msg){
   var key=msg.channelId||msg.room;
   if(!key) return;
@@ -3072,7 +3078,35 @@ function renderMsg(msg){
     };})(msg);
     acts.appendChild(delBtn);
   }
-  w.appendChild(acts);
+  // Smart hover — position fixed so it never clips off screen
+  w.addEventListener('mouseenter', function(){
+    acts.style.display='flex';
+    var wr = w.getBoundingClientRect();
+    var ah = acts.offsetHeight || 34;
+    var aw = acts.offsetWidth  || 200;
+    // Horizontal: align to right edge of message, clamp inside viewport
+    var left = Math.min(wr.right - aw, window.innerWidth - aw - 8);
+    left = Math.max(8, left);
+    // Vertical: prefer above, flip below if not enough room
+    var top;
+    if(wr.top - ah - 4 >= 8){
+      top = wr.top - ah - 4;   // above
+    } else {
+      top = wr.bottom + 4;      // below
+    }
+    acts.style.left = left + 'px';
+    acts.style.top  = top  + 'px';
+  });
+  w.addEventListener('mouseleave', function(e){
+    // Keep visible if mouse moves onto the acts bar itself
+    if(e.relatedTarget && (e.relatedTarget === acts || acts.contains(e.relatedTarget))) return;
+    acts.style.display='none';
+  });
+  acts.addEventListener('mouseleave', function(e){
+    if(e.relatedTarget && (e.relatedTarget === w || w.contains(e.relatedTarget))) return;
+    acts.style.display='none';
+  });
+  document.body.appendChild(acts); // attach to body so position:fixed works correctly
   var meta=document.createElement('div');meta.className='meta';
   var ns=document.createElement('span');ns.className='ulink';ns.textContent=msg.user;
   ns.onclick=function(e){openPopup(msg.user,e);};
@@ -3917,6 +3951,8 @@ function attachTrack(track,pub,participant){
     var vol=lk.participantVolumes[participant.identity];
     el.volume=(vol!=null)?Math.min(vol,1):0.6;
     el.muted=!!lk.participantMuted[participant.identity];
+    // Apply soundboard mute if active
+    if(_sbMuteOthers){ el.dataset.sbMuted='1'; el.volume=0; }
     el.id='audio-'+participant.sid;
     document.body.appendChild(el);
     refreshParticipantsPanel();
@@ -4312,7 +4348,10 @@ function cleanupCall(){
   stopVAD();
   // Clean up soundboard mixer
   if(lk._sbMixCtx){ try{lk._sbMixCtx.close();}catch(e){} lk._sbMixCtx=null; }
-  lk._sbMixDest=null; lk._sbMixStream=null; lk._sbMasterGain=null;
+  lk._sbMixDest=null; lk._sbMixStream=null; lk._sbMasterGain=null; lk._sbLocalGain=null;
+  _sbMuteOthers=false;
+  var sbmb=document.getElementById('sbMuteOthersBtn');
+  if(sbmb){sbmb.textContent='🔇 Mute others';sbmb.style.background='';sbmb.style.borderColor='';sbmb.style.color='';}
   if(lk.timerInterval){clearInterval(lk.timerInterval);lk.timerInterval=null;}
   // Stop raw mic stream so the browser mic indicator goes off
   if(lk.micStream){
@@ -4449,12 +4488,13 @@ var sbPlayingId = null;
 
 function sbSetVolume(val){
   sbLocalGain = val/100;
-  document.getElementById('sbVolVal').textContent=val+'%';
+  document.getElementById('sbVolVal').textContent = Math.round(val)+'%';
   localStorage.setItem('vt_sbVol', val);
-  // Drive the master soundboard gain in the mixer context (affects ALL sounds)
-  if(lk._sbMasterGain) lk._sbMasterGain.gain.setTargetAtTime(sbLocalGain, lk._sbMixCtx.currentTime, 0.02);
-  // Also update any currently active local monitor gains
-  sbActiveSources.forEach(function(s){ if(s.localGain) s.localGain.gain.value=sbLocalGain; });
+  var t = lk._sbMixCtx ? lk._sbMixCtx.currentTime : 0;
+  // Local speakers volume
+  if(lk._sbLocalGain)  lk._sbLocalGain.gain.setTargetAtTime(sbLocalGain, t, 0.02);
+  // Outgoing mic stream volume (what others hear)
+  if(lk._sbMasterGain) lk._sbMasterGain.gain.setTargetAtTime(sbLocalGain, t, 0.02);
 }
 
 /* ── Single shared AudioContext ──
@@ -4559,16 +4599,23 @@ function sbGenerate(id){
 }
 
 /* Route a master gain node:
-   1. Local speakers — through ctx.destination so YOU hear it
-   2. sbMixDest (sbMasterGain) — goes into mic stream at sbLocalGain volume for everyone */
+   1. Local speakers → lk._sbLocalGain → dest  (volume-controlled by slider)
+   2. Mic stream     → lk._sbMixDest (sbMasterGain) → dest  (what others hear, also volume-controlled)
+   Outside a call: just connect to ctx.destination directly */
 function sbRoute(master, dur){
   var ctx = getSbCtx();
-  // Local monitor — connect directly to speakers
-  master.connect(ctx.destination);
-  // Into call stream via master sb gain (volume-controlled, bypasses VAD)
-  if(lk.active && lk._sbMixDest){
-    master.connect(lk._sbMixDest);
-    setTimeout(function(){ try{master.disconnect(lk._sbMixDest);}catch(e){} }, (dur+0.5)*1000);
+  if(lk.active && lk._sbLocalGain && lk._sbMixDest){
+    // In call: both paths go through their respective gain nodes
+    master.connect(lk._sbLocalGain);   // local speakers — volume controlled
+    master.connect(lk._sbMixDest);     // outgoing stream — volume controlled
+    setTimeout(function(){
+      try{master.disconnect(lk._sbLocalGain);}catch(e){}
+      try{master.disconnect(lk._sbMixDest);}catch(e){}
+    }, (dur+0.5)*1000);
+  } else {
+    // Outside call: just play locally at full volume
+    master.connect(ctx.destination);
+    setTimeout(function(){ try{master.disconnect(ctx.destination);}catch(e){}}, (dur+0.5)*1000);
   }
   return {};
 }
@@ -4630,18 +4677,23 @@ function setupSbMixer(micStream){
     micSrc.connect(vadGate);
     vadGate.connect(dest);
 
-    // Master soundboard gain — sbSetVolume drives this
-    // All soundboard sources connect here → dest (bypasses VAD gate)
+    // Master soundboard gain — sbSetVolume drives this for outgoing stream
     var sbMaster = mixCtx.createGain();
     sbMaster.gain.value = sbLocalGain;
     sbMaster.connect(dest);
 
-    lk._sbMixCtx    = mixCtx;
-    lk._sbMixDest   = sbMaster; // soundboard nodes connect to master gain, not directly to dest
-    lk._sbMixStream = dest.stream;
+    // Local monitor gain — sbSetVolume drives this for local speakers
+    var sbLocal = mixCtx.createGain();
+    sbLocal.gain.value = sbLocalGain;
+    sbLocal.connect(dest); // connects to dest so we hear it via the same context
+
+    lk._sbMixCtx     = mixCtx;
+    lk._sbMixDest    = sbMaster;   // outgoing: what others hear
+    lk._sbLocalGain  = sbLocal;    // local: what you hear
+    lk._sbMixStream  = dest.stream;
     lk._sbMasterGain = sbMaster;
-    lk.gainNode     = vadGate;
-    lk.audioCtx     = mixCtx;
+    lk.gainNode      = vadGate;
+    lk.audioCtx      = mixCtx;
   } catch(e){ lk._sbMixDest=null; }
 }
 
@@ -4657,6 +4709,37 @@ function sbMarkPlaying(id, btnEl, dur){
       document.getElementById('sbStopBtn').style.display='none';
     }
   }, dur*1000+200);
+}
+
+var _sbMuteOthers = false;
+
+function sbToggleMuteOthers(){
+  _sbMuteOthers = !_sbMuteOthers;
+  var btn = document.getElementById('sbMuteOthersBtn');
+  if(btn){
+    btn.textContent = _sbMuteOthers ? '🔊 Unmute others' : '🔇 Mute others';
+    btn.style.background = _sbMuteOthers ? 'rgba(255,80,80,.15)' : 'rgba(255,255,255,.06)';
+    btn.style.borderColor = _sbMuteOthers ? 'rgba(255,80,80,.35)' : '';
+    btn.style.color = _sbMuteOthers ? 'var(--red)' : 'var(--muted)';
+  }
+  // Mute/unmute all remote audio elements (which carry their mic+soundboard mix)
+  // We set a custom data attribute so we only affect "soundboard muted" state
+  document.querySelectorAll('audio[data-identity]').forEach(function(a){
+    if(_sbMuteOthers){
+      if(!a.dataset.sbMuted){
+        a.dataset.sbMuted = '1';
+        a.volume = 0;
+      }
+    } else {
+      if(a.dataset.sbMuted){
+        delete a.dataset.sbMuted;
+        var identity = a.dataset.identity;
+        var savedVol = lk.participantVolumes && lk.participantVolumes[identity];
+        a.volume = savedVol != null ? Math.min(savedVol, 1) : 0.6;
+      }
+    }
+  });
+  toast(_sbMuteOthers ? '🔇 Others\' soundboard muted' : '🔊 Soundboard unmuted');
 }
 
 function sbStopAll(){
@@ -6957,7 +7040,7 @@ function initAutocomplete(){
     if(insert.trim()==='/lenny'){inp.value='( ͡° ͜ʖ ͡°)';closeAC();return;}
     if(insert.trim()==='/coinflip'){inp.value='';closeAC();openGames();gameStart('coinflip');return;}
     if(insert.trim()==='/dice'){inp.value='';closeAC();openGames();gameStart('dice');return;}
-    if(insert.trim()==='/clear'){inp.value='';closeAC();document.getElementById('messages').innerHTML='';return;}
+    if(insert.trim()==='/clear'){inp.value='';closeAC();clearMessages();return;}
     if(insert.trim()==='/me'){inp.value='*';inp.selectionStart=inp.selectionEnd=1;closeAC();return;}
   }
 
