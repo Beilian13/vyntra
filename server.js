@@ -1607,8 +1607,20 @@ wss.on('connection', ws => {
     if (data.type === 'call_chat') {
       const cr = callRooms[data.lvRoom];
       if (!cr || !cr.members.has(username)) return;
-      const msg = { type: 'call_chat', lvRoom: data.lvRoom, user: username, text: data.text, ts: Date.now() };
+      const msg = { type: 'call_chat', lvRoom: data.lvRoom, user: username, text: data.text, ts: Date.now(), replyTo: data.replyTo||null };
       cr.members.forEach(m => sendTo(m, msg));
+      return;
+    }
+    if (data.type === 'call_chat_typing') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr || !cr.members.has(username)) return;
+      cr.members.forEach(m => { if(m !== username) sendTo(m, { type:'call_chat_typing', lvRoom:data.lvRoom, user:username, typing:data.typing }); });
+      return;
+    }
+    if (data.type === 'call_chat_react') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr || !cr.members.has(username)) return;
+      cr.members.forEach(m => { if(m !== username) sendTo(m, { type:'call_chat_react', lvRoom:data.lvRoom, user:username, msgId:data.msgId, emoji:data.emoji }); });
       return;
     }
 
@@ -1620,6 +1632,7 @@ wss.on('connection', ws => {
       const poll = {
         id: pollId, creator: username, question: data.question,
         options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
+        multiSelect: !!data.multiSelect,
         createdAt: Date.now(), open: true,
       };
       cr.polls.set(pollId, poll);
@@ -1631,11 +1644,17 @@ wss.on('connection', ws => {
       if (!cr) return;
       const poll = cr.polls.get(data.pollId);
       if (!poll || !poll.open) return;
-      // Remove previous vote, add new one
-      poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
       const opt = poll.options.find(o => o.id === data.optionId);
       if (!opt) return;
-      opt.votes.push(username);
+      if (poll.multiSelect) {
+        // Toggle: add if not voted, remove if already voted
+        const idx = opt.votes.indexOf(username);
+        if (idx >= 0) opt.votes.splice(idx, 1); else opt.votes.push(username);
+      } else {
+        // Single select: remove from all, add to chosen
+        poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
+        opt.votes.push(username);
+      }
       cr.members.forEach(m => sendTo(m, { type: 'call_poll_update', lvRoom: data.lvRoom, poll }));
       return;
     }
@@ -1655,9 +1674,9 @@ wss.on('connection', ws => {
       const poll = {
         id: pollId, creator: username, question: data.question,
         options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
+        multiSelect: !!data.multiSelect,
         createdAt: Date.now(), open: true, chanId: currentChan,
       };
-      // Store in memory on the channel activeChannels scope (not persisted)
       if (!activeChannels._polls) activeChannels._polls = {};
       activeChannels._polls[pollId] = poll;
       if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u =>
@@ -1668,10 +1687,15 @@ wss.on('connection', ws => {
     if (data.type === 'chat_poll_vote') {
       const poll = activeChannels._polls && activeChannels._polls[data.pollId];
       if (!poll || !poll.open) return;
-      poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
       const opt = poll.options.find(o => o.id === data.optionId);
       if (!opt) return;
-      opt.votes.push(username);
+      if (poll.multiSelect) {
+        const idx = opt.votes.indexOf(username);
+        if (idx >= 0) opt.votes.splice(idx, 1); else opt.votes.push(username);
+      } else {
+        poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
+        opt.votes.push(username);
+      }
       if (activeChannels[poll.chanId]) activeChannels[poll.chanId].forEach(u =>
         sendTo(u, { type: 'chat_poll_update', poll })
       );
