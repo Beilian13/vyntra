@@ -478,6 +478,20 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .trivia-opt:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
 .trivia-opt.correct{background:rgba(57,211,83,.15)!important;border-color:#39d353!important;color:#39d353!important}
 .trivia-opt.wrong{background:rgba(255,80,80,.12)!important;border-color:#ff5050!important;color:#ff5050!important}
+/* ── AUTOCOMPLETE ── */
+.ac-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px;transition:background .1s}
+.ac-item:hover,.ac-item.selected{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ac-item .ac-avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.ac-item .ac-label{font-weight:600;color:var(--white)}
+.ac-item .ac-sub{font-size:11px;color:var(--muted);margin-left:2px}
+.ac-section{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 12px 2px}
+/* ── FORMAT PREVIEW ── */
+#fmtPreview .msg-fmt-codeblock{font-size:11px;padding:4px 8px;margin:2px 0}
+/* ── CODE COPY BUTTON ── */
+.code-wrap{position:relative;margin:4px 0}
+.code-wrap .copy-code-btn{position:absolute;top:5px;right:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:5px;color:var(--muted);font-size:10px;padding:2px 7px;cursor:pointer;opacity:0;transition:opacity .15s;font-family:sans-serif}
+.code-wrap:hover .copy-code-btn{opacity:1}
+.copy-code-btn:hover{background:rgba(255,255,255,.2);color:var(--white)}
 /* ── RICH PRESENCE ── */
 .now-playing{display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);font-size:11px;color:var(--accent);font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .now-playing .np-icon{font-size:13px;flex-shrink:0}
@@ -1018,7 +1032,12 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 
     <!-- Panel 2: Chat — mounts desktop chatArea here on mobile -->
     <div class="mv-panel" id="mvChat">
-      <button class="mv-back" id="mvBackToChannels" onclick="mobileGoTo(1)">‹ <span id="mvBackLabel">Channels</span></button>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding:6px 10px;background:var(--panel-dark);border-bottom:1px solid var(--border)">
+        <button class="mv-back" id="mvBackToChannels" onclick="mobileGoTo(1)" style="margin:0">‹ <span id="mvBackLabel">Channels</span></button>
+        <div style="flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="mvChatTitle"></div>
+        <button id="mobileCallBtn" onclick="mobileStartCall()" style="display:none;background:rgba(57,211,83,.12);border:1px solid rgba(57,211,83,.25);border-radius:8px;color:var(--green);font-size:13px;font-weight:600;padding:5px 12px;cursor:pointer">📞</button>
+        <button id="mobileCallEndBtn" onclick="leaveCall()" style="display:none;background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);border-radius:8px;color:var(--red);font-size:13px;font-weight:600;padding:5px 12px;cursor:pointer">End</button>
+      </div>
       <div id="mvChatMount" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
     </div>
   </div>
@@ -1153,7 +1172,13 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
         <button class="icon-btn" id="attachBtn" title="Attach / Poll / Camera" style="font-size:20px;font-weight:300">+</button>
         <button class="icon-btn" id="stickerBtn" title="Stickers" style="font-size:17px">🎭</button>
         <button class="icon-btn" id="aiBtn" title="AI Assistant" style="font-size:15px;background:linear-gradient(135deg,color-mix(in srgb, var(--accent) 15%, transparent),rgba(155,108,255,.15));border-color:color-mix(in srgb, var(--accent) 20%, transparent)">✦</button>
-        <input class="msg-input" id="msgInput" placeholder="Type a message…"/>
+        <div style="flex:1;position:relative;display:flex;flex-direction:column;min-width:0">
+          <!-- Autocomplete dropdown -->
+          <div id="autocompleteBox" style="display:none;position:absolute;bottom:100%;left:0;right:0;background:var(--panel-card);border:1px solid var(--border);border-radius:10px;margin-bottom:4px;overflow:hidden;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+          <!-- Format preview strip -->
+          <div id="fmtPreview" style="display:none;padding:5px 10px 3px;font-size:12px;line-height:1.5;color:rgba(255,255,255,.65);border-bottom:1px solid var(--border);max-height:60px;overflow-y:auto;word-break:break-word"></div>
+          <input class="msg-input" id="msgInput" placeholder="Type a message… (@mention, **bold**, *italic*, \`code\`)"/>
+        </div>
         <div id="settingsGear" onclick="openSettings()" title="Settings">⚙️</div>
         <button class="send-btn" id="sendBtn">↑</button>
       </div>
@@ -2304,6 +2329,9 @@ function initListeners(){
   /* Mic modal */
   document.getElementById('micPrimary').onclick=onMicPrimary;
   document.getElementById('micCancel').onclick=onMicCancel;
+  // Init compose enhancements
+  initAutocomplete();
+  initFormatPreview();
 }
 
 /* ══════════════════════════════════════════════
@@ -2478,6 +2506,7 @@ function joinChannel(ch,srv){
   document.getElementById('messages').innerHTML='';
   document.getElementById('roomTitle').textContent=(ch.type==='announcement'?'📢 ':'# ')+ch.name;
   document.getElementById('roomMeta').textContent=srv?srv.name:'';
+  setMobileChatTitle((ch.type==='announcement'?'📢 ':'# ')+ch.name);
   document.querySelectorAll('.ch-item').forEach(function(el){el.classList.toggle('active',el.dataset.chId===ch._id);});
   document.getElementById('callBtn').style.display='none';updateCallBtn();
   // Announcement channel — lock compose for non-owners
@@ -2514,6 +2543,7 @@ function openDM(user){
   document.getElementById('messages').innerHTML='';
   document.getElementById('roomTitle').textContent='💬 '+user;
   document.getElementById('roomMeta').textContent='Direct message';
+  setMobileChatTitle('💬 '+user);
   document.getElementById('callBtn').style.display='flex';updateCallBtn();
   var tb=document.getElementById('threadsBtn');if(tb) tb.style.display='none';
   closeThreadsPanel();
@@ -2796,6 +2826,7 @@ function sendMessage(){
   wsSend(msg);
   wsSend({type:'typing_stop'});
   inp.value='';clearFileAttach();clearReply();inp.focus();
+  var prev=document.getElementById('fmtPreview');if(prev)prev.style.display='none';
 }
 function populateUsers(list){
   var c=document.getElementById('usersList');c.innerHTML='';
@@ -2805,6 +2836,9 @@ function populateUsers(list){
     d.onclick=function(e){openPopup(u,e);};c.appendChild(d);
   });
   document.getElementById('roomUsersCount').textContent=list.length+' online';
+  // Update autocomplete user pool
+  window._channelUsers=list||[];
+  document.dispatchEvent(new CustomEvent('usersUpdated',{detail:list||[]}));
 }
 function cacheMsg(msg){
   var key=msg.channelId||msg.room;
@@ -4029,10 +4063,31 @@ function startTimer(){
 
 function updateCallBtn(){
   var btn=document.getElementById('callBtn');
-  if(!currentRoom){btn.style.display='none';return;}
+  if(!currentRoom){btn.style.display='none';updateMobileCallBtn();return;}
   btn.style.display='flex';
   if(lk.active){btn.textContent='📵 Leave Call';btn.classList.add('in-call');}
   else{btn.textContent='📞 Call';btn.classList.remove('in-call');}
+  updateMobileCallBtn();
+}
+
+function updateMobileCallBtn(){
+  var startBtn=document.getElementById('mobileCallBtn');
+  var endBtn=document.getElementById('mobileCallEndBtn');
+  if(!startBtn||!endBtn) return;
+  // Only show in DM or channel
+  var hasDest=!!(currentRoom||currentChannelId);
+  if(lk.active){
+    startBtn.style.display='none';
+    endBtn.style.display=hasDest?'block':'none';
+  } else {
+    startBtn.style.display=hasDest?'block':'none';
+    endBtn.style.display='none';
+  }
+}
+
+function mobileStartCall(){
+  if(lk.active){leaveCall();return;}
+  startCallFromHeader();
 }
 
 function cleanupCall(){
@@ -6370,6 +6425,198 @@ function shareMsgToChat(text){
 }
 
 /* ══════════════════════════════════════════════
+   MOBILE CALL + CHAT TITLE
+══════════════════════════════════════════════ */
+function setMobileChatTitle(title){
+  var el=document.getElementById('mvChatTitle');
+  if(el) el.textContent=title;
+}
+
+/* ══════════════════════════════════════════════
+   CODE COPY BUTTON
+══════════════════════════════════════════════ */
+function copyCode(btn){
+  var code=btn.previousElementSibling;
+  var text=code?code.textContent:'';
+  navigator.clipboard.writeText(text).then(function(){
+    btn.textContent='✓ Copied';
+    setTimeout(function(){btn.textContent='Copy';},1500);
+  }).catch(function(){
+    btn.textContent='Error';
+    setTimeout(function(){btn.textContent='Copy';},1500);
+  });
+}
+
+/* ══════════════════════════════════════════════
+   FORMAT PREVIEW (live render while typing)
+══════════════════════════════════════════════ */
+function initFormatPreview(){
+  var prevEl=document.getElementById('fmtPreview');
+  var inp=document.getElementById('msgInput');
+  if(!inp||!prevEl) return;
+  var FMT_RE=/\*\*|__|~~|\*|_|`|>|\|\|/;
+  function updatePreview(){
+    var val=inp.value;
+    if(!val||!FMT_RE.test(val)){prevEl.style.display='none';return;}
+    prevEl.innerHTML=formatMessage(val);
+    prevEl.style.display='block';
+    prevEl.querySelectorAll('.msg-fmt-spoiler').forEach(function(s){
+      s.onclick=function(){s.classList.toggle('revealed');};
+    });
+  }
+  inp.addEventListener('input',updatePreview);
+}
+
+/* ══════════════════════════════════════════════
+   AUTOCOMPLETE  (@mentions, :emoji:, /commands)
+══════════════════════════════════════════════ */
+var _acIndex = 0;
+var _acItems = [];
+var _acType  = null; // 'mention' | 'emoji' | 'cmd'
+
+function initAutocomplete(){
+  var inp = document.getElementById('msgInput');
+  var box = document.getElementById('autocompleteBox');
+  if(!inp||!box) return;
+
+  var COMMANDS = [
+    {cmd:'/shrug',   desc:'¯\\_(ツ)_/¯'},
+    {cmd:'/flip',    desc:'(╯°□°）╯︵ ┻━┻'},
+    {cmd:'/unflip',  desc:'┬─┬ノ( º _ ºノ)'},
+    {cmd:'/lenny',   desc:'( ͡° ͜ʖ ͡°)'},
+    {cmd:'/coinflip',desc:'Flip a coin in chat'},
+    {cmd:'/dice',    desc:'Roll a dice in chat'},
+    {cmd:'/me',      desc:'Send an action message'},
+    {cmd:'/clear',   desc:'Clear chat display'},
+  ];
+
+  function getWord(){
+    var val=inp.value, pos=inp.selectionStart;
+    var before=val.slice(0,pos);
+    var match=before.match(/(@\w*|:\w*|\/\w*)$/);
+    return match?match[1]:null;
+  }
+
+  function buildItems(word){
+    _acItems=[];
+    if(word.startsWith('@')){
+      _acType='mention';
+      var q=word.slice(1).toLowerCase();
+      var pool=[].concat(myFriends);
+      // Add channel members if available
+      if(window._channelUsers) pool=pool.concat(window._channelUsers.filter(function(u){return pool.indexOf(u)<0;}));
+      pool.forEach(function(u){
+        if(!q||u.toLowerCase().startsWith(q)) _acItems.push({label:'@'+u,sub:'',insert:'@'+u+' '});
+      });
+    } else if(word.startsWith(':')){
+      _acType='emoji';
+      var q2=word.slice(1).toLowerCase();
+      if(q2.length<2){_acItems=[];return;}
+      var hits=allEmojis.filter(function(e){return e.n&&e.n.toLowerCase().includes(q2);}).slice(0,8);
+      hits.forEach(function(e){_acItems.push({label:e.c,sub:e.n,insert:e.c});});
+    } else if(word.startsWith('/')){
+      _acType='cmd';
+      var q3=word.toLowerCase();
+      COMMANDS.forEach(function(c){
+        if(c.cmd.startsWith(q3)) _acItems.push({label:c.cmd,sub:c.desc,insert:c.cmd+' '});
+      });
+    }
+  }
+
+  function renderAC(){
+    box.innerHTML='';
+    if(!_acItems.length){box.style.display='none';return;}
+    if(_acType==='mention') { var sec=document.createElement('div');sec.className='ac-section';sec.textContent='Members';box.appendChild(sec); }
+    if(_acType==='cmd')     { var sec2=document.createElement('div');sec2.className='ac-section';sec2.textContent='Commands';box.appendChild(sec2); }
+    if(_acType==='emoji')   { var sec3=document.createElement('div');sec3.className='ac-section';sec3.textContent='Emoji';box.appendChild(sec3); }
+    _acItems.forEach(function(item,i){
+      var row=document.createElement('div');
+      row.className='ac-item'+(i===_acIndex?' selected':'');
+      if(_acType==='mention'){
+        var p=_profiles[item.label.slice(1)]||{};
+        var bg=p.bannerColor||getAccentHex();
+        row.innerHTML='<div class="ac-avatar" style="background:'+bg+'">'+item.label[1].toUpperCase()+'</div>'
+          +'<span class="ac-label">'+escHtml(item.label)+'</span>';
+        var np=p.nowPlaying;
+        if(np&&np.game) row.innerHTML+='<span class="ac-sub">🎮 '+escHtml(np.game)+'</span>';
+      } else if(_acType==='emoji'){
+        row.innerHTML='<span style="font-size:20px">'+item.label+'</span>'
+          +'<span class="ac-label" style="margin-left:4px">'+escHtml(':'+item.sub+':')+'</span>';
+      } else {
+        row.innerHTML='<span class="ac-label">'+escHtml(item.label)+'</span>'
+          +'<span class="ac-sub" style="margin-left:6px">'+escHtml(item.sub)+'</span>';
+      }
+      (function(it){ row.onmousedown=function(e){e.preventDefault();applyAC(it.insert);}; })(item);
+      box.appendChild(row);
+    });
+    box.style.display='block';
+    _acIndex=0;
+  }
+
+  function applyAC(insert){
+    var val=inp.value, pos=inp.selectionStart;
+    var before=val.slice(0,pos);
+    var after=val.slice(pos);
+    var word=before.match(/(@\w*|:\w*|\/\w*)$/);
+    if(word){
+      var newBefore=before.slice(0,before.length-word[1].length)+insert;
+      inp.value=newBefore+after;
+      inp.selectionStart=inp.selectionEnd=newBefore.length;
+    }
+    closeAC();
+    inp.focus();
+    // If it's a command, handle it
+    if(insert.trim()==='/shrug'){inp.value='¯\\_(ツ)_/¯';closeAC();return;}
+    if(insert.trim()==='/flip'){inp.value='(╯°□°）╯︵ ┻━┻';closeAC();return;}
+    if(insert.trim()==='/unflip'){inp.value='┬─┬ノ( º _ ºノ)';closeAC();return;}
+    if(insert.trim()==='/lenny'){inp.value='( ͡° ͜ʖ ͡°)';closeAC();return;}
+    if(insert.trim()==='/coinflip'){inp.value='';closeAC();openGames();gameStart('coinflip');return;}
+    if(insert.trim()==='/dice'){inp.value='';closeAC();openGames();gameStart('dice');return;}
+    if(insert.trim()==='/clear'){inp.value='';closeAC();document.getElementById('messages').innerHTML='';return;}
+    if(insert.trim()==='/me'){inp.value='*';inp.selectionStart=inp.selectionEnd=1;closeAC();return;}
+  }
+
+  function closeAC(){
+    box.style.display='none';
+    _acItems=[];_acIndex=0;_acType=null;
+  }
+
+  inp.addEventListener('input',function(){
+    var word=getWord();
+    if(!word||word.length<1){closeAC();return;}
+    buildItems(word);
+    renderAC();
+  });
+
+  inp.addEventListener('keydown',function(e){
+    if(box.style.display==='none') return;
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      _acIndex=(_acIndex+1)%Math.max(1,_acItems.length);
+      renderAC();
+    } else if(e.key==='ArrowUp'){
+      e.preventDefault();
+      _acIndex=(_acIndex-1+_acItems.length)%Math.max(1,_acItems.length);
+      renderAC();
+    } else if(e.key==='Tab'||e.key==='Enter'){
+      if(_acItems.length){
+        e.preventDefault();
+        applyAC(_acItems[_acIndex].insert);
+      }
+    } else if(e.key==='Escape'){
+      closeAC();
+    }
+  });
+
+  // Store channel users for mention autocomplete
+  document.addEventListener('usersUpdated',function(e){
+    window._channelUsers=e.detail||[];
+  });
+
+  inp.addEventListener('blur',function(){setTimeout(closeAC,120);});
+}
+
+/* ══════════════════════════════════════════════
    MESSAGE FORMATTING
 ══════════════════════════════════════════════ */
 function formatMessage(text){
@@ -6377,10 +6624,11 @@ function formatMessage(text){
   // Code blocks first (multi-line) — preserve content verbatim
   var blocks=[];
   var s=escHtml(text);
-  // ```code blocks```
+  // ```code blocks``` — wrap in code-wrap with copy button
   s=s.replace(/```([\s\S]*?)```/g,function(_,c){
     var idx=blocks.length;
-    blocks.push('<code class="msg-fmt-codeblock">'+c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')+'</code>');
+    var raw=c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    blocks.push('<div class="code-wrap"><code class="msg-fmt-codeblock">'+escHtml(raw)+'</code><button class="copy-code-btn" onclick="copyCode(this)">Copy</button></div>');
     return '\x00BLOCK'+idx+'\x00';
   });
   // Inline `code`
