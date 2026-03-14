@@ -96,6 +96,7 @@ const userSchema = new mongoose.Schema({
   pronouns:        { type: String, default: '' },
   statusEmoji:     { type: String, default: '' },
   statusText:      { type: String, default: '' },
+  nowPlaying:      { type: Object, default: null }, // { game, detail, type, since }
   bannerColor:     { type: String, default: '#6c7cff' },
   avatarUrl:       { type: String, default: '' },
   // Customization (saved server-side so it roams across devices)
@@ -250,6 +251,26 @@ const bookmarkSchema = new mongoose.Schema({
 bookmarkSchema.index({ username: 1, createdAt: -1 });
 const Bookmark = mongoose.model('Bookmark', bookmarkSchema);
 
+/* ── Activity Feed ── */
+const activitySchema = new mongoose.Schema({
+  username:  { type: String, required: true, index: true },
+  type:      String, // 'joined_server' | 'playing' | 'posted_thread' | 'sent_message'
+  text:      String, // human-readable
+  meta:      Object, // extra data (serverId, game name, etc)
+  createdAt: { type: Date, default: Date.now },
+});
+activitySchema.index({ username: 1, createdAt: -1 });
+const Activity = mongoose.model('Activity', activitySchema);
+
+async function logActivity(username, type, text, meta={}) {
+  try {
+    await Activity.create({ username, type, text, meta });
+    // Keep only last 100 per user
+    const docs = await Activity.find({ username }).sort({ createdAt: -1 }).skip(100).select('_id').lean();
+    if (docs.length) await Activity.deleteMany({ _id: { $in: docs.map(d => d._id) } });
+  } catch(e) {}
+}
+
 async function pushToUser(username, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
   const subs = await PushSub.find({ username }).lean();
@@ -353,6 +374,7 @@ function authMiddleware(req, res, next) {
 /* ── STATIC / PWA ── */
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+app.get('/companion', (req, res) => res.download(path.join(__dirname, 'vyntra_presence.py'), 'vyntra_presence.py'));
 
 /* ── ADMIN ROUTES (benrrava only) ── */
 
@@ -480,7 +502,7 @@ app.get('/profile/:username', async (req, res) => {
 });
 app.patch('/profile', authMiddleware, async (req, res) => {
   try {
-    const { bio, pronouns, statusEmoji, statusText, bannerColor, avatarUrl } = req.body;
+    const { bio, pronouns, statusEmoji, statusText, bannerColor, avatarUrl, nowPlaying } = req.body;
     const update = {};
     if (bio         !== undefined) update.bio         = bio.slice(0, 300);
     if (pronouns    !== undefined) update.pronouns    = pronouns.slice(0, 40);
@@ -488,10 +510,15 @@ app.patch('/profile', authMiddleware, async (req, res) => {
     if (statusText  !== undefined) update.statusText  = statusText.slice(0, 80);
     if (bannerColor !== undefined) update.bannerColor = bannerColor;
     if (avatarUrl   !== undefined) update.avatarUrl   = avatarUrl;
+    if (nowPlaying  !== undefined) update.nowPlaying  = nowPlaying; // null to clear
     await User.updateOne({ username: req.user.username }, update);
     const updated = await User.findOne({ username: req.user.username }, '-password -secretAnswer').lean();
     // Broadcast status change to online users
-    broadcastAll({ type: 'status_update', username: req.user.username, statusEmoji: updated.statusEmoji, statusText: updated.statusText, avatarUrl: updated.avatarUrl });
+    broadcastAll({ type: 'status_update', username: req.user.username, statusEmoji: updated.statusEmoji, statusText: updated.statusText, avatarUrl: updated.avatarUrl, nowPlaying: updated.nowPlaying });
+    // Log activity if now playing changed
+    if (nowPlaying !== undefined && nowPlaying) {
+      logActivity(req.user.username, 'playing', `Playing ${nowPlaying.game}`, { game: nowPlaying.game, detail: nowPlaying.detail });
+    }
     res.json({ ok: true, profile: updated });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1198,6 +1225,46 @@ app.post('/bookmarks', authMiddleware, async (req, res) => {
 app.delete('/bookmarks/:id', authMiddleware, async (req, res) => {
   try {
     await Bookmark.deleteOne({ _id: req.params.id, username: req.user.username });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ══════════════════════════════════════════════
+   RICH PRESENCE — companion script endpoint
+══════════════════════════════════════════════ */
+// Called by the Python companion script running on user's machine
+app.post('/presence', authMiddleware, async (req, res) => {
+  try {
+    const { game, detail, type } = req.body; // type: 'roblox'|'sober'|'custom'|null
+    const nowPlaying = game ? { game, detail: detail||'', type: type||'custom', since: new Date() } : null;
+    await User.updateOne({ username: req.user.username }, { nowPlaying });
+    broadcastAll({ type: 'status_update', username: req.user.username, nowPlaying });
+    if (game) logActivity(req.user.username, 'playing', `Playing ${game}`, { game, detail, type });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ══════════════════════════════════════════════
+   ACTIVITY FEED
+══════════════════════════════════════════════ */
+app.get('/activity/friends', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username }, 'friends').lean();
+    const friends = user?.friends || [];
+    const usernames = [req.user.username, ...friends];
+    const activities = await Activity.find({ username: { $in: usernames } })
+      .sort({ createdAt: -1 }).limit(60).lean();
+    res.json(activities);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Log join-server activity (called from WS join handler)
+// Also expose a route for client to log manual activities
+app.post('/activity', authMiddleware, async (req, res) => {
+  try {
+    const { type, text, meta } = req.body;
+    if (!type || !text) return res.status(400).json({ error: 'type and text required' });
+    await logActivity(req.user.username, type, text, meta||{});
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
