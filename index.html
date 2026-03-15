@@ -2042,7 +2042,61 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><!-- 2FA SETTINGS MODAL -->
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js">
+// Expose auth + key functions globally for inline onclick handlers
+window.doLogin=doLogin;window.doRegister=doRegister;window.doVerify=doVerify;
+window.doTotpVerify=doTotpVerify;window.cancelTotp=cancelTotp;
+window.cancelVerify=cancelVerify;window.showForgot=showForgot;window.cancelForgot=cancelForgot;
+window.doForgotPassword=doForgotPassword;window.doResetPassword=doResetPassword;
+window.guestJoin=guestJoin;window.launchGuestApp=launchGuestApp;
+window.openPixModal=openPixModal;window.closePixModal=closePixModal;window.copyPixCode=copyPixCode;
+window.open2FASettings=open2FASettings;window.close2FASettings=close2FASettings;
+window.doEnable2FA=doEnable2FA;window.doDisable2FA=doDisable2FA;window.setup2FA=setup2FA;
+window.openPresence=openPresence;window.closePresence=closePresence;
+window.setPresence=setPresence;window.clearPresence=clearPresence;
+window.showCompanionInstructions=showCompanionInstructions;window.copyCompanionToken=copyCompanionToken;
+window.openActivity=openActivity;window.closeActivity=closeActivity;
+window.openBookmarks=openBookmarks;window.closeBookmarks=closeBookmarks;
+window.openEvents=openEvents;window.closeEvents=closeEvents;window.doCreateEvent=doCreateEvent;
+window.openGames=openGames;window.closeGames=closeGames;window.gamesGoHome=gamesGoHome;window.gameStart=gameStart;
+window.openThreadsPanel=openThreadsPanel;window.closeThread=closeThread;window.tpGoList=tpGoList;
+window.openPinsPanel=openPinsPanel;window.closePinsPanel=closePinsPanel;
+window.switchTab=switchTab;window.openSettings=openSettings;window.closeSettings=closeSettings;
+window.openSearch=openSearch;window.closeSearch=closeSearch;
+window.openEmoji=openEmoji;window.closeEmoji=closeEmoji;
+window.toggleSoundboard=toggleSoundboard;window.sbStopAll=sbStopAll;
+window.sendCallChat=sendCallChat;window.openCcEmoji=openCcEmoji;window.clearCcReply=clearCcReply;
+window.toggleCallChat=toggleCallChat;window.toggleCallPoll=toggleCallPoll;
+window.minimizeCall=minimizeCall;window.expandCall=expandCall;window.leaveCall=leaveCall;
+window.toggleMic=toggleMic;window.toggleCam=toggleCam;window.toggleScreen=toggleScreen;
+window.toggleParticipantsPanel=toggleParticipantsPanel;
+window.submitCallPoll=submitCallPoll;window.addPollOption=addPollOption;
+window.launchChatPoll=launchChatPoll;window.addPollOpt=addPollOpt;window.removePollOpt=removePollOpt;
+window.tpSubmitNew=tpSubmitNew;window.tpSendComment=tpSendComment;
+window.copyCode=copyCode;window.sbSetVolume=sbSetVolume;window.sbToggleMuteOthers=sbToggleMuteOthers;
+window.sbPlayBuiltin=sbPlayBuiltin;window.sbPlayCustom=sbPlayCustom;window.sbUpload=sbUpload;window.sbDelete=sbDelete;
+window.flipCamera=flipCamera;window.takeSnapshot=takeSnapshot;window.stopCamera=stopCamera;
+window.retakeSnapshot=retakeSnapshot;window.sendSnapshot=sendSnapshot;
+window.doLogout=doLogout;window.acceptCall=acceptCall;window.declineCall=declineCall;window.cancelCall=cancelCall;
+window.mobileStartCall=mobileStartCall;window.mobileGoTo=mobileGoTo;window.toggleMobileSidebar=toggleMobileSidebar;
+window.switchEmojiTab=switchEmojiTab;window.openEditProfile=openEditProfile;window.saveProfile=saveProfile;window.cancelEditProfile=cancelEditProfile;
+window.openRolesPanel=openRolesPanel;window.closeRolesPanel=closeRolesPanel;
+window.openAddChannel=openAddChannel;window.closeAddChannel=closeAddChannel;window.doAddChannel=doAddChannel;
+window.openCreateServer=openCreateServer;window.closeCreateServer=closeCreateServer;window.doCreateServer=doCreateServer;
+window.openDiscovery=openDiscovery;window.closeDiscovery=closeDiscovery;
+window.openAdminPanel=openAdminPanel;window.closeAdminPanel=closeAdminPanel;
+window.pdfAiAsk=pdfAiAsk;window.pdfAiAction=pdfAiAction;window.openPdfViewer=openPdfViewer;
+window.inviteLogin=inviteLogin;window.inviteJoin=inviteJoin;window.closeInvite=closeInvite;
+window.openPopup=openPopup;window.closePopup=closePopup;
+window.switchSettingsTab=switchSettingsTab;window.saveCustomization=saveCustomization;
+window.doVerify=doVerify;window.cancelVerify=cancelVerify;
+window.endPoll=endPoll;window.voteOnPoll=voteOnPoll;
+window.toggleAttachTray=toggleAttachTray;window.openStickerLibrary=openStickerLibrary;
+window.sendMessage=sendMessage;window.clearReply=clearReply;
+window.openAiPanel=openAiPanel;window.closeAiPanel=closeAiPanel;
+window.sbLoadCustom=sbLoadCustom;
+
+</script><!-- 2FA SETTINGS MODAL -->
 <div id="twoFAModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1300;align-items:center;justify-content:center">
   <div style="background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(420px,94vw);padding:28px;display:flex;flex-direction:column;gap:16px;position:relative">
     <button onclick="close2FASettings()" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:3px 10px;cursor:pointer">✕</button>
