@@ -17,6 +17,29 @@ const webpush    = require('web-push');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+// TOTP 2FA
+let totp = null;
+try { const otplib = require('otplib'); totp = otplib.totp; } catch(e) {}
+
+// QR code for 2FA setup
+let QRCode = null;
+try { QRCode = require('qrcode'); } catch(e) {}
+
+// Resend email (optional — set RESEND_API_KEY env var)
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM    = process.env.RESEND_FROM    || 'Vyntra <noreply@vyntra.app>';
+async function sendEmail(to, subject, html) {
+  if (!RESEND_API_KEY) return false;
+  try {
+    const r = await _fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: RESEND_FROM, to, subject, html }),
+    });
+    return r.ok;
+  } catch(e) { return false; }
+}
+
 // node-fetch fallback for environments without native fetch
 let _fetch = typeof fetch !== 'undefined' ? fetch : null;
 (async () => {
@@ -102,6 +125,12 @@ const userSchema = new mongoose.Schema({
   // Customization (saved server-side so it roams across devices)
   customCss:       { type: String, default: '' },
   injectHtml:      { type: String, default: '' },
+  // 2FA
+  totpSecret:      { type: String, default: null },
+  totpEnabled:     { type: Boolean, default: false },
+  // Password reset
+  resetToken:      { type: String, default: null },
+  resetExpires:    { type: Date,   default: null },
   createdAt:       { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', userSchema);
@@ -500,7 +529,7 @@ app.post('/admin/reports/:id/review', adminMiddleware, async (req, res) => {
 /* ── USER PROFILE ── */
 app.get('/profile/:username', async (req, res) => {
   try {
-    const u = await User.findOne({ username: req.params.username }, '-password -secretAnswer -blockedUsers -pendingFriends -customCss -injectHtml').lean();
+    const u = await User.findOne({ username: req.params.username }, '-password -secretAnswer -blockedUsers -pendingFriends -customCss -injectHtml -totpSecret -resetToken -resetExpires').lean();
     if (!u) return res.status(404).json({ error: 'Not found' });
     res.json(u);
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
@@ -789,7 +818,12 @@ app.post('/auth/login', async (req, res) => {
     const user = await User.findOne({ username });
     if (!user || !await bcrypt.compare(password, user.password))
       return res.status(401).json({ error: 'Invalid credentials' });
-    res.json({ username: user.username, secretQuestion: user.secretQuestion || null });
+    // Signal what next step is needed
+    res.json({
+      username: user.username,
+      secretQuestion: user.secretQuestion || null,
+      requires2FA: user.totpEnabled || false,
+    });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -801,14 +835,110 @@ app.post('/auth/verify', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Wrong answer' });
     if (!user.secretAnswer) {
       const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-      return res.json({ token, username: user.username, friends: user.friends });
+      return res.json({ token, username: user.username, friends: user.friends, requires2FA: user.totpEnabled||false });
     }
     if (!await bcrypt.compare(secretAnswer.trim().toLowerCase(), user.secretAnswer))
       return res.status(401).json({ error: 'Wrong answer' });
     const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, username: user.username, friends: user.friends, requires2FA: user.totpEnabled||false });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── 2FA verify TOTP code (final login step) ── */
+app.post('/auth/verify-2fa', async (req, res) => {
+  try {
+    const { username, code } = req.body;
+    if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
+    if (!totp) return res.status(503).json({ error: '2FA not available (otplib not installed)' });
+    const user = await User.findOne({ username });
+    if (!user || !user.totpEnabled || !user.totpSecret)
+      return res.status(400).json({ error: '2FA not enabled for this account' });
+    const valid = totp.verify({ token: code.replace(/\s/g,''), secret: user.totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Invalid 2FA code' });
+    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, username: user.username, friends: user.friends });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
+
+/* ── 2FA setup: generate secret + QR ── */
+app.post('/auth/2fa/setup', authMiddleware, async (req, res) => {
+  try {
+    if (!totp || !QRCode) return res.status(503).json({ error: '2FA libraries not available' });
+    const secret = totp.generateSecret(20);
+    const otpauth = `otpauth://totp/Vyntra:${req.user.username}?secret=${secret}&issuer=Vyntra&algorithm=SHA1&digits=6&period=30`;
+    const qr = await QRCode.toDataURL(otpauth);
+    // Store secret temporarily — confirmed on /auth/2fa/enable
+    await User.updateOne({ username: req.user.username }, { totpSecret: secret });
+    res.json({ secret, qr });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── 2FA enable: confirm with first code ── */
+app.post('/auth/2fa/enable', authMiddleware, async (req, res) => {
+  try {
+    if (!totp) return res.status(503).json({ error: '2FA not available' });
+    const { code } = req.body;
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !user.totpSecret) return res.status(400).json({ error: 'Run /auth/2fa/setup first' });
+    const valid = totp.verify({ token: (code||'').replace(/\s/g,''), secret: user.totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Invalid code — try again' });
+    await User.updateOne({ username: req.user.username }, { totpEnabled: true });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── 2FA disable ── */
+app.post('/auth/2fa/disable', authMiddleware, async (req, res) => {
+  try {
+    if (!totp) return res.status(503).json({ error: '2FA not available' });
+    const { code } = req.body;
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !user.totpEnabled) return res.status(400).json({ error: '2FA is not enabled' });
+    const valid = totp.verify({ token: (code||'').replace(/\s/g,''), secret: user.totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Invalid code' });
+    await User.updateOne({ username: req.user.username }, { totpEnabled: false, totpSecret: null });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── Forgot password — send reset email ── */
+app.post('/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    // Always return success to prevent user enumeration
+    if (!user) return res.json({ ok: true });
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await User.updateOne({ _id: user._id }, { resetToken: token, resetExpires: expires });
+    const resetUrl = `${process.env.APP_URL || 'https://vyntra-zlfn.onrender.com'}/?reset=${token}`;
+    await sendEmail(user.email, 'Reset your Vyntra password', `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0f1220;color:#f0f2ff;border-radius:12px">
+        <h2 style="margin:0 0 16px;font-size:22px">⚡ Reset your password</h2>
+        <p style="color:#8892b0;line-height:1.6">Someone requested a password reset for your Vyntra account <b style="color:#f0f2ff">@${user.username}</b>. If this wasn't you, ignore this email.</p>
+        <a href="${resetUrl}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:linear-gradient(135deg,#6c7cff,#9b6cff);color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">Reset Password</a>
+        <p style="color:#8892b0;font-size:12px">This link expires in 1 hour.</p>
+      </div>
+    `);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── Reset password with token ── */
+app.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: 'Missing fields' });
+    if (password.length < 6) return res.status(400).json({ error: 'Password too short (min 6 chars)' });
+    const user = await User.findOne({ resetToken: token, resetExpires: { $gt: new Date() } });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
+    const hash = await bcrypt.hash(password, 10);
+    await User.updateOne({ _id: user._id }, { password: hash, resetToken: null, resetExpires: null });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
 
 /* ══════════════════════════════════════════════
    SERVER ROUTES
