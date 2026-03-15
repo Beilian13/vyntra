@@ -573,6 +573,8 @@ textarea.edit-profile-field{resize:vertical;min-height:70px;font-family:inherit}
 .msg-fmt-spoiler{background:rgba(255,255,255,.12);border-radius:4px;padding:1px 5px;cursor:pointer;color:transparent;transition:color .2s}
 .msg-fmt-spoiler:hover,.msg-fmt-spoiler.revealed{color:var(--white);background:rgba(255,255,255,.08)}
 .msg-fmt-mention{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);border-radius:4px;padding:1px 5px;font-weight:600;font-size:12px}
+.msg-fmt-mention.everyone{background:rgba(255,180,0,.15);color:#ffb400}
+.msg-fmt-mention.me{background:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
 
 /* ── SETTINGS / THEME ENGINE ── */
 #settingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
@@ -6961,7 +6963,7 @@ function initAutocomplete(){
   function getWord(){
     var val=inp.value, pos=inp.selectionStart;
     var before=val.slice(0,pos);
-    var match=before.match(/(@\w*|:\w*|\/\w*)$/);
+    var match=before.match(/(@[\w ]*|:\w*|\/\w*)$/);
     return match?match[1]:null;
   }
 
@@ -6970,12 +6972,43 @@ function initAutocomplete(){
     if(word.startsWith('@')){
       _acType='mention';
       var q=word.slice(1).toLowerCase();
-      var pool=[].concat(myFriends);
-      // Add channel members if available
-      if(window._channelUsers) pool=pool.concat(window._channelUsers.filter(function(u){return pool.indexOf(u)<0;}));
-      pool.forEach(function(u){
-        if(!q||u.toLowerCase().startsWith(q)) _acItems.push({label:'@'+u,sub:'',insert:'@'+u+' '});
+
+      // Special mentions first
+      var specials=[
+        {label:'@everyone',sub:'Notify all server members',insert:'@everyone ',special:'everyone'},
+        {label:'@here',    sub:'Notify online members',    insert:'@here ',    special:'here'},
+      ];
+      specials.forEach(function(s){
+        if(!q||s.label.slice(1).startsWith(q)) _acItems.push(s);
       });
+
+      // Role mentions — only if in a server channel
+      if(activeServerId&&activeServerId!=='__dm__'){
+        var roles=_serverRoles[activeServerId]||[];
+        roles.forEach(function(r){
+          var rname=r.name.toLowerCase();
+          if(!q||rname.startsWith(q)){
+            _acItems.push({label:'@'+r.name,sub:'Role · '+(((_memberRoles[activeServerId]||{})[r._id]||[]).length||'?')+' members',insert:'@'+r.name+' ',roleColor:r.color,special:'role'});
+          }
+        });
+      }
+
+      // Server members (online users in channel) only — not all friends
+      var members=window._channelUsers||[];
+      members.forEach(function(u){
+        if(!q||u.toLowerCase().startsWith(q)){
+          _acItems.push({label:'@'+u,sub:'',insert:'@'+u+' '});
+        }
+      });
+
+      // Deduplicate
+      var seen={};
+      _acItems=_acItems.filter(function(item){
+        if(seen[item.label]) return false;
+        seen[item.label]=true;
+        return true;
+      });
+
     } else if(word.startsWith(':')){
       _acType='emoji';
       var q2=word.slice(1).toLowerCase();
@@ -6994,19 +7027,48 @@ function initAutocomplete(){
   function renderAC(){
     box.innerHTML='';
     if(!_acItems.length){box.style.display='none';return;}
-    if(_acType==='mention') { var sec=document.createElement('div');sec.className='ac-section';sec.textContent='Members';box.appendChild(sec); }
-    if(_acType==='cmd')     { var sec2=document.createElement('div');sec2.className='ac-section';sec2.textContent='Commands';box.appendChild(sec2); }
-    if(_acType==='emoji')   { var sec3=document.createElement('div');sec3.className='ac-section';sec3.textContent='Emoji';box.appendChild(sec3); }
+    if(_acType==='mention'){
+      // Group header
+      var hasMember=_acItems.some(function(i){return !i.special;});
+      var hasSpecial=_acItems.some(function(i){return i.special;});
+    }
+    if(_acType==='cmd') { var sec2=document.createElement('div');sec2.className='ac-section';sec2.textContent='Commands';box.appendChild(sec2); }
+    if(_acType==='emoji') { var sec3=document.createElement('div');sec3.className='ac-section';sec3.textContent='Emoji';box.appendChild(sec3); }
+
+    var lastGroup=null;
     _acItems.forEach(function(item,i){
+      // Section headers for mentions
+      if(_acType==='mention'){
+        var grp=item.special==='everyone'||item.special==='here'?'special':item.special==='role'?'role':'member';
+        if(grp!==lastGroup){
+          lastGroup=grp;
+          var hdr=document.createElement('div');hdr.className='ac-section';
+          hdr.textContent=grp==='special'?'Notify':grp==='role'?'Roles':'Members';
+          box.appendChild(hdr);
+        }
+      }
+
       var row=document.createElement('div');
       row.className='ac-item'+(i===_acIndex?' selected':'');
+
       if(_acType==='mention'){
-        var p=_profiles[item.label.slice(1)]||{};
-        var bg=p.bannerColor||getAccentHex();
-        row.innerHTML='<div class="ac-avatar" style="background:'+bg+'">'+item.label[1].toUpperCase()+'</div>'
-          +'<span class="ac-label">'+escHtml(item.label)+'</span>';
-        var np=p.nowPlaying;
-        if(np&&np.game) row.innerHTML+='<span class="ac-sub">🎮 '+escHtml(np.game)+'</span>';
+        if(item.special==='everyone'||item.special==='here'){
+          row.innerHTML='<div class="ac-avatar" style="background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:12px">@</div>'
+            +'<span class="ac-label">'+escHtml(item.label)+'</span>'
+            +'<span class="ac-sub" style="margin-left:6px">'+escHtml(item.sub)+'</span>';
+        } else if(item.special==='role'){
+          var roleColor=item.roleColor||getAccentHex();
+          row.innerHTML='<div class="ac-avatar" style="background:'+roleColor+'22;border:1px solid '+roleColor+'44;font-size:11px;color:'+roleColor+'">🛡</div>'
+            +'<span class="ac-label" style="color:'+roleColor+'">'+escHtml(item.label)+'</span>'
+            +'<span class="ac-sub" style="margin-left:6px">'+escHtml(item.sub)+'</span>';
+        } else {
+          var p=_profiles[item.label.slice(1)]||{};
+          var bg=p.bannerColor||getAccentHex();
+          row.innerHTML='<div class="ac-avatar" style="background:'+bg+'">'+item.label[1].toUpperCase()+'</div>'
+            +'<span class="ac-label">'+escHtml(item.label)+'</span>';
+          var np=p.nowPlaying;
+          if(np&&np.game) row.innerHTML+='<span class="ac-sub" style="margin-left:6px">🎮 '+escHtml(np.game)+'</span>';
+        }
       } else if(_acType==='emoji'){
         row.innerHTML='<span style="font-size:20px">'+item.label+'</span>'
           +'<span class="ac-label" style="margin-left:4px">'+escHtml(':'+item.sub+':')+'</span>';
@@ -7025,7 +7087,7 @@ function initAutocomplete(){
     var val=inp.value, pos=inp.selectionStart;
     var before=val.slice(0,pos);
     var after=val.slice(pos);
-    var word=before.match(/(@\w*|:\w*|\/\w*)$/);
+    var word=before.match(/(@[\w ]*|:\w*|\/\w*)$/);
     if(word){
       var newBefore=before.slice(0,before.length-word[1].length)+insert;
       inp.value=newBefore+after;
@@ -7111,8 +7173,13 @@ function formatMessage(text){
   s=s.replace(/_([^_]+)_/g,'<i class="msg-fmt-italic">$1</i>');
   // Strikethrough ~~text~~
   s=s.replace(/~~([^~]+)~~/g,'<span class="msg-fmt-strike">$1</span>');
-  // @mentions
-  s=s.replace(/@(\w+)/g,'<span class="msg-fmt-mention">@$1</span>');
+  // @mentions — @everyone/@here get yellow, self-mentions get glow
+  s=s.replace(/@(\w+)/g,function(_,name){
+    var cls='msg-fmt-mention';
+    if(name==='everyone'||name==='here') cls+=' everyone';
+    else if(name===myName) cls+=' me';
+    return '<span class="'+cls+'">@'+name+'</span>';
+  });
   // > quotes (line-start)
   s=s.replace(/(^|\n)&gt;\s?([^\n]+)/g,'$1<span class="msg-fmt-quote">$2</span>');
   // Newlines to <br>
