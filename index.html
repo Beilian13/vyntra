@@ -1107,9 +1107,35 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
           <button class="auth-submit" id="verifyBtn" onclick="doVerify()">Verify</button>
           <button class="back-btn" onclick="cancelVerify()">← Back</button>
         </div>
+        <!-- TOTP 2FA step -->
+        <div id="stepTotp" style="display:none">
+          <p style="color:var(--muted);font-size:14px;margin-bottom:8px">🔐 Two-factor authentication</p>
+          <p style="color:var(--white);font-size:13px;margin-bottom:16px">Enter the 6-digit code from your authenticator app.</p>
+          <div class="auth-field"><label>Authentication code</label><input id="totpInput" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="000 000" maxlength="7" style="letter-spacing:4px;font-size:20px;text-align:center"/></div>
+          <button class="auth-submit" id="totpBtn" onclick="doTotpVerify()">Verify</button>
+          <button class="back-btn" onclick="cancelTotp()">← Back</button>
+        </div>
+        <!-- Forgot password -->
+        <div id="stepForgot" style="display:none">
+          <p style="color:var(--white);font-size:15px;font-weight:600;margin-bottom:6px">Forgot password</p>
+          <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Enter your email and we'll send a reset link.</p>
+          <div class="auth-field"><label>Email</label><input id="forgotEmail" type="email" placeholder="your@email.com" autocomplete="email"/></div>
+          <button class="auth-submit" id="forgotBtn" onclick="doForgotPassword()">Send reset link</button>
+          <button class="back-btn" onclick="cancelForgot()">← Back</button>
+          <div class="auth-error" id="forgotError"></div>
+        </div>
+        <!-- Reset password -->
+        <div id="stepReset" style="display:none">
+          <p style="color:var(--white);font-size:15px;font-weight:600;margin-bottom:6px">Set new password</p>
+          <div class="auth-field"><label>New password</label><input id="resetPass" type="password" placeholder="Min 6 characters" autocomplete="new-password"/></div>
+          <div class="auth-field"><label>Confirm password</label><input id="resetPass2" type="password" placeholder="Repeat password" autocomplete="new-password"/></div>
+          <button class="auth-submit" id="resetBtn" onclick="doResetPassword()">Save new password</button>
+          <div class="auth-error" id="resetError"></div>
+        </div>
         <div class="auth-error" id="authError"></div>
-        <div style="margin-top:16px;text-align:center">
+        <div style="margin-top:16px;text-align:center;display:flex;justify-content:center;gap:16px;flex-wrap:wrap">
           <button onclick="guestJoin()" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline">👀 Continue as guest</button>
+          <button onclick="showForgot()" id="forgotLink" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline">Forgot password?</button>
         </div>
         <div style="margin-top:14px;text-align:center;padding-top:14px;border-top:1px solid var(--border)">
           <button onclick="openPixModal()" style="display:inline-flex;align-items:center;gap:5px;color:#00c878;font-size:12px;background:none;border:none;cursor:pointer;opacity:.7;transition:opacity .15s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.7'">💚 Apoiar via Pix</button>
@@ -1515,6 +1541,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
           <div id="settingsAvatar" style="width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 auto 10px;overflow:hidden;cursor:pointer" onclick="openEditProfile()"></div>
           <button class="settings-save" onclick="openEditProfile()">Edit Profile</button>
           <button class="settings-save" style="margin-top:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 25%,transparent);color:var(--accent)" onclick="closeSettings();openPresence()">🎮 Now Playing</button>
+          <button class="settings-save" style="margin-top:8px" onclick="open2FASettings()">🔐 Two-Factor Auth</button>
           <div id="settingsNowPlaying" style="display:none;margin-top:8px;font-size:12px;color:var(--muted)"></div>
         </div>
       </div>
@@ -2015,7 +2042,37 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><!-- 2FA SETTINGS MODAL -->
+<div id="twoFAModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1300;align-items:center;justify-content:center">
+  <div style="background:var(--panel-card);border:1px solid var(--border);border-radius:16px;width:min(420px,94vw);padding:28px;display:flex;flex-direction:column;gap:16px;position:relative">
+    <button onclick="close2FASettings()" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:13px;padding:3px 10px;cursor:pointer">✕</button>
+    <div style="font-size:20px">🔐</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">Two-Factor Authentication</div>
+    <!-- Status -->
+    <div id="twoFAStatus" style="font-size:13px;color:var(--muted)"></div>
+    <!-- Setup flow -->
+    <div id="twoFASetup" style="display:none;flex-direction:column;gap:12px">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+      <div style="display:flex;justify-content:center"><img id="twoFAQr" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:8px"/></div>
+      <p style="font-size:11px;color:var(--muted);text-align:center">Or enter this code manually:</p>
+      <div id="twoFASecret" style="font-family:monospace;font-size:13px;background:var(--panel-input);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;word-break:break-all;cursor:pointer" onclick="navigator.clipboard.writeText(this.textContent);toast('Copied!')"></div>
+      <div class="auth-field"><label>Enter the 6-digit code to confirm</label><input id="twoFAConfirmCode" type="text" inputmode="numeric" placeholder="000 000" maxlength="7" style="letter-spacing:3px;text-align:center;font-size:18px"/></div>
+      <button onclick="doEnable2FA()" style="padding:11px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Enable 2FA</button>
+      <div class="auth-error" id="twoFAError"></div>
+    </div>
+    <!-- Disable flow -->
+    <div id="twoFADisable" style="display:none;flex-direction:column;gap:12px">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Enter your current 2FA code to disable two-factor authentication.</p>
+      <div class="auth-field"><label>Authentication code</label><input id="twoFADisableCode" type="text" inputmode="numeric" placeholder="000 000" maxlength="7" style="letter-spacing:3px;text-align:center;font-size:18px"/></div>
+      <button onclick="doDisable2FA()" style="padding:11px;border-radius:9px;background:rgba(255,80,80,.15);color:#ff7070;border:1px solid rgba(255,80,80,.3);font-size:14px;font-weight:700;cursor:pointer">Disable 2FA</button>
+      <div class="auth-error" id="twoFADisableError"></div>
+    </div>
+    <!-- Action buttons -->
+    <div id="twoFAActions" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
+<script>
 'use strict';
 
 /* ══════════════════════════════════════════════
@@ -2213,8 +2270,18 @@ function switchTab(tab){
   document.querySelectorAll('.auth-tab').forEach(function(t,i){t.classList.toggle('active',i===(tab==='login'?0:1));});
   setErr('');
 }
-function setErr(m){document.getElementById('authError').textContent=m;}
-function setBusy(id,busy,label){var b=document.getElementById(id);b.disabled=busy;b.textContent=busy?'…':label;}
+function setErr(m){var el=document.getElementById('authError');if(el)el.textContent=m;}
+function setBusy(id,busy,label){var b=document.getElementById(id);if(b){b.disabled=busy;b.textContent=busy?'…':label;}}
+
+function showAuthStep(step){
+  // Hide all steps
+  ['stepTabs','step2FA','stepTotp','stepForgot','stepReset'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.style.display='none';
+  });
+  var el=document.getElementById(step);if(el) el.style.display='';
+  setErr('');
+}
+
 async function doLogin(){
   var u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value;
   if(!u||!p) return setErr('Fill in all fields');
@@ -2224,19 +2291,22 @@ async function doLogin(){
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Login failed');
     pendingUser=d.username;
-    // If no secret question set (legacy user) skip straight to app
     if(!d.secretQuestion){
+      // No secret question — check if 2FA needed
       var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
       var d2=await r2.json();
-      if(r2.ok){saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;}
+      if(r2.ok){
+        if(d2.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
+        saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;
+      }
     }
     document.getElementById('secretQuestionText').textContent=d.secretQuestion;
-    document.getElementById('stepTabs').style.display='none';
-    document.getElementById('step2FA').style.display='';
+    showAuthStep('step2FA');
     setTimeout(function(){document.getElementById('secretAnswerInput').focus();},80);
   }catch(e){setErr('Network error');}
   finally{setBusy('loginBtn',false,'Login');}
 }
+
 async function doRegister(){
   var u=document.getElementById('regUser').value.trim(),
       e=document.getElementById('regEmail').value.trim(),
@@ -2253,6 +2323,7 @@ async function doRegister(){
   }catch(e){setErr('Network error');}
   finally{setBusy('registerBtn',false,'Create account');}
 }
+
 async function doVerify(){
   var ans=document.getElementById('secretAnswerInput').value.trim();
   if(!ans) return setErr('Enter your answer');
@@ -2261,22 +2332,174 @@ async function doVerify(){
     var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
     var d=await r.json();
     if(!r.ok) return setErr(d.error||'Wrong answer');
+    if(d.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
     saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
   }catch(e){setErr('Network error');}
   finally{setBusy('verifyBtn',false,'Verify');}
 }
+
 function cancelVerify(){
   pendingUser=null;
-  document.getElementById('step2FA').style.display='none';
-  document.getElementById('stepTabs').style.display='';
+  showAuthStep('stepTabs');
   document.getElementById('secretAnswerInput').value='';
-  setErr('');
+}
+
+/* ── TOTP 2FA login step ── */
+async function doTotpVerify(){
+  var code=document.getElementById('totpInput').value.replace(/\s/g,'');
+  if(!code||code.length<6) return setErr('Enter the 6-digit code');
+  setBusy('totpBtn',true,'Verify');
+  try{
+    var r=await fetch('/auth/verify-2fa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,code})});
+    var d=await r.json();
+    if(!r.ok) return setErr(d.error||'Invalid code');
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
+  }catch(e){setErr('Network error');}
+  finally{setBusy('totpBtn',false,'Verify');}
+}
+
+function cancelTotp(){
+  pendingUser=null;
+  document.getElementById('totpInput').value='';
+  showAuthStep('stepTabs');
+}
+
+/* ── Forgot password ── */
+function showForgot(){
+  showAuthStep('stepForgot');
+  setTimeout(function(){document.getElementById('forgotEmail').focus();},80);
+}
+function cancelForgot(){ showAuthStep('stepTabs'); }
+
+async function doForgotPassword(){
+  var email=document.getElementById('forgotEmail').value.trim();
+  if(!email) return document.getElementById('forgotError').textContent='Enter your email';
+  setBusy('forgotBtn',true,'Send reset link');
+  try{
+    await fetch('/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    document.getElementById('forgotError').style.color='#39d353';
+    document.getElementById('forgotError').textContent='✅ If that email exists, a reset link has been sent!';
+    setTimeout(cancelForgot, 3000);
+  }catch(e){ document.getElementById('forgotError').textContent='Network error'; }
+  finally{ setBusy('forgotBtn',false,'Send reset link'); }
+}
+
+/* ── Reset password (token from URL) ── */
+var _resetToken=null;
+function checkResetToken(){
+  var params=new URLSearchParams(location.search);
+  var token=params.get('reset');
+  if(!token) return;
+  _resetToken=token;
+  history.replaceState({},'','/');
+  // Show reset step
+  document.getElementById('authScreen').style.display='block';
+  document.getElementById('appShell').style.display='none';
+  showAuthStep('stepReset');
+  setTimeout(function(){document.getElementById('resetPass').focus();},80);
+}
+
+async function doResetPassword(){
+  var p=document.getElementById('resetPass').value;
+  var p2=document.getElementById('resetPass2').value;
+  var errEl=document.getElementById('resetError');
+  if(!p||p.length<6) return errEl.textContent='Password must be at least 6 characters';
+  if(p!==p2) return errEl.textContent='Passwords do not match';
+  setBusy('resetBtn',true,'Save new password');
+  try{
+    var r=await fetch('/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,password:p})});
+    var d=await r.json();
+    if(!r.ok) return errEl.textContent=d.error||'Failed';
+    errEl.style.color='#39d353';
+    errEl.textContent='✅ Password updated! You can now log in.';
+    setTimeout(function(){ showAuthStep('stepTabs'); switchTab('login'); _resetToken=null; },2000);
+  }catch(e){ errEl.textContent='Network error'; }
+  finally{ setBusy('resetBtn',false,'Save new password'); }
+}
+
+/* ── 2FA Settings ── */
+async function open2FASettings(){
+  document.getElementById('twoFAModal').style.display='flex';
+  document.getElementById('twoFASetup').style.display='none';
+  document.getElementById('twoFADisable').style.display='none';
+  document.getElementById('twoFAError').textContent='';
+  document.getElementById('twoFADisableError').textContent='';
+  // Check current status
+  try{
+    var r=await fetch('/profile/'+myName);
+    var d=await r.json();
+    var enabled=d.totpEnabled||false;
+    document.getElementById('twoFAStatus').innerHTML=enabled
+      ?'<span style="color:#39d353;font-weight:600">✅ 2FA is enabled</span> — your account is protected.'
+      :'<span style="color:var(--muted)">2FA is not enabled.</span> Add extra security to your account.';
+    var acts=document.getElementById('twoFAActions');
+    acts.innerHTML='';
+    var btn=document.createElement('button');
+    btn.style.cssText='padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;border:none;width:100%';
+    if(enabled){
+      btn.style.background='rgba(255,80,80,.12)';btn.style.color='#ff7070';btn.style.border='1px solid rgba(255,80,80,.25)';
+      btn.textContent='Disable 2FA';
+      btn.onclick=function(){document.getElementById('twoFADisable').style.display='flex';document.getElementById('twoFAActions').style.display='none';setTimeout(function(){document.getElementById('twoFADisableCode').focus();},80);};
+    } else {
+      btn.style.background='var(--accent)';btn.style.color='#fff';
+      btn.textContent='Enable 2FA';
+      btn.onclick=setup2FA;
+    }
+    acts.appendChild(btn);
+  }catch(e){}
+}
+
+function close2FASettings(){ document.getElementById('twoFAModal').style.display='none'; }
+
+async function setup2FA(){
+  document.getElementById('twoFAActions').style.display='none';
+  document.getElementById('twoFASetup').style.display='flex';
+  document.getElementById('twoFAError').textContent='';
+  try{
+    var r=await fetch('/auth/2fa/setup',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Failed'; return; }
+    document.getElementById('twoFAQr').src=d.qr;
+    document.getElementById('twoFASecret').textContent=d.secret;
+    setTimeout(function(){document.getElementById('twoFAConfirmCode').focus();},80);
+  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
+}
+
+async function doEnable2FA(){
+  var code=document.getElementById('twoFAConfirmCode').value.replace(/\s/g,'');
+  if(!code||code.length<6){ document.getElementById('twoFAError').textContent='Enter the 6-digit code'; return; }
+  try{
+    var r=await fetch('/auth/2fa/enable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Invalid code'; return; }
+    toast('🔐 2FA enabled!');
+    close2FASettings();
+  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
+}
+
+async function doDisable2FA(){
+  var code=document.getElementById('twoFADisableCode').value.replace(/\s/g,'');
+  if(!code){ document.getElementById('twoFADisableError').textContent='Enter your 2FA code'; return; }
+  try{
+    var r=await fetch('/auth/2fa/disable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFADisableError').textContent=d.error||'Invalid code'; return; }
+    toast('✅ 2FA disabled');
+    close2FASettings();
+  }catch(e){ document.getElementById('twoFADisableError').textContent='Network error'; }
 }
 function saveSession(t,u){localStorage.setItem('vt',t);localStorage.setItem('vu',u);}
 function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');location.reload();}
 
 document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('secretAnswerInput').addEventListener('keypress',function(e){if(e.key==='Enter')doVerify();});
+  document.getElementById('totpInput').addEventListener('keypress',function(e){if(e.key==='Enter')doTotpVerify();});
+  document.getElementById('forgotEmail').addEventListener('keypress',function(e){if(e.key==='Enter')doForgotPassword();});
+  document.getElementById('resetPass2').addEventListener('keypress',function(e){if(e.key==='Enter')doResetPassword();});
+  document.getElementById('twoFAConfirmCode').addEventListener('keypress',function(e){if(e.key==='Enter')doEnable2FA();});
+  document.getElementById('twoFADisableCode').addEventListener('keypress',function(e){if(e.key==='Enter')doDisable2FA();});
+  // Check for password reset token in URL before normal auth flow
+  checkResetToken();
   if(checkInviteRoute()) return;
   var t=localStorage.getItem('vt'),u=localStorage.getItem('vu');
   if(t&&u) launchApp(t,u);
