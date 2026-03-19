@@ -2259,71 +2259,13 @@ function dismissNotif(){if(_notif){try{_notif.close();}catch(e){}_notif=null;}}
 /* ══════════════════════════════════════════════
    AUTH
 ══════════════════════════════════════════════ */
-function switchTab(tab){
-  document.getElementById('formLogin').style.display=tab==='login'?'':'none';
-  document.getElementById('formReg').style.display=tab==='register'?'':'none';
-  document.querySelectorAll('.auth-tab').forEach(function(t,i){t.classList.toggle('active',i===(tab==='login'?0:1));});
-  setErr('');
-}
-function setErr(m){document.getElementById('authError').textContent=m;}
-function setBusy(id,busy,label){var b=document.getElementById(id);b.disabled=busy;b.textContent=busy?'…':label;}
-async function doLogin(){
-  var u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value;
-  if(!u||!p) return setErr('Fill in all fields');
-  setBusy('loginBtn',true,'Login');
-  try{
-    var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Login failed');
-    pendingUser=d.username;
-    if(!d.secretQuestion){
-      var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
-      var d2=await r2.json();
-      if(r2.ok){
-        if(d2.requires2FA){showAuthStep('stepTotp');setTimeout(function(){document.getElementById('totpInput').focus();},80);return;}
-        saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;
-      }
-    }
-    document.getElementById('secretQuestionText').textContent=d.secretQuestion;
-    showAuthStep('step2FA');
-    setTimeout(function(){document.getElementById('secretAnswerInput').focus();},80);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('loginBtn',false,'Login');}
-}
-async function doRegister(){
-  var u=document.getElementById('regUser').value.trim(),
-      e=document.getElementById('regEmail').value.trim(),
-      p=document.getElementById('regPass').value,
-      q=document.getElementById('regQuestion').value,
-      a=document.getElementById('regAnswer').value.trim();
-  if(!u||!p||!q||!a) return setErr('Fill in all required fields');
-  setBusy('registerBtn',true,'Create account');
-  try{
-    var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e||undefined,password:p,secretQuestion:q,secretAnswer:a})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Registration failed');
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('registerBtn',false,'Create account');}
-}
-async function doVerify(){
-  var ans=document.getElementById('secretAnswerInput').value.trim();
-  if(!ans) return setErr('Enter your answer');
-  setBusy('verifyBtn',true,'Verify');
-  try{
-    var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Wrong answer');
-    if(d.requires2FA){showAuthStep('stepTotp');setTimeout(function(){document.getElementById('totpInput').focus();},80);return;}
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('verifyBtn',false,'Verify');}
-}
-function cancelVerify(){
-  pendingUser=null;
-  showAuthStep('stepTabs');
-  document.getElementById('secretAnswerInput').value='';
-}
+
+
+
+
+
+
+
 function saveSession(t,u){localStorage.setItem('vt',t);localStorage.setItem('vu',u);}
 function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');location.reload();}
 
@@ -2944,12 +2886,7 @@ function toggleMuteUser(user){
   localStorage.setItem('vm',JSON.stringify(mutedUsers));
   toast(i>=0?'🔊 Unmuted '+user:'🔇 Muted '+user);
 }
-function showFR(from){
-  document.getElementById('frSub').textContent=from+' wants to be your friend!';
-  document.getElementById('frToast').style.display='block';
-  document.getElementById('frAccept').onclick=function(){wsSend({type:'friend_accept',from:from});document.getElementById('frToast').style.display='none';};
-  document.getElementById('frDecline').onclick=function(){wsSend({type:'friend_decline',from:from});document.getElementById('frToast').style.display='none';};
-}
+
 function toast(msg){
   var t=document.createElement('div');
   t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#13152a;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px 18px;font-size:14px;z-index:950;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap;pointer-events:none';
@@ -4195,18 +4132,7 @@ function expandCall(){
   document.getElementById('callWindow').style.display='flex';
 }
 
-function startTimer(){
-  lk.timerSeconds=0;
-  document.getElementById('callTimer').textContent='0:00';
-  document.getElementById('cpTimer').textContent='0:00';
-  lk.timerInterval=setInterval(function(){
-    lk.timerSeconds++;
-    var m=Math.floor(lk.timerSeconds/60),s=lk.timerSeconds%60;
-    var t=m+':'+(s<10?'0':'')+s;
-    document.getElementById('callTimer').textContent=t;
-    document.getElementById('cpTimer').textContent=t;
-  },1000);
-}
+
 
 function startTimer(){
   lk.timerSeconds=0;
@@ -4361,110 +4287,13 @@ var sbActiveSources = [];   // {source, gainNode}
 var sbCustomSounds = [];    // {id, name, icon, dataUrl} — loaded from localStorage
 var sbPlayingId = null;
 
-function getSbCtx(){
-  if(!sbCtx || sbCtx.state === 'closed'){
-    var AC = window.AudioContext||window.webkitAudioContext;
-    sbCtx = new AC();
-  }
-  if(sbCtx.state === 'suspended') sbCtx.resume();
-  return sbCtx;
-}
+
 
 /* ── Web Audio sound generators ── */
-function sbGenerate(id){
-  var ctx = getSbCtx();
-  var master = ctx.createGain();
-  master.gain.value = 0.8;
-  master.connect(ctx.destination);
 
-  function osc(type, freq, start, dur, gainStart, gainEnd, detune){
-    var o = ctx.createOscillator();
-    var g = ctx.createGain();
-    o.type = type;
-    o.frequency.value = freq;
-    if(detune) o.detune.value = detune;
-    g.gain.setValueAtTime(gainStart, ctx.currentTime + start);
-    g.gain.exponentialRampToValueAtTime(Math.max(gainEnd,0.001), ctx.currentTime + start + dur);
-    o.connect(g); g.connect(master);
-    o.start(ctx.currentTime + start);
-    o.stop(ctx.currentTime + start + dur + 0.05);
-    return o;
-  }
-  function noise(start, dur, gainVal){
-    var buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
-    var d = buf.getChannelData(0);
-    for(var i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
-    var g = ctx.createGain();
-    g.gain.setValueAtTime(gainVal, ctx.currentTime+start);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+start+dur);
-    src.connect(g); g.connect(master);
-    src.start(ctx.currentTime+start);
-    src.stop(ctx.currentTime+start+dur+0.05);
-    return src;
-  }
-
-  switch(id){
-    case 'airhorn':
-      osc('sawtooth', 233, 0,   1.8, 0.9, 0.7);
-      osc('sawtooth', 349, 0,   1.8, 0.6, 0.5);
-      osc('sawtooth', 466, 0.0, 1.8, 0.4, 0.3);
-      return 1.9;
-    case 'bruh':
-      osc('sine', 130, 0,   0.08, 0.8, 0.8);
-      osc('sine', 100, 0.08,0.25, 0.8, 0.001);
-      osc('sine',  80, 0.3, 0.4,  0.6, 0.001);
-      return 0.8;
-    case 'boom':
-      noise(0, 0.6, 1.0);
-      osc('sine', 60,  0, 0.4, 1.0, 0.001);
-      osc('sine', 40,  0, 0.5, 0.7, 0.001);
-      return 0.7;
-    case 'tada':
-      [0,0.12,0.24,0.36,0.5].forEach(function(t,i){
-        osc('triangle',[523,659,784,1047,1319][i], t, 0.18, 0.6, 0.001);
-      });
-      return 0.9;
-    case 'fail':
-      osc('sawtooth', 440, 0,    0.2, 0.5, 0.001);
-      osc('sawtooth', 370, 0.2,  0.2, 0.5, 0.001);
-      osc('sawtooth', 311, 0.4,  0.2, 0.5, 0.001);
-      osc('sawtooth', 220, 0.6,  0.5, 0.5, 0.001);
-      return 1.2;
-    case 'clap':
-      [0,0.02,0.04].forEach(function(t){ noise(t, 0.1, 0.7); });
-      return 0.2;
-    case 'laser':
-      osc('sawtooth', 1200, 0, 0.4, 0.7, 0.001, 0);
-      (function(){
-        var o=ctx.createOscillator(), g=ctx.createGain();
-        o.type='sawtooth'; o.frequency.setValueAtTime(1200, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(200, ctx.currentTime+0.4);
-        g.gain.setValueAtTime(0.7,ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
-        o.connect(g); g.connect(master);
-        o.start(); o.stop(ctx.currentTime+0.45);
-      })();
-      return 0.5;
-    case 'nope':
-      osc('square', 200, 0,   0.1, 0.5, 0.001);
-      osc('square', 180, 0.15,0.1, 0.5, 0.001);
-      osc('square', 160, 0.3, 0.2, 0.5, 0.001);
-      return 0.6;
-    default: return 0.5;
-  }
-}
 
 /* Play a built-in sound through call mic via AudioContext routing */
-function sbPlayBuiltin(id, btnEl){
-  sbStopAll();
-  var dur = sbGenerate(id);
-  sbMarkPlaying(id, btnEl, dur);
 
-  // Also route through mic if in a call, so others hear it
-  sbRouteToMic(id, dur);
-}
 
 /* Route soundboard audio through the mic track so call participants hear it.
    The trick: create a routeCtx, swap sbCtx to it, then intercept its
@@ -4510,40 +4339,7 @@ function sbRouteToMic(id, dur){
 }
 
 /* Play a custom uploaded sound */
-function sbPlayCustom(id, btnEl){
-  sbStopAll();
-  var sound = sbCustomSounds.find(function(s){return s.id===id;});
-  if(!sound) return;
-  var ctx = getSbCtx();
-  fetch(sound.dataUrl)
-    .then(function(r){return r.arrayBuffer();})
-    .then(function(buf){return ctx.decodeAudioData(buf);})
-    .then(function(decoded){
-      var src = ctx.createBufferSource();
-      var g = ctx.createGain();
-      g.gain.value = 0.85;
-      src.buffer = decoded;
-      src.connect(g); g.connect(ctx.destination);
-      src.start();
-      sbActiveSources.push({source:src, gainNode:g});
-      sbMarkPlaying(id, btnEl, decoded.duration);
 
-      // Route to mic
-      if(lk.active && lk.room){
-        try{
-          var dest2 = ctx.createMediaStreamDestination();
-          g.connect(dest2);
-          var t2 = dest2.stream.getAudioTracks()[0];
-          if(t2){
-            lk.room.localParticipant.publishTrack(t2,{name:'soundboard',source:LivekitClient.Track.Source.Unknown});
-            setTimeout(function(){
-              try{lk.room.localParticipant.unpublishTrack(t2);}catch(e){}
-            }, (decoded.duration+0.3)*1000);
-          }
-        }catch(e){}
-      }
-    }).catch(function(e){console.warn('sbPlayCustom failed:',e);});
-}
 
 function sbMarkPlaying(id, btnEl, dur){
   sbPlayingId = id;
@@ -4648,13 +4444,7 @@ function toggleCallChat(){
     setTimeout(function(){document.getElementById('callChatBox').focus();},80);
   }
 }
-function sendCallChat(){
-  var inp=document.getElementById('callChatBox');
-  var txt=inp.value.trim();
-  if(!txt||!lk.lvRoomName) return;
-  wsSend({type:'call_chat',lvRoom:lk.lvRoomName,text:txt});
-  inp.value='';
-}
+
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&document.activeElement&&document.activeElement.id==='callChatBox'){
     e.preventDefault();sendCallChat();
@@ -4833,11 +4623,7 @@ function recvCallChatTyping(d){
   el.textContent=_ccTypers.size?([..._ccTypers].join(', ')+' is typing…'):'';
 }
 
-function recvCallMembers(d){
-  var count=(d.members||[]).length;
-  var el=document.getElementById('callParticipants');
-  if(el) el.textContent=count+' participant'+(count!==1?'s':'');
-}
+
 
 function recvCallMembers(d){
   // Could update a member count badge on Chat button — future enhancement
@@ -6223,91 +6009,16 @@ async function adminDeleteUser(username){
 /* ══════════════════════════════════════════════
    2FA SETTINGS
 ══════════════════════════════════════════════ */
-async function open2FASettings(){
-  document.getElementById('twoFAModal').style.display='flex';
-  document.getElementById('twoFASetup').style.display='none';
-  document.getElementById('twoFADisable').style.display='none';
-  document.getElementById('twoFAError').textContent='';
-  document.getElementById('twoFADisableError').textContent='';
-  try{
-    var r=await fetch('/profile/'+myName);
-    var d=await r.json();
-    var enabled=d.totpEnabled||false;
-    document.getElementById('twoFAStatus').innerHTML=enabled
-      ?'<span style="color:#39d353;font-weight:600">✅ 2FA is enabled</span> — your account is protected.'
-      :'<span style="color:var(--muted)">2FA is not enabled.</span> Add extra security to your account.';
-    var acts=document.getElementById('twoFAActions');
-    acts.innerHTML='';
-    var btn=document.createElement('button');
-    btn.style.cssText='padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;border:none;width:100%';
-    if(enabled){
-      btn.style.background='rgba(255,80,80,.12)';btn.style.color='#ff7070';btn.style.border='1px solid rgba(255,80,80,.25)';
-      btn.textContent='Disable 2FA';
-      btn.onclick=function(){document.getElementById('twoFADisable').style.display='flex';document.getElementById('twoFAActions').style.display='none';setTimeout(function(){document.getElementById('twoFADisableCode').focus();},80);};
-    } else {
-      btn.style.background='var(--accent)';btn.style.color='#fff';
-      btn.textContent='Enable 2FA';
-      btn.onclick=setup2FA;
-    }
-    acts.appendChild(btn);
-  }catch(e){}
-}
-function close2FASettings(){ document.getElementById('twoFAModal').style.display='none'; }
 
-async function setup2FA(){
-  document.getElementById('twoFAActions').style.display='none';
-  document.getElementById('twoFASetup').style.display='flex';
-  document.getElementById('twoFAError').textContent='';
-  try{
-    var r=await fetch('/auth/2fa/setup',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Failed'; return; }
-    document.getElementById('twoFAQr').src=d.qr;
-    document.getElementById('twoFASecret').textContent=d.secret;
-    setTimeout(function(){document.getElementById('twoFAConfirmCode').focus();},80);
-  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
-}
-async function doEnable2FA(){
-  var code=document.getElementById('twoFAConfirmCode').value.replace(/\s/g,'');
-  if(!code||code.length<6){ document.getElementById('twoFAError').textContent='Enter the 6-digit code'; return; }
-  try{
-    var r=await fetch('/auth/2fa/enable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Invalid code'; return; }
-    toast('🔐 2FA enabled!');
-    close2FASettings();
-  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
-}
-async function doDisable2FA(){
-  var code=document.getElementById('twoFADisableCode').value.replace(/\s/g,'');
-  if(!code){ document.getElementById('twoFADisableError').textContent='Enter your 2FA code'; return; }
-  try{
-    var r=await fetch('/auth/2fa/disable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFADisableError').textContent=d.error||'Invalid code'; return; }
-    toast('✅ 2FA disabled');
-    close2FASettings();
-  }catch(e){ document.getElementById('twoFADisableError').textContent='Network error'; }
-}
+
+
+
+
+
 
 /* ── TOTP login step ── */
-async function doTotpVerify(){
-  var code=document.getElementById('totpInput').value.replace(/\s/g,'');
-  if(!code||code.length<6) return setErr('Enter the 6-digit code');
-  setBusy('totpBtn',true,'Verify');
-  try{
-    var r=await fetch('/auth/verify-2fa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,code})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Invalid code');
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('totpBtn',false,'Verify');}
-}
-function cancelTotp(){
-  pendingUser=null;
-  document.getElementById('totpInput').value='';
-  showAuthStep('stepTabs');
-}
+
+
 
 /* ── Auth step helper ── */
 /* ══════════════════════════════════════════════
@@ -6414,57 +6125,16 @@ function cancelTotp(){
 }
 
 /* ── Forgot password ── */
-function showForgot(){
-  showAuthStep('stepForgot');
-  setTimeout(function(){document.getElementById('forgotEmail').focus();},80);
-}
-function cancelForgot(){ showAuthStep('stepTabs'); }
 
-async function doForgotPassword(){
-  var email=document.getElementById('forgotEmail').value.trim();
-  if(!email) return document.getElementById('forgotError').textContent='Enter your email';
-  setBusy('forgotBtn',true,'Send reset link');
-  try{
-    await fetch('/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    document.getElementById('forgotError').style.color='#39d353';
-    document.getElementById('forgotError').textContent='✅ If that email exists, a reset link has been sent!';
-    setTimeout(cancelForgot, 3000);
-  }catch(e){ document.getElementById('forgotError').textContent='Network error'; }
-  finally{ setBusy('forgotBtn',false,'Send reset link'); }
-}
+
+
+
 
 /* ── Reset password (token from URL) ── */
 var _resetToken=null;
-function checkResetToken(){
-  var params=new URLSearchParams(location.search);
-  var token=params.get('reset');
-  if(!token) return;
-  _resetToken=token;
-  history.replaceState({},'','/');
-  // Show reset step
-  document.getElementById('authScreen').style.display='block';
-  document.getElementById('appShell').style.display='none';
-  showAuthStep('stepReset');
-  setTimeout(function(){document.getElementById('resetPass').focus();},80);
-}
 
-async function doResetPassword(){
-  var p=document.getElementById('resetPass').value;
-  var p2=document.getElementById('resetPass2').value;
-  var errEl=document.getElementById('resetError');
-  if(!p||p.length<6) return errEl.textContent='Password must be at least 6 characters';
-  if(p!==p2) return errEl.textContent='Passwords do not match';
-  setBusy('resetBtn',true,'Save new password');
-  try{
-    var r=await fetch('/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,password:p})});
-    var d=await r.json();
-    if(!r.ok) return errEl.textContent=d.error||'Failed';
-    errEl.style.color='#39d353';
-    errEl.textContent='✅ Password updated! You can now log in.';
-    setTimeout(function(){ showAuthStep('stepTabs'); switchTab('login'); _resetToken=null; },2000);
-  }catch(e){ errEl.textContent='Network error'; }
-  finally{ setBusy('resetBtn',false,'Save new password'); }
-}
+
+
 
 /* ── 2FA Settings ── */
 async function open2FASettings(){
@@ -7854,19 +7524,7 @@ function copyCode(btn){
   // Patterns that trigger preview
   var FMT_RE=/\\*\\*|__|~~|\\*|_|`|>|\\|\\|/;
 
-  function updatePreview(){
-    var val=inp.value;
-    if(!val||!FMT_RE.test(val)){
-      prevEl.style.display='none';
-      return;
-    }
-    prevEl.innerHTML=formatMessage(val);
-    prevEl.style.display='block';
-    // Wire spoiler clicks in preview
-    prevEl.querySelectorAll('.msg-fmt-spoiler').forEach(function(s){
-      s.onclick=function(){s.classList.toggle('revealed');};
-    });
-  }
+  
 
   inp.addEventListener('input',updatePreview);
   // Hide preview after send
@@ -8213,6 +7871,73 @@ function setupSbMixer(micStream){
     lk._sbMixDest = dest;
     lk._sbMixStream = dest.stream;
   } catch(e){ lk._sbMixDest=null; }
+}
+
+
+/* ── GUEST JOIN ── */
+function guestJoin(){
+  isGuest=true;
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('authFormSection')&&(document.getElementById('authFormSection').style.display='none');
+  launchGuestApp();
+}
+
+/* ── GET ACCENT HEX ── */
+function getAccentHex(){
+  return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#6c7cff';
+}
+
+/* ── COPY COMPANION TOKEN ── */
+function copyCompanionToken(){
+  var token=localStorage.getItem('vt')||'';
+  if(!token){toast('Not logged in');return;}
+  navigator.clipboard.writeText(token)
+    .then(function(){toast('📋 Token copied!');})
+    .catch(function(){toast('Token: '+token.slice(0,20)+'…');});
+}
+
+/* ── CLEAR MESSAGES ── */
+function clearMessages(){
+  document.getElementById('messages').innerHTML='';
+  document.querySelectorAll('.msg-actions').forEach(function(el){el.remove();});
+}
+
+/* ── SB TOGGLE MUTE OTHERS ── */
+var _sbMuteOthers=false;
+function sbToggleMuteOthers(){
+  _sbMuteOthers=!_sbMuteOthers;
+  var btn=document.getElementById('sbMuteOthersBtn');
+  if(btn){
+    btn.textContent=_sbMuteOthers?'🔊 Unmute others':'🔇 Mute others';
+    btn.style.background=_sbMuteOthers?'rgba(255,80,80,.15)':'rgba(255,255,255,.06)';
+    btn.style.color=_sbMuteOthers?'var(--red)':'var(--muted)';
+  }
+  // Mute/unmute all remote audio elements
+  document.querySelectorAll('audio[data-identity]').forEach(function(a){
+    a.muted=_sbMuteOthers;
+  });
+  toast(_sbMuteOthers?'🔇 Muted others\' soundboard':'🔊 Unmuted others\' soundboard');
+}
+
+/* ── INIT FORMAT PREVIEW ── */
+function initFormatPreview(){
+  var prevEl=document.getElementById('fmtPreview');
+  var inp=document.getElementById('msgInput');
+  if(!inp||!prevEl) return;
+  var FMT_RE=/\*\*|__|~~|\*|_|`|>|\|\|/;
+  function updatePreview(){
+    var val=inp.value;
+    if(!val||!FMT_RE.test(val)){prevEl.style.display='none';return;}
+    prevEl.innerHTML=formatMessage(val);
+    prevEl.style.display='block';
+    prevEl.querySelectorAll('.msg-fmt-spoiler').forEach(function(s){
+      s.onclick=function(){s.classList.toggle('revealed');};
+    });
+  }
+  inp.addEventListener('input',updatePreview);
+  document.getElementById('sendBtn').addEventListener('click',function(){
+    prevEl.style.display='none';
+  });
 }
 
 // Suppress noisy LiveKit internal logs
