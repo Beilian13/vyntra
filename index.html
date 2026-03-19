@@ -4173,6 +4173,17 @@ function showCallWindow(roomLabel){
   updateCallBtn();
 }
 
+function mobileStartCall(){
+  if(!currentRoom) return toast('Join a channel first');
+  startCallInRoom(currentRoom);
+}
+function updateMobileCallBtn(){
+  var inCall=lk.active;
+  var callBtn=document.getElementById('mobileCallBtn');
+  var endBtn=document.getElementById('mobileCallEndBtn');
+  if(callBtn) callBtn.style.display=inCall?'none':'';
+  if(endBtn) endBtn.style.display=inCall?'':'none';
+}
 function minimizeCall(){
   document.getElementById('callWindow').style.display='none';
   var pill=document.getElementById('callPill');
@@ -7582,8 +7593,12 @@ function formatMessage(text){
   s=s.replace(/_([^_]+)_/g,'<i class="msg-fmt-italic">$1</i>');
   // Strikethrough ~~text~~
   s=s.replace(/~~([^~]+)~~/g,'<span class="msg-fmt-strike">$1</span>');
-  // @mentions
-  s=s.replace(/@(\\w+)/g,'<span class="msg-fmt-mention">@$1</span>');
+  // @mentions — @everyone/@here get yellow class
+  s=s.replace(/@(everyone|here)\b/g,'<span class="msg-fmt-mention everyone">@$1</span>');
+  s=s.replace(/@(\w+)/g,function(_,name){
+    if(name===myName) return '<span class="msg-fmt-mention me">@'+name+'</span>';
+    return '<span class="msg-fmt-mention">@'+name+'</span>';
+  });
   // > quotes (line-start)
   s=s.replace(/(^|\
 )&gt;\\s?([^\
@@ -7904,8 +7919,24 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
     if(word.startsWith('@')){
       _acType='mention';
       var q=word.slice(1).toLowerCase();
+      // @everyone and @here
+      var notifyItems=[
+        {label:'@everyone',sub:'Notify all members',insert:'@everyone '},
+        {label:'@here',sub:'Notify online members',insert:'@here '},
+      ];
+      notifyItems.forEach(function(item){
+        if(!q||item.label.slice(1).startsWith(q)) _acItems.push(item);
+      });
+      // Role mentions (current server)
+      if(activeServerId && activeServerId!=='__dm__'){
+        var roles=_serverRoles[activeServerId]||[];
+        roles.forEach(function(role){
+          if(!q||role.name.toLowerCase().startsWith(q))
+            _acItems.push({label:'@'+role.name,sub:role.name+' role',insert:'@'+role.name+' ',color:role.color});
+        });
+      }
+      // Channel members
       var pool=[].concat(myFriends);
-      // Add channel members if available
       if(window._channelUsers) pool=pool.concat(window._channelUsers.filter(function(u){return pool.indexOf(u)<0;}));
       pool.forEach(function(u){
         if(!q||u.toLowerCase().startsWith(q)) _acItems.push({label:'@'+u,sub:'',insert:'@'+u+' '});
