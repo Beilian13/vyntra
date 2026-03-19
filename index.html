@@ -2037,7 +2037,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
     <!-- Pix Copia e Cola -->
     <div style="width:100%;background:var(--panel-input);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--muted);word-break:break-all;font-family:monospace;text-align:left;max-height:80px;overflow-y:auto" id="pixPayload">00020126610014br.gov.bcb.pix0127beilian.alvarenga@gmail.com0208Donation5204000053039865802BR5925BEILIAN RAFAEL DE ALVAREN6009ARAUCARIA62290525npTxsohKYzor7vjFumOagvNDO6304254A</div>
     <button onclick="copyPixCode()" id="pixCopyBtn" style="width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00c878,#00a060);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s">📋 Copiar código Pix</button>
-    <div style="font-size:11px;color:var(--muted)">Chave: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="610304080d08000f4f000d170013040f060021060c00080d4f020e0c">[email&#160;protected]</a></div>
+    <div style="font-size:11px;color:var(--muted)">Chave: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2547404c494c444b0b4449534457404b4244654248444c490b464a48">[email&#160;protected]</a></div>
   </div>
 </div>
 </div>
@@ -2069,7 +2069,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false">
 /* ══════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════ */
@@ -6777,8 +6777,7 @@ async function pdfAiAction(action){
 '+text.slice(0,12000);
     }
     var reply=await aiCall([{role:'user',content:prompt}],'You are a PDF analysis assistant. Be concise and well-structured. Use bullet points where appropriate.');
-    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\
-/g,'<br>');
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>');
   }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
 }
 
@@ -6816,8 +6815,7 @@ Document content (first 20 pages):\
         jumpBtn='<br><button onclick="_pdfRenderPage('+pg2+')" style="margin-top:8px;padding:5px 12px;border-radius:6px;background:var(--accent);color:#fff;border:none;font-size:12px;cursor:pointer">→ Jump to page '+pg2+'</button>';
       }
     }
-    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\
-/g,'<br>')+jumpBtn;
+    result.innerHTML='<b style="color:var(--accent);font-size:12px">✦ AI</b><br>'+reply.replace(/\n/g,'<br>')+jumpBtn;
   }catch(e){result.innerHTML='<span style="color:var(--red)">❌ '+escHtml(e.message)+'</span>';}
 }
 
@@ -7443,14 +7441,14 @@ function gameRps(area){
     };
     row.appendChild(btn);
   });
-  shareBtn.onclick=function(){if(_gameState.player) shareMsgToChat('✊ RPS: I picked '+choices[_gameState.player]+' vs Bot\\'s '+choices[_gameState.bot]+' — '+_gameState.outcome);};
+  shareBtn.onclick=function(){if(_gameState.player) shareMsgToChat('✊ RPS: I picked '+choices[_gameState.player]+' vs Bot\'s '+choices[_gameState.bot]+' — '+_gameState.outcome);};
   area.appendChild(result); area.appendChild(row); area.appendChild(shareBtn);
 }
 
 /* ── Magic 8-Ball ── */
 function game8ball(area){
   document.getElementById('gamesTitle').textContent=' Magic 8-Ball';
-  var answers=['It is certain','It is decidedly so','Without a doubt','Yes definitely','You may rely on it','As I see it, yes','Most likely','Outlook good','Yes','Signs point to yes','Reply hazy, try again','Ask again later','Better not tell you now','Cannot predict now','Concentrate and ask again','Don\\'t count on it','My reply is no','My sources say no','Outlook not so good','Very doubtful'];
+  var answers=['It is certain','It is decidedly so','Without a doubt','Yes definitely','You may rely on it','As I see it, yes','Most likely','Outlook good','Yes','Signs point to yes','Reply hazy, try again','Ask again later','Better not tell you now','Cannot predict now','Concentrate and ask again','Don\'t count on it','My reply is no','My sources say no','Outlook not so good','Very doubtful'];
   var inp=document.createElement('input'); inp.placeholder='Ask your question…'; inp.style.cssText='padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;width:100%';
   var result=document.createElement('div'); result.className='game-result'; result.style.cssText+='font-size:20px;min-height:60px;display:flex;align-items:center;justify-content:center'; result.textContent='';
   var shareBtn=document.createElement('button'); shareBtn.className='game-share-btn'; shareBtn.style.display='none'; shareBtn.textContent=' Share to Chat';
@@ -7474,7 +7472,7 @@ function game8ball(area){
 function gameNumber(area){
   document.getElementById('gamesTitle').textContent=' Number Guess';
   _gameState={secret:Math.floor(Math.random()*100)+1,tries:0,max:7,done:false};
-  var status=document.createElement('div'); status.style.cssText='text-align:center;font-size:13px;color:var(--muted)'; status.textContent='I\\'m thinking of a number 1–100. You have 7 tries!';
+  var status=document.createElement('div'); status.style.cssText='text-align:center;font-size:13px;color:var(--muted)'; status.textContent="I'm thinking of a number 1–100. You have 7 tries!";
   var result=document.createElement('div'); result.className='game-result'; result.textContent='Make your first guess!';
   var inp=document.createElement('input'); inp.type='number'; inp.min=1; inp.max=100; inp.placeholder='Enter a number 1–100';
   inp.style.cssText='padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none;width:100%;text-align:center';
@@ -7572,50 +7570,43 @@ function shareMsgToChat(text){
 ══════════════════════════════════════════════ */
 function formatMessage(text){
   if(!text) return '';
-  // Code blocks first (multi-line) — preserve content verbatim
   var blocks=[];
   var s=escHtml(text);
-  // ```code blocks```
-  s=s.replace(/```([\\s\\S]*?)```/g,function(_,c){
-    var idx=blocks.length;
-    blocks.push('<code class="msg-fmt-codeblock">'+c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')+'</code>');
-    return '\\x00BLOCK'+idx+'\\x00';
+  // Code blocks ```...```
+  s=s.replace(/```([\s\S]*?)```/g,function(_,c){
+    var i=blocks.length;
+    var code=c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    blocks.push('<div class="code-wrap"><code class="msg-fmt-codeblock">'+code+'</code><button class="copy-code-btn" onclick="copyCode(this)">Copy</button></div>');
+    return '\x00BLOCK'+i+'\x00';
   });
   // Inline `code`
   s=s.replace(/`([^`]+)`/g,function(_,c){return '<code class="msg-fmt-code">'+c+'</code>';});
   // Spoiler ||text||
-  s=s.replace(/\\|\\|([^|]+)\\|\\|/g,'<span class="msg-fmt-spoiler">$1</span>');
+  s=s.replace(/\|\|([^|]+)\|\|/g,'<span class="msg-fmt-spoiler" onclick="this.classList.toggle(\'revealed\')">$1</span>');
   // Bold **text** or __text__
-  s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<b class="msg-fmt-bold">$1</b>');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<b class="msg-fmt-bold">$1</b>');
   s=s.replace(/__([^_]+)__/g,'<b class="msg-fmt-bold">$1</b>');
   // Italic *text* or _text_
-  s=s.replace(/\\*([^*]+)\\*/g,'<i class="msg-fmt-italic">$1</i>');
-  s=s.replace(/_([^_]+)_/g,'<i class="msg-fmt-italic">$1</i>');
+  s=s.replace(/\*([^*\n]+)\*/g,'<i class="msg-fmt-italic">$1</i>');
+  s=s.replace(/_([^_\n]+)_/g,'<i class="msg-fmt-italic">$1</i>');
   // Strikethrough ~~text~~
   s=s.replace(/~~([^~]+)~~/g,'<span class="msg-fmt-strike">$1</span>');
-  // @mentions — @everyone/@here get yellow class
+  // @everyone/@here — yellow
   s=s.replace(/@(everyone|here)\b/g,'<span class="msg-fmt-mention everyone">@$1</span>');
-  s=s.replace(/@(\w+)/g,function(_,name){
-    if(name===myName) return '<span class="msg-fmt-mention me">@'+name+'</span>';
-    return '<span class="msg-fmt-mention">@'+name+'</span>';
-  });
-  // > quotes (line-start)
-  s=s.replace(/(^|\
-)&gt;\\s?([^\
-]+)/g,'$1<span class="msg-fmt-quote">$2</span>');
-  // Newlines to <br>
-  s=s.replace(/\
-/g,'<br>');
-  // URLs to links
-  s=s.replace(/(https?:\\/\\/[^\\s<>"]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;text-underline-offset:2px">$1</a>');
+  // @me — glow
+  if(myName) s=s.replace(new RegExp('@'+myName+'\\b','g'),'<span class="msg-fmt-mention me">@'+myName+'</span>');
+  // Other @mentions
+  s=s.replace(/@(\w+)/g,'<span class="msg-fmt-mention">@$1</span>');
+  // > blockquotes
+  s=s.replace(/(^|<br>)&gt;\s?([^\n<]*)/g,'$1<span class="msg-fmt-quote">$2</span>');
+  // Newlines
+  s=s.replace(/\n/g,'<br>');
+  // URLs
+  s=s.replace(/(https?:\/\/[^\s<>"]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;text-underline-offset:2px">$1</a>');
   // Restore code blocks
-  s=s.replace(/\\x00BLOCK(\\d+)\\x00/g,function(_,i){return blocks[parseInt(i)];});
+  s=s.replace(/\x00BLOCK(\d+)\x00/g,function(_,i){return blocks[parseInt(i)];});
   return s;
 }
-
-/* ══════════════════════════════════════════════
-   RICH PRESENCE / NOW PLAYING
-══════════════════════════════════════════════ */
 function openPresence(){
   var np=myProfile.nowPlaying;
   var cur=document.getElementById('presenceCurrent');
@@ -7897,7 +7888,7 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
   if(!inp||!box) return;
 
   var COMMANDS = [
-    {cmd:'/shrug',   desc:'¯\\\\_(ツ)_/¯'},
+    {cmd:'/shrug',   desc:'¯\\_(ツ)_/¯'},
     {cmd:'/flip',    desc:'(╯°□°）╯︵ ┻━┻'},
     {cmd:'/unflip',  desc:'┬─┬ノ( º _ ºノ)'},
     {cmd:'/lenny',   desc:'( ͡° ͜ʖ ͡°)'},
@@ -7910,7 +7901,7 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
   function getWord(){
     var val=inp.value, pos=inp.selectionStart;
     var before=val.slice(0,pos);
-    var match=before.match(/(@\\w*|:\\w*|\\/\\w*)$/);
+    var match=before.match(/(@\w*|:\w*|\/\w*)$/);
     return match?match[1]:null;
   }
 
@@ -7920,17 +7911,14 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
       _acType='mention';
       var q=word.slice(1).toLowerCase();
       // @everyone and @here
-      var notifyItems=[
-        {label:'@everyone',sub:'Notify all members',insert:'@everyone '},
-        {label:'@here',sub:'Notify online members',insert:'@here '},
-      ];
-      notifyItems.forEach(function(item){
+      [{label:'@everyone',sub:'Notify all members',insert:'@everyone '},
+       {label:'@here',sub:'Notify online members',insert:'@here '}
+      ].forEach(function(item){
         if(!q||item.label.slice(1).startsWith(q)) _acItems.push(item);
       });
-      // Role mentions (current server)
-      if(activeServerId && activeServerId!=='__dm__'){
-        var roles=_serverRoles[activeServerId]||[];
-        roles.forEach(function(role){
+      // Role mentions
+      if(activeServerId&&activeServerId!=='__dm__'){
+        (_serverRoles[activeServerId]||[]).forEach(function(role){
           if(!q||role.name.toLowerCase().startsWith(q))
             _acItems.push({label:'@'+role.name,sub:role.name+' role',insert:'@'+role.name+' ',color:role.color});
         });
@@ -7945,8 +7933,9 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
       _acType='emoji';
       var q2=word.slice(1).toLowerCase();
       if(q2.length<2){_acItems=[];return;}
-      var hits=allEmojis.filter(function(e){return e.n&&e.n.toLowerCase().includes(q2);}).slice(0,8);
-      hits.forEach(function(e){_acItems.push({label:e.c,sub:e.n,insert:e.c});});
+      allEmojis.filter(function(e){return e.n&&e.n.toLowerCase().includes(q2);}).slice(0,8).forEach(function(e){
+        _acItems.push({label:e.c,sub:e.n,insert:e.c});
+      });
     } else if(word.startsWith('/')){
       _acType='cmd';
       var q3=word.toLowerCase();
@@ -7959,19 +7948,18 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
   function renderAC(){
     box.innerHTML='';
     if(!_acItems.length){box.style.display='none';return;}
-    if(_acType==='mention') { var sec=document.createElement('div');sec.className='ac-section';sec.textContent='Members';box.appendChild(sec); }
-    if(_acType==='cmd')     { var sec2=document.createElement('div');sec2.className='ac-section';sec2.textContent='Commands';box.appendChild(sec2); }
-    if(_acType==='emoji')   { var sec3=document.createElement('div');sec3.className='ac-section';sec3.textContent='Emoji';box.appendChild(sec3); }
+    if(_acType==='mention'){var sec=document.createElement('div');sec.className='ac-section';sec.textContent='Members';box.appendChild(sec);}
+    if(_acType==='cmd'){var sec2=document.createElement('div');sec2.className='ac-section';sec2.textContent='Commands';box.appendChild(sec2);}
+    if(_acType==='emoji'){var sec3=document.createElement('div');sec3.className='ac-section';sec3.textContent='Emoji';box.appendChild(sec3);}
     _acItems.forEach(function(item,i){
       var row=document.createElement('div');
       row.className='ac-item'+(i===_acIndex?' selected':'');
       if(_acType==='mention'){
         var p=_profiles[item.label.slice(1)]||{};
-        var bg=p.bannerColor||getAccentHex();
+        var bg=item.color||(p.bannerColor||getAccentHex());
         row.innerHTML='<div class="ac-avatar" style="background:'+bg+'">'+item.label[1].toUpperCase()+'</div>'
-          +'<span class="ac-label">'+escHtml(item.label)+'</span>';
-        var np=p.nowPlaying;
-        if(np&&np.game) row.innerHTML+='<span class="ac-sub"> '+escHtml(np.game)+'</span>';
+          +'<span class="ac-label">'+escHtml(item.label)+'</span>'
+          +(item.sub?'<span class="ac-sub"> '+escHtml(item.sub)+'</span>':'');
       } else if(_acType==='emoji'){
         row.innerHTML='<span style="font-size:20px">'+item.label+'</span>'
           +'<span class="ac-label" style="margin-left:4px">'+escHtml(':'+item.sub+':')+'</span>';
@@ -7979,7 +7967,7 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
         row.innerHTML='<span class="ac-label">'+escHtml(item.label)+'</span>'
           +'<span class="ac-sub" style="margin-left:6px">'+escHtml(item.sub)+'</span>';
       }
-      (function(it){ row.onmousedown=function(e){e.preventDefault();applyAC(it.insert);}; })(item);
+      (function(it){row.onmousedown=function(e){e.preventDefault();applyAC(it.insert);};})(item);
       box.appendChild(row);
     });
     box.style.display='block';
@@ -7990,7 +7978,7 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
     var val=inp.value, pos=inp.selectionStart;
     var before=val.slice(0,pos);
     var after=val.slice(pos);
-    var word=before.match(/(@\\w*|:\\w*|\\/\\w*)$/);
+    var word=before.match(/(@\w*|:\w*|\/\w*)$/);
     if(word){
       var newBefore=before.slice(0,before.length-word[1].length)+insert;
       inp.value=newBefore+after;
@@ -7998,54 +7986,34 @@ var _acType  = null; // 'mention' | 'emoji' | 'cmd'
     }
     closeAC();
     inp.focus();
-    // If it's a command, handle it
-    if(insert.trim()==='/shrug'){inp.value='¯\\\\_(ツ)_/¯';closeAC();return;}
-    if(insert.trim()==='/flip'){inp.value='(╯°□°）╯︵ ┻━┻';closeAC();return;}
-    if(insert.trim()==='/unflip'){inp.value='┬─┬ノ( º _ ºノ)';closeAC();return;}
-    if(insert.trim()==='/lenny'){inp.value='( ͡° ͜ʖ ͡°)';closeAC();return;}
-    if(insert.trim()==='/coinflip'){inp.value='';closeAC();openGames();gameStart('coinflip');return;}
-    if(insert.trim()==='/dice'){inp.value='';closeAC();openGames();gameStart('dice');return;}
-    if(insert.trim()==='/clear'){inp.value='';closeAC();document.getElementById('messages').innerHTML='';return;}
-    if(insert.trim()==='/me'){inp.value='*';inp.selectionStart=inp.selectionEnd=1;closeAC();return;}
+    var t=insert.trim();
+    if(t==='/shrug'){inp.value='¯\\_(ツ)_/¯';closeAC();return;}
+    if(t==='/flip'){inp.value='(╯°□°）╯︵ ┻━┻';closeAC();return;}
+    if(t==='/unflip'){inp.value='┬─┬ノ( º _ ºノ)';closeAC();return;}
+    if(t==='/lenny'){inp.value='( ͡° ͜ʖ ͡°)';closeAC();return;}
+    if(t==='/coinflip'){inp.value='';closeAC();openGames();gameStart('coinflip');return;}
+    if(t==='/dice'){inp.value='';closeAC();openGames();gameStart('dice');return;}
+    if(t==='/clear'){inp.value='';closeAC();document.getElementById('messages').innerHTML='';return;}
+    if(t==='/me'){inp.value='*';inp.selectionStart=inp.selectionEnd=1;closeAC();return;}
   }
 
-  function closeAC(){
-    box.style.display='none';
-    _acItems=[];_acIndex=0;_acType=null;
-  }
+  function closeAC(){box.style.display='none';_acItems=[];_acIndex=0;_acType=null;}
 
   inp.addEventListener('input',function(){
     var word=getWord();
     if(!word||word.length<1){closeAC();return;}
-    buildItems(word);
-    renderAC();
+    buildItems(word);renderAC();
   });
 
   inp.addEventListener('keydown',function(e){
     if(box.style.display==='none') return;
-    if(e.key==='ArrowDown'){
-      e.preventDefault();
-      _acIndex=(_acIndex+1)%Math.max(1,_acItems.length);
-      renderAC();
-    } else if(e.key==='ArrowUp'){
-      e.preventDefault();
-      _acIndex=(_acIndex-1+_acItems.length)%Math.max(1,_acItems.length);
-      renderAC();
-    } else if(e.key==='Tab'||e.key==='Enter'){
-      if(_acItems.length){
-        e.preventDefault();
-        applyAC(_acItems[_acIndex].insert);
-      }
-    } else if(e.key==='Escape'){
-      closeAC();
-    }
+    if(e.key==='ArrowDown'){e.preventDefault();_acIndex=(_acIndex+1)%Math.max(1,_acItems.length);renderAC();}
+    else if(e.key==='ArrowUp'){e.preventDefault();_acIndex=(_acIndex-1+_acItems.length)%Math.max(1,_acItems.length);renderAC();}
+    else if(e.key==='Tab'||e.key==='Enter'){if(_acItems.length){e.preventDefault();applyAC(_acItems[_acIndex].insert);}}
+    else if(e.key==='Escape'){closeAC();}
   });
 
-  // Store channel users for mention autocomplete
-  document.addEventListener('usersUpdated',function(e){
-    window._channelUsers=e.detail||[];
-  });
-
+  document.addEventListener('usersUpdated',function(e){window._channelUsers=e.detail||[];});
   inp.addEventListener('blur',function(){setTimeout(closeAC,120);});
 })();
 
@@ -8251,5 +8219,24 @@ function setupSbMixer(micStream){
 (function(){
   var _warn=console.warn.bind(console);
   var _log=console.log.bind(console);
-  var LK_NOISE=['publishing track','could not createOffer','closed peer connection','lk-'];
-  function isLkNoise(args){return args.some(function(a){var s=typeof a==='string'?a:(a&&a.message?a.message:'');return LK_NOISE.some(function(n){return s.includes(n);
+  var LK_NOISE=['publishing track','could not createOffer','closed peer connection','lk-','RTCPeerConnection','negotiationneeded','setLocalDescription','ice','candidate'];
+  function isLkNoise(args){
+    return args.some(function(a){
+      var s=typeof a==='string'?a:(a&&a.message?a.message:'');
+      return LK_NOISE.some(function(n){return s.toLowerCase().includes(n.toLowerCase());});
+    });
+  }
+  console.warn=function(){
+    var args=Array.from(arguments);
+    if(isLkNoise(args)) return;
+    _warn.apply(console,args);
+  };
+  console.log=function(){
+    var args=Array.from(arguments);
+    if(isLkNoise(args)) return;
+    _log.apply(console,args);
+  };
+})();
+</script>
+</body>
+</html>
