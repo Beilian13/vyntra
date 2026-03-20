@@ -3245,6 +3245,19 @@ function sendMessage(){
   var msg={type:'message',text:txt,channelId:currentChannelId};
   if(pendingFile){msg.fileUrl=pendingFile.url;msg.fileName=pendingFile.fileName;msg.fileType=pendingFile.fileType;}
   if(pendingReply){msg.replyTo={id:pendingReply.id,user:pendingReply.user,text:pendingReply.text};}
+  // Optimistic render — show immediately, server echo will update with real id
+  var tempId='tmp_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  var optimistic={
+    type:'chat',channelId:currentChannelId,room:currentRoom,
+    user:myName,text:txt,
+    fileUrl:msg.fileUrl||null,fileName:msg.fileName||null,fileType:msg.fileType||null,
+    replyTo:msg.replyTo||null,
+    id:tempId,reactions:{},seenBy:[]
+  };
+  cacheMsg(optimistic);
+  // Mark temp message with pending style
+  var tempEl=document.getElementById('m-'+tempId);
+  if(tempEl) tempEl.style.opacity='0.6';
   wsSend(msg);
   wsSend({type:'typing_stop'});
   inp.value='';clearFileAttach();clearReply();inp.focus();
@@ -3265,6 +3278,17 @@ function cacheMsg(msg){
   var idx=msgCache[key].findIndex(function(m){return m.id===msg.id;});
   if(idx>=0) msgCache[key][idx]=msg; else msgCache[key].push(msg);
   if(key===currentChannelId||key===currentRoom){
+    // Real message from us — remove matching temp (optimistic) message
+    if(msg.user===myName&&msg.id&&msg.id.indexOf('tmp_')<0){
+      var temps=msgCache[key].filter(function(m){
+        return m.id&&m.id.indexOf('tmp_')===0&&m.text===msg.text&&m.user===myName;
+      });
+      temps.forEach(function(t){
+        var tempEl=document.getElementById('m-'+t.id);
+        if(tempEl) tempEl.remove();
+        msgCache[key]=msgCache[key].filter(function(m){return m.id!==t.id;});
+      });
+    }
     renderMsg(msg);
     // Auto-mark as seen if DM is open and message is from someone else
     if(msg.user&&msg.user!==myName&&(key||'').startsWith('dm_')&&document.visibilityState!=='hidden'){
@@ -3991,7 +4015,12 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
   });
 
   room.on(LivekitClient.RoomEvent.ParticipantConnected,function(p){
-    toast('👋 '+p.identity+' joined');renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
+    toast('👋 '+p.identity+' joined');
+    renderVideoGrid();updateParticipantCount();refreshParticipantsPanel();
+    // Re-attach existing tracks from new participant
+    p.trackPublications.forEach(function(pub){
+      if(pub.isSubscribed&&pub.track) attachTrack(pub.track,pub,p);
+    });
   });
   room.on(LivekitClient.RoomEvent.ParticipantDisconnected,function(p){
     toast('👋 '+p.identity+' left');
@@ -4035,8 +4064,26 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     lk.micStream = stream;
     setupVAD(stream);
     setupSbMixer(stream);
-    await room.localParticipant.setMicrophoneEnabled(true);
-    lk.micEnabled=true;
+
+    // Publish mixed stream (mic + soundboard) if mixer is ready, else raw mic
+    if(lk._sbMixStream && lk._sbMixStream.getAudioTracks().length > 0){
+      try{
+        var mixedTrack = lk._sbMixStream.getAudioTracks()[0];
+        var localTrack = new LivekitClient.LocalAudioTrack(mixedTrack, undefined, false);
+        lk.micPub = await room.localParticipant.publishTrack(localTrack, {
+          source: LivekitClient.Track.Source.Microphone,
+          dtx: true, red: true
+        });
+        lk.micEnabled = true;
+      }catch(e){
+        console.warn('Mixed track publish failed, using raw mic:', e.message);
+        await room.localParticipant.setMicrophoneEnabled(true);
+        lk.micEnabled = true;
+      }
+    } else {
+      await room.localParticipant.setMicrophoneEnabled(true);
+      lk.micEnabled = true;
+    }
     updateCtrl('ctrlMic',true);
     showCallWindow(chatRoom||lvRoomName);
     renderVideoGrid();updateParticipantCount();startTimer();
@@ -4933,7 +4980,11 @@ function recvCallChatTyping(d){
 
 
 function recvCallMembers(d){
-  // Could update a member count badge on Chat button — future enhancement
+  var count=(d.members||[]).length;
+  var el=document.getElementById('callParticipants');
+  if(el) el.textContent=count+' participant'+(count!==1?'s':'');
+  // Also update the people panel if open
+  refreshParticipantsPanel();
 }
 
 /* ══════════════════════════════════════════════
