@@ -3944,6 +3944,7 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     await new Promise(function(r){setTimeout(r,400);});
   }
   lk.active=true; // claim the slot early to prevent double-joins
+  var authToken=localStorage.getItem('vt');
   var resp=await fetch('/livekit/token',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},
