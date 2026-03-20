@@ -1076,7 +1076,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
           <div id="formLogin">
             <div class="auth-field"><label>Username</label><input id="loginUser" type="text" autocomplete="username"/></div>
             <div class="auth-field"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password"/></div>
-            <button class="auth-submit" id="loginBtn">Login</button>
+            <button class="auth-submit" id="loginBtn" onclick="doLogin()">Login</button>
           </div>
           <div id="formReg" style="display:none">
             <div class="auth-field"><label>Username</label><input id="regUser" type="text" autocomplete="username"/></div>
@@ -1097,7 +1097,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
               </select>
             </div>
             <div class="auth-field"><label>Secret Answer</label><input id="regAnswer" type="text" autocomplete="off" placeholder="Your answer (case insensitive)"/></div>
-            <button class="auth-submit" id="registerBtn">Create account</button>
+            <button class="auth-submit" id="registerBtn" onclick="doRegister()">Create account</button>
           </div>
         </div>
         <div id="step2FA" style="display:none">
@@ -2269,7 +2269,296 @@ function dismissNotif(){if(_notif){try{_notif.close();}catch(e){}_notif=null;}}
 function saveSession(t,u){localStorage.setItem('vt',t);localStorage.setItem('vu',u);}
 function doLogout(){localStorage.removeItem('vt');localStorage.removeItem('vu');location.reload();}
 
+/* ══════════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════════ */
+function switchTab(tab){
+  document.getElementById('formLogin').style.display=tab==='login'?'':'none';
+  document.getElementById('formReg').style.display=tab==='register'?'':'none';
+  document.querySelectorAll('.auth-tab').forEach(function(t,i){t.classList.toggle('active',i===(tab==='login'?0:1));});
+  setErr('');
+}
+function setErr(m){var el=document.getElementById('authError');if(el)el.textContent=m;}
+function setBusy(id,busy,label){var b=document.getElementById(id);if(b){b.disabled=busy;b.textContent=busy?'…':label;}}
+
+function showAuthStep(step){
+  // Hide all steps
+  ['stepTabs','step2FA','stepTotp','stepForgot','stepReset'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.style.display='none';
+  });
+  var el=document.getElementById(step);if(el) el.style.display='';
+  setErr('');
+}
+
+async function doLogin(){
+  var u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value;
+  if(!u||!p) return setErr('Fill in all fields');
+  setBusy('loginBtn',true,'Login');
+  try{
+    var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    var d=await r.json();
+    if(!r.ok) return setErr(d.error||'Login failed');
+    pendingUser=d.username;
+    if(!d.secretQuestion){
+      // No secret question — check if 2FA needed
+      var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
+      var d2=await r2.json();
+      if(r2.ok){
+        if(d2.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
+        saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;
+      }
+    }
+    document.getElementById('secretQuestionText').textContent=d.secretQuestion;
+    showAuthStep('step2FA');
+    setTimeout(function(){document.getElementById('secretAnswerInput').focus();},80);
+  }catch(e){setErr('Network error');}
+  finally{setBusy('loginBtn',false,'Login');}
+}
+
+async function doRegister(){
+  var u=document.getElementById('regUser').value.trim(),
+      e=document.getElementById('regEmail').value.trim(),
+      p=document.getElementById('regPass').value,
+      q=document.getElementById('regQuestion').value,
+      a=document.getElementById('regAnswer').value.trim();
+  if(!u||!p||!q||!a) return setErr('Fill in all required fields');
+  setBusy('registerBtn',true,'Create account');
+  try{
+    var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e||undefined,password:p,secretQuestion:q,secretAnswer:a})});
+    var d=await r.json();
+    if(!r.ok) return setErr(d.error||'Registration failed');
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
+  }catch(e){setErr('Network error');}
+  finally{setBusy('registerBtn',false,'Create account');}
+}
+
+async function doVerify(){
+  var ans=document.getElementById('secretAnswerInput').value.trim();
+  if(!ans) return setErr('Enter your answer');
+  setBusy('verifyBtn',true,'Verify');
+  try{
+    var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
+    var d=await r.json();
+    if(!r.ok) return setErr(d.error||'Wrong answer');
+    if(d.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
+  }catch(e){setErr('Network error');}
+  finally{setBusy('verifyBtn',false,'Verify');}
+}
+
+function cancelVerify(){
+  pendingUser=null;
+  showAuthStep('stepTabs');
+  document.getElementById('secretAnswerInput').value='';
+}
+
+/* ── TOTP 2FA login step ── */
+async function doTotpVerify(){
+  var code=document.getElementById('totpInput').value.replace(/\\s/g,'');
+  if(!code||code.length<6) return setErr('Enter the 6-digit code');
+  setBusy('totpBtn',true,'Verify');
+  try{
+    var r=await fetch('/auth/verify-2fa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,code})});
+    var d=await r.json();
+    if(!r.ok) return setErr(d.error||'Invalid code');
+    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
+  }catch(e){setErr('Network error');}
+  finally{setBusy('totpBtn',false,'Verify');}
+}
+
+function cancelTotp(){
+  pendingUser=null;
+  document.getElementById('totpInput').value='';
+  showAuthStep('stepTabs');
+}
+
+/* ── Forgot password ── */
+
+
+
+
+
+/* ── Reset password (token from URL) ── */
+var _resetToken=null;
+
+
+
+
+/* ── 2FA Settings ── */
+async function open2FASettings(){
+  document.getElementById('twoFAModal').style.display='flex';
+  document.getElementById('twoFASetup').style.display='none';
+  document.getElementById('twoFADisable').style.display='none';
+  document.getElementById('twoFAError').textContent='';
+  document.getElementById('twoFADisableError').textContent='';
+  // Check current status
+  try{
+    var r=await fetch('/profile/'+myName);
+    var d=await r.json();
+    var enabled=d.profile&&d.profile.totpEnabled;
+    document.getElementById('twoFAStatus').innerHTML=enabled
+      ?'<span style="color:#39d353;font-weight:600">✅ 2FA is enabled</span> — your account is protected.'
+      :'<span style="color:var(--muted)">2FA is not enabled.</span> Add extra security to your account.';
+    var acts=document.getElementById('twoFAActions');
+    acts.innerHTML='';
+    var btn=document.createElement('button');
+    btn.style.cssText='padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;border:none;width:100%';
+    if(enabled){
+      btn.style.background='rgba(255,80,80,.12)';btn.style.color='#ff7070';btn.style.border='1px solid rgba(255,80,80,.25)';
+      btn.textContent='Disable 2FA';
+      btn.onclick=function(){document.getElementById('twoFADisable').style.display='flex';document.getElementById('twoFAActions').style.display='none';setTimeout(function(){document.getElementById('twoFADisableCode').focus();},80);};
+    } else {
+      btn.style.background='var(--accent)';btn.style.color='#fff';
+      btn.textContent='Enable 2FA';
+      btn.onclick=setup2FA;
+    }
+    acts.appendChild(btn);
+  }catch(e){}
+}
+
+function close2FASettings(){ document.getElementById('twoFAModal').style.display='none'; }
+
+async function setup2FA(){
+  document.getElementById('twoFAActions').style.display='none';
+  document.getElementById('twoFASetup').style.display='flex';
+  document.getElementById('twoFAError').textContent='';
+  try{
+    var r=await fetch('/auth/2fa/setup',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Failed'; return; }
+    document.getElementById('twoFAQr').src=d.qr;
+    document.getElementById('twoFASecret').textContent=d.secret;
+    setTimeout(function(){document.getElementById('twoFAConfirmCode').focus();},80);
+  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
+}
+
+async function doEnable2FA(){
+  var code=document.getElementById('twoFAConfirmCode').value.replace(/\\s/g,'');
+  if(!code||code.length<6){ document.getElementById('twoFAError').textContent='Enter the 6-digit code'; return; }
+  try{
+    var r=await fetch('/auth/2fa/enable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Invalid code'; return; }
+    toast(' 2FA enabled!');
+    close2FASettings();
+  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
+}
+
+async function doDisable2FA(){
+  var code=document.getElementById('twoFADisableCode').value.replace(/\\s/g,'');
+  if(!code){ document.getElementById('twoFADisableError').textContent='Enter your 2FA code'; return; }
+  try{
+    var r=await fetch('/auth/2fa/disable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
+    var d=await r.json();
+    if(!r.ok){ document.getElementById('twoFADisableError').textContent=d.error||'Invalid code'; return; }
+    toast('✅ 2FA disabled');
+    close2FASettings();
+  }catch(e){ document.getElementById('twoFADisableError').textContent='Network error'; }
+}
+
+function showForgot(){
+  showAuthStep('stepForgot');
+  setTimeout(function(){document.getElementById('forgotEmail').focus();},80);
+}
+function cancelForgot(){ showAuthStep('stepTabs'); }
+
+async function doForgotPassword(){
+  var email=document.getElementById('forgotEmail').value.trim();
+  if(!email) return document.getElementById('forgotError').textContent='Enter your email';
+  setBusy('forgotBtn',true,'Send reset link');
+  try{
+    await fetch('/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    document.getElementById('forgotError').style.color='#39d353';
+    document.getElementById('forgotError').textContent='✅ If that email exists, a reset link has been sent!';
+    setTimeout(cancelForgot, 3000);
+  }catch(e){ document.getElementById('forgotError').textContent='Network error'; }
+  finally{ setBusy('forgotBtn',false,'Send reset link'); }
+}
+
+/* ── Reset password (from URL token) ── */
+var _resetToken=null;
+function checkResetToken(){
+  var params=new URLSearchParams(location.search);
+  var token=params.get('reset');
+  if(!token) return;
+  _resetToken=token;
+  history.replaceState({},'','/');
+  document.getElementById('authScreen').style.display='block';
+  document.getElementById('appShell').style.display='none';
+  showAuthStep('stepReset');
+  setTimeout(function(){document.getElementById('resetPass').focus();},80);
+}
+async function doResetPassword(){
+  var p=document.getElementById('resetPass').value;
+  var p2=document.getElementById('resetPass2').value;
+  var errEl=document.getElementById('resetError');
+  if(!p||p.length<6) return errEl.textContent='Password must be at least 6 characters';
+  if(p!==p2) return errEl.textContent='Passwords do not match';
+  setBusy('resetBtn',true,'Save new password');
+  try{
+    var r=await fetch('/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,password:p})});
+    var d=await r.json();
+    if(!r.ok) return errEl.textContent=d.error||'Failed';
+    errEl.style.color='#39d353';
+    errEl.textContent='✅ Password updated! You can now log in.';
+    setTimeout(function(){ showAuthStep('stepTabs'); switchTab('login'); _resetToken=null; },2000);
+  }catch(e){ errEl.textContent='Network error'; }
+  finally{ setBusy('resetBtn',false,'Save new password'); }
+}
+
+/* ── PIX DONATE MODAL ── */
+var _pixQrReady = false;
+var PIX_PAYLOAD = '00020126610014br.gov.bcb.pix0127beilian.alvarenga@gmail.com0208Donation5204000053039865802BR5925BEILIAN RAFAEL DE ALVAREN6009ARAUCARIA62290525npTxsohKYzor7vjFumOagvNDO6304254A';
+
+function openPixModal(){
+  document.getElementById('pixModal').style.display='flex';
+  if(!_pixQrReady) renderPixQr();
+}
+function closePixModal(){ document.getElementById('pixModal').style.display='none'; }
 document.addEventListener('DOMContentLoaded',function(){
+  var pm=document.getElementById('pixModal');
+  if(pm) pm.addEventListener('click',function(e){if(e.target===pm)closePixModal();});
+  var twofa=document.getElementById('twoFAModal');
+  if(twofa) twofa.addEventListener('click',function(e){if(e.target===twofa)close2FASettings();});
+});
+function renderPixQr(){
+  var container=document.getElementById('pixQr');if(!container)return;
+  if(window.QRCode){
+    _pixQrReady=true;container.innerHTML='';
+    new QRCode(container,{text:PIX_PAYLOAD,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+    return;
+  }
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload=function(){
+    _pixQrReady=true;container.innerHTML='';
+    new QRCode(container,{text:PIX_PAYLOAD,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+  };
+  s.onerror=function(){container.innerHTML='<div style="font-size:11px;color:#999;padding:8px">QR indisponível —<br>use o código abaixo</div>';};
+  document.head.appendChild(s);
+}
+function copyPixCode(){
+  navigator.clipboard.writeText(PIX_PAYLOAD).then(function(){
+    var btn=document.getElementById('pixCopyBtn');
+    if(btn){btn.textContent='✅ Copiado!';setTimeout(function(){btn.textContent='📋 Copiar código Pix';},2000);}
+  }).catch(function(){
+    var ta=document.createElement('textarea');ta.value=PIX_PAYLOAD;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    var btn=document.getElementById('pixCopyBtn');
+    if(btn){btn.textContent='✅ Copiado!';setTimeout(function(){btn.textContent='📋 Copiar código Pix';},2000);}
+  });
+}
+
+
+document.addEventListener('DOMContentLoaded',function(){
+  // Login enter keys
+  var loginPassInp=document.getElementById('loginPass');
+  if(loginPassInp) loginPassInp.addEventListener('keypress',function(e){if(e.key==='Enter')doLogin();});
+  var loginUserInp=document.getElementById('loginUser');
+  if(loginUserInp) loginUserInp.addEventListener('keypress',function(e){if(e.key==='Enter')doLogin();});
+  // Register enter key
+  var regPassInp=document.getElementById('regAnswer');
+  if(regPassInp) regPassInp.addEventListener('keypress',function(e){if(e.key==='Enter')doRegister();});
   document.getElementById('secretAnswerInput').addEventListener('keypress',function(e){if(e.key==='Enter')doVerify();});
   var totpInp=document.getElementById('totpInput');if(totpInp)totpInp.addEventListener('keypress',function(e){if(e.key==='Enter')doTotpVerify();});
   var forgotInp=document.getElementById('forgotEmail');if(forgotInp)forgotInp.addEventListener('keypress',function(e){if(e.key==='Enter')doForgotPassword();});
@@ -2316,7 +2605,7 @@ function showAuth(tab){
   document.getElementById('appShell').style.display='none';
   document.getElementById('authScreen').style.display='flex';
 }
-function launchGuestApp(){
+async function launchGuestApp(){
   isGuest=true; myName='Guest';
   document.getElementById('authScreen').style.display='none';
   document.getElementById('appShell').style.display='flex';
@@ -2779,7 +3068,7 @@ async function openDiscovery(){
   try{var r=await fetch('/servers');_discServers=await r.json();filterDisc('');}catch(e){document.getElementById('discGrid').innerHTML='<div style="color:var(--muted);padding:20px">Failed to load</div>';}
 }
 function closeDiscovery(){document.getElementById('discoveryScreen').style.display='none';}
-function filterDisc(q){
+async function filterDisc(q){
   var fl=(q||'').toLowerCase();
   var list=_discServers.filter(function(s){return !fl||s.name.toLowerCase().includes(fl)||(s.description||'').toLowerCase().includes(fl);});
   var grid=document.getElementById('discGrid');grid.innerHTML='';
@@ -3206,7 +3495,7 @@ function closeSearch(){
   document.getElementById('searchInput').value='';
   document.getElementById('searchResults').innerHTML='';
 }
-function doSearch(q){
+async function doSearch(q){
   var res=document.getElementById('searchResults');
   if(!q){res.innerHTML='';return;}
   res.innerHTML='<div class="sr-empty">Searching…</div>';
@@ -5036,7 +5325,7 @@ async function openRolesPanel(serverId){
   var box=document.createElement('div');box.className='roles-panel';
   var PERMS=['send_messages','manage_channels','manage_roles','kick_members','manage_server'];
   var PERM_LABELS={'send_messages':'Send Messages','manage_channels':'Manage Channels','manage_roles':'Manage Roles','kick_members':'Kick Members','manage_server':'Manage Server'};
-  function rebuildPanel(){
+  async function rebuildPanel(){
     box.innerHTML='';
     var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
     hdr.innerHTML='<h3 style="margin:0;font-size:15px">🛡️ Server Roles</h3>';
@@ -5127,7 +5416,7 @@ async function openAssignRolesPanel(serverId, targetUser){
 /* ══════════════════════════════════════════════
    CHANNEL CATEGORY MOVE MENU
 ══════════════════════════════════════════════ */
-function openMoveCategoryMenu(ch, serverId, cats){
+async function openMoveCategoryMenu(ch, serverId, cats){
   var existing=Object.keys(cats);
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
@@ -5723,7 +6012,7 @@ function sendSticker(url,name){
 }
 
 // ── Upload sticker ──
-function openUploadSticker(serverId){
+async function openUploadSticker(serverId){
   closeStickerLibrary();
   var name=prompt('Sticker name (e.g. wave, pog, sadge):');
   if(!name) return;
@@ -5744,7 +6033,7 @@ function openUploadSticker(serverId){
 }
 
 // ── Upload custom emoji ──
-function openUploadEmoji(serverId){
+async function openUploadEmoji(serverId){
   closeStickerLibrary();
   var name=prompt('Emoji shortcode (letters/numbers/underscore only, e.g. pepe, pogchamp):');
   if(!name) return;
@@ -6021,285 +6310,6 @@ async function adminDeleteUser(username){
 
 
 /* ── Auth step helper ── */
-/* ══════════════════════════════════════════════
-   AUTH
-══════════════════════════════════════════════ */
-function switchTab(tab){
-  document.getElementById('formLogin').style.display=tab==='login'?'':'none';
-  document.getElementById('formReg').style.display=tab==='register'?'':'none';
-  document.querySelectorAll('.auth-tab').forEach(function(t,i){t.classList.toggle('active',i===(tab==='login'?0:1));});
-  setErr('');
-}
-function setErr(m){var el=document.getElementById('authError');if(el)el.textContent=m;}
-function setBusy(id,busy,label){var b=document.getElementById(id);if(b){b.disabled=busy;b.textContent=busy?'…':label;}}
-
-function showAuthStep(step){
-  // Hide all steps
-  ['stepTabs','step2FA','stepTotp','stepForgot','stepReset'].forEach(function(id){
-    var el=document.getElementById(id);if(el) el.style.display='none';
-  });
-  var el=document.getElementById(step);if(el) el.style.display='';
-  setErr('');
-}
-
-async function doLogin(){
-  var u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value;
-  if(!u||!p) return setErr('Fill in all fields');
-  setBusy('loginBtn',true,'Login');
-  try{
-    var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Login failed');
-    pendingUser=d.username;
-    if(!d.secretQuestion){
-      // No secret question — check if 2FA needed
-      var r2=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:d.username,secretAnswer:'__legacy__'})});
-      var d2=await r2.json();
-      if(r2.ok){
-        if(d2.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
-        saveSession(d2.token,d2.username);await postLoginInvite(d2.token);launchApp(d2.token,d2.username,d2.friends);return;
-      }
-    }
-    document.getElementById('secretQuestionText').textContent=d.secretQuestion;
-    showAuthStep('step2FA');
-    setTimeout(function(){document.getElementById('secretAnswerInput').focus();},80);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('loginBtn',false,'Login');}
-}
-
-async function doRegister(){
-  var u=document.getElementById('regUser').value.trim(),
-      e=document.getElementById('regEmail').value.trim(),
-      p=document.getElementById('regPass').value,
-      q=document.getElementById('regQuestion').value,
-      a=document.getElementById('regAnswer').value.trim();
-  if(!u||!p||!q||!a) return setErr('Fill in all required fields');
-  setBusy('registerBtn',true,'Create account');
-  try{
-    var r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e||undefined,password:p,secretQuestion:q,secretAnswer:a})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Registration failed');
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('registerBtn',false,'Create account');}
-}
-
-async function doVerify(){
-  var ans=document.getElementById('secretAnswerInput').value.trim();
-  if(!ans) return setErr('Enter your answer');
-  setBusy('verifyBtn',true,'Verify');
-  try{
-    var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,secretAnswer:ans})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Wrong answer');
-    if(d.requires2FA){ showAuthStep('stepTotp'); setTimeout(function(){document.getElementById('totpInput').focus();},80); return; }
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('verifyBtn',false,'Verify');}
-}
-
-function cancelVerify(){
-  pendingUser=null;
-  showAuthStep('stepTabs');
-  document.getElementById('secretAnswerInput').value='';
-}
-
-/* ── TOTP 2FA login step ── */
-async function doTotpVerify(){
-  var code=document.getElementById('totpInput').value.replace(/\\s/g,'');
-  if(!code||code.length<6) return setErr('Enter the 6-digit code');
-  setBusy('totpBtn',true,'Verify');
-  try{
-    var r=await fetch('/auth/verify-2fa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:pendingUser,code})});
-    var d=await r.json();
-    if(!r.ok) return setErr(d.error||'Invalid code');
-    saveSession(d.token,d.username);await postLoginInvite(d.token);launchApp(d.token,d.username,d.friends);
-  }catch(e){setErr('Network error');}
-  finally{setBusy('totpBtn',false,'Verify');}
-}
-
-function cancelTotp(){
-  pendingUser=null;
-  document.getElementById('totpInput').value='';
-  showAuthStep('stepTabs');
-}
-
-/* ── Forgot password ── */
-
-
-
-
-
-/* ── Reset password (token from URL) ── */
-var _resetToken=null;
-
-
-
-
-/* ── 2FA Settings ── */
-async function open2FASettings(){
-  document.getElementById('twoFAModal').style.display='flex';
-  document.getElementById('twoFASetup').style.display='none';
-  document.getElementById('twoFADisable').style.display='none';
-  document.getElementById('twoFAError').textContent='';
-  document.getElementById('twoFADisableError').textContent='';
-  // Check current status
-  try{
-    var r=await fetch('/profile/'+myName);
-    var d=await r.json();
-    var enabled=d.profile&&d.profile.totpEnabled;
-    document.getElementById('twoFAStatus').innerHTML=enabled
-      ?'<span style="color:#39d353;font-weight:600">✅ 2FA is enabled</span> — your account is protected.'
-      :'<span style="color:var(--muted)">2FA is not enabled.</span> Add extra security to your account.';
-    var acts=document.getElementById('twoFAActions');
-    acts.innerHTML='';
-    var btn=document.createElement('button');
-    btn.style.cssText='padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;border:none;width:100%';
-    if(enabled){
-      btn.style.background='rgba(255,80,80,.12)';btn.style.color='#ff7070';btn.style.border='1px solid rgba(255,80,80,.25)';
-      btn.textContent='Disable 2FA';
-      btn.onclick=function(){document.getElementById('twoFADisable').style.display='flex';document.getElementById('twoFAActions').style.display='none';setTimeout(function(){document.getElementById('twoFADisableCode').focus();},80);};
-    } else {
-      btn.style.background='var(--accent)';btn.style.color='#fff';
-      btn.textContent='Enable 2FA';
-      btn.onclick=setup2FA;
-    }
-    acts.appendChild(btn);
-  }catch(e){}
-}
-
-function close2FASettings(){ document.getElementById('twoFAModal').style.display='none'; }
-
-async function setup2FA(){
-  document.getElementById('twoFAActions').style.display='none';
-  document.getElementById('twoFASetup').style.display='flex';
-  document.getElementById('twoFAError').textContent='';
-  try{
-    var r=await fetch('/auth/2fa/setup',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('vt')}});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Failed'; return; }
-    document.getElementById('twoFAQr').src=d.qr;
-    document.getElementById('twoFASecret').textContent=d.secret;
-    setTimeout(function(){document.getElementById('twoFAConfirmCode').focus();},80);
-  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
-}
-
-async function doEnable2FA(){
-  var code=document.getElementById('twoFAConfirmCode').value.replace(/\\s/g,'');
-  if(!code||code.length<6){ document.getElementById('twoFAError').textContent='Enter the 6-digit code'; return; }
-  try{
-    var r=await fetch('/auth/2fa/enable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFAError').textContent=d.error||'Invalid code'; return; }
-    toast(' 2FA enabled!');
-    close2FASettings();
-  }catch(e){ document.getElementById('twoFAError').textContent='Network error'; }
-}
-
-async function doDisable2FA(){
-  var code=document.getElementById('twoFADisableCode').value.replace(/\\s/g,'');
-  if(!code){ document.getElementById('twoFADisableError').textContent='Enter your 2FA code'; return; }
-  try{
-    var r=await fetch('/auth/2fa/disable',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},body:JSON.stringify({code})});
-    var d=await r.json();
-    if(!r.ok){ document.getElementById('twoFADisableError').textContent=d.error||'Invalid code'; return; }
-    toast('✅ 2FA disabled');
-    close2FASettings();
-  }catch(e){ document.getElementById('twoFADisableError').textContent='Network error'; }
-}
-
-function showForgot(){
-  showAuthStep('stepForgot');
-  setTimeout(function(){document.getElementById('forgotEmail').focus();},80);
-}
-function cancelForgot(){ showAuthStep('stepTabs'); }
-
-async function doForgotPassword(){
-  var email=document.getElementById('forgotEmail').value.trim();
-  if(!email) return document.getElementById('forgotError').textContent='Enter your email';
-  setBusy('forgotBtn',true,'Send reset link');
-  try{
-    await fetch('/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    document.getElementById('forgotError').style.color='#39d353';
-    document.getElementById('forgotError').textContent='✅ If that email exists, a reset link has been sent!';
-    setTimeout(cancelForgot, 3000);
-  }catch(e){ document.getElementById('forgotError').textContent='Network error'; }
-  finally{ setBusy('forgotBtn',false,'Send reset link'); }
-}
-
-/* ── Reset password (from URL token) ── */
-var _resetToken=null;
-function checkResetToken(){
-  var params=new URLSearchParams(location.search);
-  var token=params.get('reset');
-  if(!token) return;
-  _resetToken=token;
-  history.replaceState({},'','/');
-  document.getElementById('authScreen').style.display='block';
-  document.getElementById('appShell').style.display='none';
-  showAuthStep('stepReset');
-  setTimeout(function(){document.getElementById('resetPass').focus();},80);
-}
-async function doResetPassword(){
-  var p=document.getElementById('resetPass').value;
-  var p2=document.getElementById('resetPass2').value;
-  var errEl=document.getElementById('resetError');
-  if(!p||p.length<6) return errEl.textContent='Password must be at least 6 characters';
-  if(p!==p2) return errEl.textContent='Passwords do not match';
-  setBusy('resetBtn',true,'Save new password');
-  try{
-    var r=await fetch('/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,password:p})});
-    var d=await r.json();
-    if(!r.ok) return errEl.textContent=d.error||'Failed';
-    errEl.style.color='#39d353';
-    errEl.textContent='✅ Password updated! You can now log in.';
-    setTimeout(function(){ showAuthStep('stepTabs'); switchTab('login'); _resetToken=null; },2000);
-  }catch(e){ errEl.textContent='Network error'; }
-  finally{ setBusy('resetBtn',false,'Save new password'); }
-}
-
-/* ── PIX DONATE MODAL ── */
-var _pixQrReady = false;
-var PIX_PAYLOAD = '00020126610014br.gov.bcb.pix0127beilian.alvarenga@gmail.com0208Donation5204000053039865802BR5925BEILIAN RAFAEL DE ALVAREN6009ARAUCARIA62290525npTxsohKYzor7vjFumOagvNDO6304254A';
-
-function openPixModal(){
-  document.getElementById('pixModal').style.display='flex';
-  if(!_pixQrReady) renderPixQr();
-}
-function closePixModal(){ document.getElementById('pixModal').style.display='none'; }
-document.addEventListener('DOMContentLoaded',function(){
-  var pm=document.getElementById('pixModal');
-  if(pm) pm.addEventListener('click',function(e){if(e.target===pm)closePixModal();});
-  var twofa=document.getElementById('twoFAModal');
-  if(twofa) twofa.addEventListener('click',function(e){if(e.target===twofa)close2FASettings();});
-});
-function renderPixQr(){
-  var container=document.getElementById('pixQr');if(!container)return;
-  if(window.QRCode){
-    _pixQrReady=true;container.innerHTML='';
-    new QRCode(container,{text:PIX_PAYLOAD,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
-    return;
-  }
-  var s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-  s.onload=function(){
-    _pixQrReady=true;container.innerHTML='';
-    new QRCode(container,{text:PIX_PAYLOAD,width:180,height:180,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
-  };
-  s.onerror=function(){container.innerHTML='<div style="font-size:11px;color:#999;padding:8px">QR indisponível —<br>use o código abaixo</div>';};
-  document.head.appendChild(s);
-}
-function copyPixCode(){
-  navigator.clipboard.writeText(PIX_PAYLOAD).then(function(){
-    var btn=document.getElementById('pixCopyBtn');
-    if(btn){btn.textContent='✅ Copiado!';setTimeout(function(){btn.textContent='📋 Copiar código Pix';},2000);}
-  }).catch(function(){
-    var ta=document.createElement('textarea');ta.value=PIX_PAYLOAD;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-    var btn=document.getElementById('pixCopyBtn');
-    if(btn){btn.textContent='✅ Copiado!';setTimeout(function(){btn.textContent='📋 Copiar código Pix';},2000);}
-  });
-}
 
 /* ══════════════════════════════════════════════
    PDF VIEWER
