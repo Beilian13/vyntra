@@ -3938,7 +3938,12 @@ function handleCallEnded(d){
    LIVEKIT — join room, publish tracks
 ══════════════════════════════════════════════ */
 async function joinLivekitRoom(lvRoomName, chatRoom){
-  var authToken=localStorage.getItem('vt');
+  // If a previous room is still active, clean it up and wait for it to settle
+  if(lk.active || lk.room){
+    cleanupCall();
+    await new Promise(function(r){setTimeout(r,400);});
+  }
+  lk.active=true; // claim the slot early to prevent double-joins
   var resp=await fetch('/livekit/token',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},
@@ -4012,9 +4017,9 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
     if(tile){var m=tile.querySelector('.tile-muted');if(m)m.textContent='';}
   });
   room.on(LivekitClient.RoomEvent.Disconnected,function(reason){
-    var msg='Call disconnected';
-    if(reason===LivekitClient.DisconnectReason.CLIENT_INITIATED) return cleanupCall();
-    toast('⚠️ '+msg+' (reason: '+(reason||'unknown')+') — check LiveKit API keys in Render');
+    if(reason===LivekitClient.DisconnectReason.CLIENT_INITIATED) return;
+    toast('⚠️ Call disconnected (reason: '+(reason||'unknown')+')');
+    lk.room=null;
     cleanupCall();
   });
   room.on(LivekitClient.RoomEvent.Reconnecting,function(){toast('🔄 Reconnecting call…');});
@@ -4206,7 +4211,6 @@ function updateCtrl(id,active){
 }
 
 function leaveCall(){
-  if(lk.room) lk.room.disconnect();
   var peer=getDMPeer(currentRoom);
   if(peer) wsSend({type:'call_cancel',to:peer});
   cleanupCall();
@@ -4442,6 +4446,12 @@ function updateCallBtn(){
 }
 
 function cleanupCall(){
+  // Disconnect LiveKit room first, before nulling the reference
+  if(lk.room){
+    try{lk.room.disconnect();}catch(e){}
+    lk.room=null;
+  }
+  lk.active=false; // mark inactive immediately so rejoin can proceed
   if(lk.lvRoomName) wsSend({type:'call_leave_room',lvRoom:lk.lvRoomName});
   if(lk.remoteGainNodes){Object.values(lk.remoteGainNodes).forEach(function(n){try{n.ctx.close();}catch(e){}});lk.remoteGainNodes={};}
   // Reset call chat + poll panels
