@@ -989,6 +989,45 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
 #emojiSearch{padding:8px 12px;border-radius:8px;border:1px solid #dde;outline:none;font-size:14px;margin-bottom:10px}
 #emojiGrid{flex:1;display:grid;grid-template-columns:repeat(auto-fill,40px);gap:4px;align-content:start;overflow:auto;padding:4px}
 #emojiClose{position:absolute;bottom:-56px;left:50%;transform:translateX(-50%);width:48px;height:48px;border-radius:50%;background:#ff4d4f;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+
+/* ── DEVELOPER PORTAL ── */
+#devPortal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1300;align-items:flex-start;justify-content:center;padding:40px 0;overflow-y:auto}
+#devPortal.open{display:flex}
+.dev-wrap{background:var(--panel-card);border:1px solid var(--border);border-radius:18px;width:min(760px,96vw);overflow:hidden;display:flex;min-height:560px}
+.dev-sidebar{width:200px;background:var(--panel-dark);border-right:1px solid var(--border);padding:14px 0;flex-shrink:0;display:flex;flex-direction:column}
+.dev-sidebar h3{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 16px 10px;font-weight:700}
+.dev-nav{flex:1;overflow-y:auto}
+.dev-nav-item{padding:8px 16px;font-size:13px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:8px;transition:background .12s;border-radius:0}
+.dev-nav-item:hover{background:rgba(255,255,255,.04);color:var(--white)}
+.dev-nav-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--white);font-weight:600}
+.dev-content{flex:1;padding:22px;overflow-y:auto}
+.dev-content h3{font-size:15px;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.app-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s}
+.app-card:hover{border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.app-card-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#9b6cff));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0;overflow:hidden}
+.app-card-icon img{width:100%;height:100%;object-fit:cover}
+.app-card-info{flex:1;min-width:0}
+.app-card-name{font-size:14px;font-weight:700}
+.app-card-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.dev-field{margin-bottom:14px}
+.dev-field label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.dev-input{width:100%;box-sizing:border-box;padding:8px 11px;border-radius:8px;border:1px solid var(--border);background:var(--panel-input);color:var(--white);font-size:13px;outline:none}
+.dev-input:focus{border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.dev-secret-row{display:flex;gap:6px;align-items:center}
+.dev-secret-row .dev-input{flex:1;font-family:monospace;font-size:11px;color:var(--muted)}
+.dev-copy-btn{padding:6px 12px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.dev-copy-btn:hover{color:var(--white);background:rgba(255,255,255,.12)}
+.dev-regen-btn{padding:6px 12px;border-radius:7px;background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.2);color:#ffa500;font-size:12px;cursor:pointer;flex-shrink:0}
+.dev-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;margin-left:6px}
+.dev-tag.bot{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+.dev-tag.verified{background:rgba(57,211,83,.15);color:#39d353}
+.scope-check{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer}
+.scope-check input{accent-color:var(--accent)}
+.dev-btn{padding:9px 20px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:none}
+.dev-btn.primary{background:var(--accent);color:#fff}
+.dev-btn.danger{background:rgba(255,80,80,.12);color:#ff7070;border:1px solid rgba(255,80,80,.25)}
+.dev-btn.secondary{background:rgba(255,255,255,.07);color:var(--white)}
+.dev-code{background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#e8e8e8;white-space:pre-wrap;word-break:break-all;overflow-x:auto}
 </style>
 </head>
 <body>
@@ -1529,6 +1568,7 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
       <div class="settings-nav-item" data-tab="customcss" onclick="switchSettingsTab('customcss',this)">🖌️ Custom CSS</div>
       <div class="settings-nav-item" data-tab="injecthtml" onclick="switchSettingsTab('injecthtml',this)">⚡ Inject HTML</div>
       <div class="settings-nav-item" data-tab="notifications" onclick="switchSettingsTab('notifications',this)">🔔 Notifications</div>
+      <div class="settings-nav-item" onclick="closeSettings();openDevPortal()">🔧 Developer Portal</div>
       <div style="margin-top:auto;padding:12px 16px 4px;border-top:1px solid rgba(255,255,255,.04)">
         <button onclick="closeSettings()" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,.05);border:none;color:var(--muted);font-size:13px;cursor:pointer">✕ Close</button>
       </div>
@@ -4724,28 +4764,42 @@ function toggleSoundboard(){
   var showing = p.style.display==='block';
   p.style.display = showing?'none':'block';
   document.getElementById('ctrlSoundboard').classList.toggle('active',!showing);
-  if(!showing) renderSoundboard();
+  if(!showing){ sbLoadCustom(); renderSoundboard(); }
 }
 
 function renderSoundboard(){
   var grid = document.getElementById('sbGrid');
-  var html = '';
+  grid.innerHTML = '';
   // Built-ins
   SB_BUILTIN.forEach(function(s){
-    html += '<button class="sb-btn" id="sb-'+s.id+'" onclick="sbPlayBuiltin(\''+s.id+'\',this)">'
-          + '<span class="sb-icon">'+s.icon+'</span>'
-          + '<span class="sb-name">'+s.name+'</span>'
-          + '</button>';
+    var btn = document.createElement('div');
+    btn.className = 'sb-btn';
+    btn.id = 'sb-'+s.id;
+    btn.innerHTML = '<span class="sb-icon">'+s.icon+'</span><span class="sb-name">'+s.name+'</span>';
+    btn.onclick = function(){ sbPlayBuiltin(s.id, btn); };
+    grid.appendChild(btn);
   });
   // Custom
   sbCustomSounds.forEach(function(s){
-    html += '<button class="sb-btn" id="sb-'+s.id+'" onclick="sbPlayCustom(\''+s.id+'\',this)">'
-          + '<span class="sb-icon">'+s.icon+'</span>'
-          + '<span class="sb-name">'+s.name+'</span>'
-          + '<button class="sb-del" onclick="sbDelete(event,\''+s.id+'\')">✕</button>'
-          + '</button>';
+    var btn = document.createElement('div');
+    btn.className = 'sb-btn';
+    btn.id = 'sb-'+s.id;
+    btn.innerHTML = '<span class="sb-icon">'+s.icon+'</span><span class="sb-name">'+s.name+'</span>';
+    // Delete button as a div to avoid nested button issue
+    var del = document.createElement('span');
+    del.className = 'sb-del';
+    del.textContent = '✕';
+    del.title = 'Remove';
+    del.onclick = function(e){ e.stopPropagation(); sbDelete(e, s.id); };
+    btn.appendChild(del);
+    btn.onclick = function(e){
+      if(e.target === del) return;
+      sbPlayCustom(s.id, btn);
+    };
+    // Right-click to delete
+    btn.oncontextmenu = function(e){ e.preventDefault(); sbDelete(e, s.id); };
+    grid.appendChild(btn);
   });
-  grid.innerHTML = html;
 }
 
 function sbUpload(input){
@@ -7999,6 +8053,179 @@ function initFormatPreview(){
   });
 }
 
+
+/* ══════════════════════════════════════════════
+   DEVELOPER PORTAL
+══════════════════════════════════════════════ */
+var _devApps = [];
+var _devCurrentApp = null;
+
+async function openDevPortal(){
+  document.getElementById('devPortal').classList.add('open');
+  await devTab('apps', document.querySelector('.dev-nav-item'));
+}
+function closeDevPortal(){ document.getElementById('devPortal').classList.remove('open'); }
+
+async function devTab(tab, btn){
+  document.querySelectorAll('.dev-nav-item').forEach(function(el){el.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+  var c = document.getElementById('devContent');
+  if(tab === 'apps') await renderDevApps(c);
+  else if(tab === 'docs') renderDevDocs(c);
+  else if(tab === 'bots') renderDevBots(c);
+}
+
+async function renderDevApps(c){
+  c.innerHTML = '<h3>📦 My Applications</h3><div style="color:var(--muted);font-size:13px;padding:12px 0">Loading…</div>';
+  try{
+    var r = await fetch('/api/developers/apps', {headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+    _devApps = await r.json();
+  }catch(e){ _devApps=[]; }
+  c.innerHTML = '<h3>📦 My Applications</h3>';
+  if(!_devApps.length){
+    c.innerHTML += '<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;line-height:1.8">No apps yet.<br><span style="font-size:11px;opacity:.6">Create an app to use OAuth2 or build a bot.</span></div>';
+  }
+  _devApps.forEach(function(app){
+    var card = document.createElement('div');
+    card.className = 'app-card';
+    card.innerHTML = '<div class="app-card-icon">'+(app.iconUrl?'<img src="'+app.iconUrl+'">':app.name[0].toUpperCase())+'</div>'
+      +'<div class="app-card-info"><div class="app-card-name">'+escHtml(app.name)
+      +(app.isBot?'<span class="dev-tag bot">BOT</span>':'')
+      +(app.verified?'<span class="dev-tag verified">✓ Verified</span>':'')
+      +'</div><div class="app-card-meta">Client ID: '+app.clientId.slice(0,16)+'…</div></div>'
+      +'<div style="color:var(--muted);font-size:18px">›</div>';
+    card.onclick = function(){ devOpenApp(app.clientId); };
+    c.appendChild(card);
+  });
+  var createBtn = document.createElement('button');
+  createBtn.className = 'dev-btn primary';
+  createBtn.style.marginTop = '10px';
+  createBtn.textContent = '+ New Application';
+  createBtn.onclick = devCreateApp;
+  c.appendChild(createBtn);
+}
+
+async function devOpenApp(clientId){
+  var r = await fetch('/api/developers/apps/'+clientId, {headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  var app = await r.json();
+  _devCurrentApp = app;
+  var c = document.getElementById('devContent');
+  var oauthUrl = location.origin+'/oauth2/authorize?client_id='+app.clientId+'&redirect_uri=YOUR_REDIRECT&scope=identify&response_type=code';
+  c.innerHTML = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'
+    +'<button onclick="devTab(\'apps\',null)" class="dev-btn secondary" style="padding:5px 12px;font-size:12px">‹ Back</button>'
+    +'<h3 style="border:none;margin:0;padding:0">'+escHtml(app.name)+(app.isBot?'<span class="dev-tag bot">BOT</span>':'')+'</h3>'
+    +'</div>'
+    +'<div class="dev-field"><label>App Name</label><input class="dev-input" id="devEditName" value="'+escHtml(app.name)+'"/></div>'
+    +'<div class="dev-field"><label>Description</label><input class="dev-input" id="devEditDesc" value="'+escHtml(app.description||'')+'"/></div>'
+    +'<div class="dev-field"><label>Icon URL</label><input class="dev-input" id="devEditIcon" value="'+escHtml(app.iconUrl||'')+'" placeholder="https://…"/></div>'
+    +'<div class="dev-field"><label>Redirect URIs <span style="font-weight:400;text-transform:none;letter-spacing:0">(one per line)</span></label>'
+    +'<textarea class="dev-input" id="devEditRedirects" rows="3" style="resize:vertical;font-family:monospace;font-size:12px">'+escHtml((app.redirectUris||[]).join('\n'))+'</textarea></div>'
+    +'<div class="dev-field"><label>Scopes</label>'
+    +['identify','guilds','messages.read'].map(function(s){
+      return '<label class="scope-check"><input type="checkbox" value="'+s+'" '+(app.scopes&&app.scopes.includes(s)?'checked':'')+'/> '+s+'</label>';
+    }).join('')+'</div>'
+    +'<div class="dev-field"><label>Client ID</label><div class="dev-secret-row"><input class="dev-input" value="'+app.clientId+'" readonly/><button class="dev-copy-btn" onclick="navigator.clipboard.writeText(\''+app.clientId+'\').then(function(){toast(\'Copied!\')})">Copy</button></div></div>'
+    +'<div class="dev-field"><label>Client Secret</label><div class="dev-secret-row"><input class="dev-input" value="'+app.clientSecret+'" readonly/><button class="dev-copy-btn" onclick="navigator.clipboard.writeText(\''+app.clientSecret+'\').then(function(){toast(\'Copied!\')})">Copy</button><button class="dev-regen-btn" onclick="devRegenSecret(\''+app.clientId+'\')">Regenerate</button></div></div>'
+    +(app.isBot ? '<div class="dev-field"><label>Bot Token</label><div class="dev-secret-row"><input class="dev-input" value="'+app.botToken+'" readonly/><button class="dev-copy-btn" onclick="navigator.clipboard.writeText(\''+app.botToken+'\').then(function(){toast(\'Copied!\')})">Copy</button><button class="dev-regen-btn" onclick="devRegenBotToken(\''+app.clientId+'\')">Regenerate</button></div><div style="font-size:11px;color:var(--muted);margin-top:4px">Use this token to authenticate bot API requests: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">Authorization: '+app.botToken+'</code></div></div>' : '')
+    +'<div class="dev-field"><label>OAuth2 URL</label><div class="dev-secret-row"><input class="dev-input" value="'+oauthUrl+'" readonly style="font-size:10px"/><button class="dev-copy-btn" onclick="navigator.clipboard.writeText(\''+oauthUrl+'\').then(function(){toast(\'Copied!\')})">Copy</button></div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:16px">'
+    +'<button class="dev-btn primary" onclick="devSaveApp(\''+app.clientId+'\')">Save Changes</button>'
+    +'<button class="dev-btn danger" onclick="devDeleteApp(\''+app.clientId+'\')">Delete App</button>'
+    +'</div>';
+}
+
+async function devSaveApp(clientId){
+  var name = document.getElementById('devEditName').value.trim();
+  var desc = document.getElementById('devEditDesc').value.trim();
+  var icon = document.getElementById('devEditIcon').value.trim();
+  var redirects = document.getElementById('devEditRedirects').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  var scopes = Array.from(document.querySelectorAll('#devContent .scope-check input:checked')).map(function(i){return i.value;});
+  if(!scopes.length) scopes=['identify'];
+  try{
+    var r = await fetch('/api/developers/apps/'+clientId, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body: JSON.stringify({name,description:desc,iconUrl:icon,redirectUris:redirects,scopes})
+    });
+    if(r.ok){ toast('✅ App saved!'); devOpenApp(clientId); }
+    else{ var d=await r.json(); toast('❌ '+(d.error||'Failed')); }
+  }catch(e){ toast('❌ Network error'); }
+}
+
+async function devDeleteApp(clientId){
+  if(!confirm('Delete this app? This cannot be undone.')) return;
+  await fetch('/api/developers/apps/'+clientId, {method:'DELETE',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  toast('App deleted');
+  devTab('apps', document.querySelector('.dev-nav-item'));
+}
+
+async function devRegenSecret(clientId){
+  if(!confirm('Regenerate client secret? Your existing integrations will stop working.')) return;
+  var r = await fetch('/api/developers/apps/'+clientId+'/reset-secret', {method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  var d = await r.json();
+  if(d.clientSecret){ toast('✅ Secret regenerated'); devOpenApp(clientId); }
+}
+
+async function devRegenBotToken(clientId){
+  if(!confirm('Regenerate bot token? Your bot will need to update its token.')) return;
+  var r = await fetch('/api/developers/apps/'+clientId+'/reset-bot-token', {method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('vt')}});
+  var d = await r.json();
+  if(d.botToken){ toast('✅ Token regenerated'); devOpenApp(clientId); }
+}
+
+async function devCreateApp(){
+  var name = prompt('App name:');
+  if(!name) return;
+  var isBot = confirm('Is this a bot? (OK = Bot, Cancel = OAuth2 app)');
+  try{
+    var r = await fetch('/api/developers/apps', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('vt')},
+      body: JSON.stringify({name, isBot, redirectUris:[], scopes:['identify']})
+    });
+    var d = await r.json();
+    if(d.clientId){ toast('✅ App created!'); devOpenApp(d.clientId); }
+    else{ toast('❌ '+(d.error||'Failed')); }
+  }catch(e){ toast('❌ Network error'); }
+}
+
+function renderDevDocs(c){
+  c.innerHTML = '<h3>📖 API Reference</h3>'
+    +'<div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px">Base URL: <code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px">'+location.origin+'</code></div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    +[
+      ['GET',  '/api/users/@me',                'Get the authorized user'],
+      ['GET',  '/api/users/@me/guilds',          'List user\'s servers (requires guilds scope)'],
+      ['GET',  '/api/guilds/:id',               'Get server info'],
+      ['GET',  '/api/guilds/:id/channels',      'List server channels'],
+      ['GET',  '/api/channels/:id/messages',    'Read messages (requires messages.read or bot)'],
+      ['POST', '/api/channels/:id/messages',    'Send a message (bot only)'],
+      ['GET',  '/oauth2/authorize',             'Start OAuth2 flow'],
+      ['POST', '/oauth2/token',                 'Exchange code for token'],
+    ].map(function(row){
+      var color = row[0]==='GET'?'#39d353':row[0]==='POST'?'#6c7cff':'#ffa500';
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid rgba(255,255,255,.05)">'
+        +'<span style="background:'+color+'22;color:'+color+';font-size:10px;font-weight:800;padding:2px 7px;border-radius:4px;flex-shrink:0;margin-top:1px">'+row[0]+'</span>'
+        +'<div><code style="font-size:12px;color:#e8e8e8">'+row[1]+'</code><div style="font-size:12px;color:var(--muted);margin-top:2px">'+row[2]+'</div></div>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div style="margin-top:20px"><h3 style="border:none;padding:0;margin-bottom:10px;font-size:13px">Authentication</h3>'
+    +'<div class="dev-code">Authorization: Bearer &lt;access_token&gt;\n\n// For bots:\nAuthorization: Bot.&lt;bot_token&gt;</div></div>'
+    +'<div style="margin-top:16px"><h3 style="border:none;padding:0;margin-bottom:10px;font-size:13px">OAuth2 Example</h3>'
+    +'<div class="dev-code">// 1. Redirect user to:\nGET '+location.origin+'/oauth2/authorize\n  ?client_id=YOUR_CLIENT_ID\n  &redirect_uri=YOUR_REDIRECT\n  &scope=identify+guilds\n  &response_type=code\n\n// 2. Exchange code:\nPOST /oauth2/token\n{\n  "grant_type": "authorization_code",\n  "code": "...",\n  "redirect_uri": "YOUR_REDIRECT",\n  "client_id": "...",\n  "client_secret": "..."\n}\n\n// 3. Use token:\nGET /api/users/@me\nAuthorization: Bearer ACCESS_TOKEN</div></div>';
+}
+
+function renderDevBots(c){
+  c.innerHTML = '<h3>🤖 Building a Bot</h3>'
+    +'<div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px">Bots can send messages, read channels, and listen to events via the Vyntra bot API.</div>'
+    +'<div style="margin-bottom:16px"><h3 style="border:none;padding:0;margin-bottom:8px;font-size:13px">Quick Start (Python)</h3>'
+    +'<div class="dev-code">import requests\n\nTOKEN = "Bot.YOUR_BOT_TOKEN"\nBASE  = "'+location.origin+'"\n\nheaders = {"Authorization": TOKEN, "Content-Type": "application/json"}\n\n# Send a message\nrequests.post(\n  f"{BASE}/api/channels/CHANNEL_ID/messages",\n  json={"content": "Hello from my bot!"},\n  headers=headers\n)\n\n# Read messages\nmsgs = requests.get(\n  f"{BASE}/api/channels/CHANNEL_ID/messages",\n  headers=headers\n).json()</div></div>'
+    +'<div><h3 style="border:none;padding:0;margin-bottom:8px;font-size:13px">Add Bot to Server</h3>'
+    +'<div style="font-size:13px;color:var(--muted);line-height:1.7">In your server\'s channel list, the server owner can go to server settings and add a bot by its Client ID. Alternatively use the API:</div>'
+    +'<div class="dev-code">POST '+location.origin+'/api/guilds/SERVER_ID/bots\nAuthorization: Bearer YOUR_USER_TOKEN\n{"clientId": "YOUR_BOT_CLIENT_ID"}</div></div>';
+}
+
 // Suppress noisy LiveKit internal logs
 (function(){
   var _warn=console.warn.bind(console);
@@ -8022,5 +8249,24 @@ function initFormatPreview(){
   };
 })();
 </script>
+
+<!-- DEVELOPER PORTAL -->
+<div id="devPortal">
+  <div class="dev-wrap">
+    <div class="dev-sidebar">
+      <h3>Developer</h3>
+      <div class="dev-nav">
+        <div class="dev-nav-item active" onclick="devTab('apps',this)">📦 My Apps</div>
+        <div class="dev-nav-item" onclick="devTab('docs',this)">📖 API Docs</div>
+        <div class="dev-nav-item" onclick="devTab('bots',this)">🤖 Bot Guide</div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--border)">
+        <button onclick="closeDevPortal()" style="width:100%;padding:7px;border-radius:8px;background:rgba(255,255,255,.05);border:none;color:var(--muted);font-size:13px;cursor:pointer">✕ Close</button>
+      </div>
+    </div>
+    <div class="dev-content" id="devContent"></div>
+  </div>
+</div>
+
 </body>
 </html>
