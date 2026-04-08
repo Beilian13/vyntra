@@ -1417,6 +1417,343 @@ app.post('/livekit/token', authMiddleware, async (req, res) => {
 });
 
 /* ══════════════════════════════════════════════
+   DEVELOPER PLATFORM — OAuth Apps & Bots
+══════════════════════════════════════════════ */
+
+/* ── Schemas ── */
+const oauthAppSchema = new mongoose.Schema({
+  owner:        { type: String, required: true },
+  name:         { type: String, required: true },
+  description:  { type: String, default: '' },
+  iconUrl:      { type: String, default: '' },
+  clientId:     { type: String, unique: true, required: true },
+  clientSecret: { type: String, required: true },
+  redirectUris: { type: [String], default: [] },
+  scopes:       { type: [String], default: ['identify'] }, // identify, guilds, messages.read
+  isBot:        { type: Boolean, default: false },
+  botToken:     { type: String, default: null },
+  botUsername:  { type: String, default: null },
+  verified:     { type: Boolean, default: false },
+  createdAt:    { type: Date, default: Date.now },
+});
+const OAuthApp = mongoose.model('OAuthApp', oauthAppSchema);
+
+const oauthCodeSchema = new mongoose.Schema({
+  code:      { type: String, unique: true, required: true },
+  clientId:  { type: String, required: true },
+  userId:    { type: String, required: true },
+  scopes:    [String],
+  redirectUri: String,
+  expiresAt: { type: Date, default: () => new Date(Date.now() + 10*60*1000) }, // 10 min
+});
+const OAuthCode = mongoose.model('OAuthCode', oauthCodeSchema);
+
+const oauthTokenSchema = new mongoose.Schema({
+  accessToken:  { type: String, unique: true, required: true },
+  refreshToken: { type: String, unique: true },
+  clientId:     String,
+  userId:       String,
+  scopes:       [String],
+  expiresAt:    { type: Date, default: () => new Date(Date.now() + 7*24*60*60*1000) }, // 7 days
+  createdAt:    { type: Date, default: Date.now },
+});
+const OAuthToken = mongoose.model('OAuthToken', oauthTokenSchema);
+
+/* ── Developer Portal Routes ── */
+
+// List my apps
+app.get('/api/developers/apps', authMiddleware, async (req, res) => {
+  try {
+    const apps = await OAuthApp.find({ owner: req.user.username }).lean();
+    res.json(apps.map(a => ({ ...a, clientSecret: undefined, botToken: undefined })));
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Create app
+app.post('/api/developers/apps', authMiddleware, async (req, res) => {
+  try {
+    const { name, description, redirectUris, scopes, isBot } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const clientId     = crypto.randomBytes(16).toString('hex');
+    const clientSecret = crypto.randomBytes(32).toString('hex');
+    let botToken = null, botUsername = null;
+    if (isBot) {
+      botToken    = 'Bot.' + crypto.randomBytes(32).toString('base64url');
+      botUsername = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '_bot';
+    }
+    const app = await OAuthApp.create({
+      owner: req.user.username, name, description: description||'',
+      clientId, clientSecret,
+      redirectUris: redirectUris||[],
+      scopes: scopes||['identify'],
+      isBot: !!isBot, botToken, botUsername,
+    });
+    res.json({ ...app.toObject() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get app (owner only, shows secrets)
+app.get('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
+  try {
+    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username }).lean();
+    if (!app) return res.status(404).json({ error: 'Not found' });
+    res.json(app);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Update app
+app.patch('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
+  try {
+    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
+    if (!app) return res.status(404).json({ error: 'Not found' });
+    const { name, description, redirectUris, scopes, iconUrl } = req.body;
+    if (name)         app.name         = name;
+    if (description !== undefined) app.description = description;
+    if (redirectUris) app.redirectUris = redirectUris;
+    if (scopes)       app.scopes       = scopes;
+    if (iconUrl !== undefined) app.iconUrl = iconUrl;
+    await app.save();
+    res.json(app.toObject());
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete app
+app.delete('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
+  try {
+    await OAuthApp.deleteOne({ clientId: req.params.clientId, owner: req.user.username });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Regenerate client secret
+app.post('/api/developers/apps/:clientId/reset-secret', authMiddleware, async (req, res) => {
+  try {
+    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
+    if (!app) return res.status(404).json({ error: 'Not found' });
+    app.clientSecret = crypto.randomBytes(32).toString('hex');
+    await app.save();
+    res.json({ clientSecret: app.clientSecret });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Regenerate bot token
+app.post('/api/developers/apps/:clientId/reset-bot-token', authMiddleware, async (req, res) => {
+  try {
+    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
+    if (!app || !app.isBot) return res.status(404).json({ error: 'Not found' });
+    app.botToken = 'Bot.' + crypto.randomBytes(32).toString('base64url');
+    await app.save();
+    res.json({ botToken: app.botToken });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── OAuth 2.0 Authorization Flow ── */
+
+// Authorization page — redirect user here to request permissions
+// GET /oauth2/authorize?client_id=X&redirect_uri=Y&scope=identify+guilds&state=Z
+app.get('/oauth2/authorize', async (req, res) => {
+  const { client_id, redirect_uri, scope, state, response_type } = req.query;
+  if (!client_id || !redirect_uri) return res.status(400).send('Missing client_id or redirect_uri');
+  const oapp = await OAuthApp.findOne({ clientId: client_id }).lean();
+  if (!oapp) return res.status(404).send('App not found');
+  if (!oapp.redirectUris.includes(redirect_uri)) return res.status(400).send('Invalid redirect_uri');
+  const scopes = (scope||'identify').split(/[\s+,]/);
+  const SCOPE_LABELS = { identify:'Know who you are', guilds:'See your servers', 'messages.read':'Read your messages' };
+  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authorize ${oapp.name} — Vyntra</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0f1220;color:#f0f2ff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#1a1d2e;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:min(400px,100%);text-align:center}
+.app-icon{width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#6c7cff,#9b6cff);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;margin:0 auto 16px;color:#fff;object-fit:cover}
+h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.sub{color:#8892b0;font-size:14px;margin-bottom:24px}
+.scopes{text-align:left;background:#111427;border-radius:10px;padding:14px 16px;margin-bottom:24px}
+.scope-item{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:14px;border-bottom:1px solid rgba(255,255,255,.04)}
+.scope-item:last-child{border-bottom:none}
+.scope-icon{font-size:16px;flex-shrink:0}
+.btns{display:flex;gap:10px}
+.btn{flex:1;padding:12px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer}
+.allow{background:linear-gradient(135deg,#6c7cff,#9b6cff);color:#fff}
+.deny{background:rgba(255,255,255,.06);color:#8892b0}
+.login-note{font-size:12px;color:#8892b0;margin-top:16px}
+</style></head><body>
+<div class="card">
+  ${oapp.iconUrl ? `<img class="app-icon" src="${oapp.iconUrl}" alt="${oapp.name}">` : `<div class="app-icon">${oapp.name[0].toUpperCase()}</div>`}
+  <h2>${oapp.name} wants access</h2>
+  <div class="sub">${oapp.description||'This app will be able to:'}</div>
+  <div class="scopes">
+    ${scopes.map(s => `<div class="scope-item"><span class="scope-icon">✓</span><span>${SCOPE_LABELS[s]||s}</span></div>`).join('')}
+  </div>
+  <form method="POST" action="/oauth2/authorize">
+    <input type="hidden" name="client_id" value="${client_id}">
+    <input type="hidden" name="redirect_uri" value="${redirect_uri}">
+    <input type="hidden" name="scope" value="${scope||'identify'}">
+    <input type="hidden" name="state" value="${state||''}">
+    <div class="btns">
+      <button type="submit" name="action" value="deny" class="btn deny">Cancel</button>
+      <button type="submit" name="action" value="allow" class="btn allow">Authorize</button>
+    </div>
+  </form>
+  <div class="login-note">You must be logged in to Vyntra to authorize this app.</div>
+</div></body></html>`);
+});
+
+// POST authorize — requires Vyntra session token in header or cookie
+app.post('/oauth2/authorize', async (req, res) => {
+  const { client_id, redirect_uri, scope, state, action } = req.body;
+  if (action === 'deny') return res.redirect(`${redirect_uri}?error=access_denied&state=${state||''}`);
+  // Require auth token from Authorization header or vt_token body param
+  const token = req.headers.authorization?.replace('Bearer ','') || req.body.vt_token;
+  if (!token) return res.redirect(`${redirect_uri}?error=login_required&state=${state||''}`);
+  let user;
+  try { user = jwt.verify(token, JWT_SECRET); } catch(e) { return res.redirect(`${redirect_uri}?error=invalid_token`); }
+  const oapp = await OAuthApp.findOne({ clientId: client_id });
+  if (!oapp || !oapp.redirectUris.includes(redirect_uri)) return res.redirect(`${redirect_uri}?error=invalid_client`);
+  const code = crypto.randomBytes(16).toString('hex');
+  await OAuthCode.create({ code, clientId: client_id, userId: user.username, scopes: (scope||'identify').split(/[\s+,]/), redirectUri: redirect_uri });
+  res.redirect(`${redirect_uri}?code=${code}&state=${state||''}`);
+});
+
+// Token exchange
+app.post('/oauth2/token', async (req, res) => {
+  const { grant_type, code, redirect_uri, client_id, client_secret, refresh_token } = req.body;
+  try {
+    if (grant_type === 'authorization_code') {
+      const oapp = await OAuthApp.findOne({ clientId: client_id, clientSecret: client_secret });
+      if (!oapp) return res.status(401).json({ error: 'invalid_client' });
+      const authCode = await OAuthCode.findOne({ code, clientId: client_id });
+      if (!authCode || authCode.expiresAt < new Date()) return res.status(400).json({ error: 'invalid_grant' });
+      if (authCode.redirectUri !== redirect_uri) return res.status(400).json({ error: 'redirect_uri_mismatch' });
+      await OAuthCode.deleteOne({ _id: authCode._id });
+      const accessToken  = crypto.randomBytes(32).toString('hex');
+      const refreshTok   = crypto.randomBytes(32).toString('hex');
+      await OAuthToken.create({ accessToken, refreshToken: refreshTok, clientId: client_id, userId: authCode.userId, scopes: authCode.scopes });
+      res.json({ access_token: accessToken, refresh_token: refreshTok, token_type: 'Bearer', expires_in: 604800, scope: authCode.scopes.join(' ') });
+    } else if (grant_type === 'refresh_token') {
+      const tok = await OAuthToken.findOne({ refreshToken: refresh_token });
+      if (!tok) return res.status(400).json({ error: 'invalid_grant' });
+      const oapp = await OAuthApp.findOne({ clientId: tok.clientId, clientSecret: client_secret });
+      if (!oapp) return res.status(401).json({ error: 'invalid_client' });
+      const newAccess  = crypto.randomBytes(32).toString('hex');
+      const newRefresh = crypto.randomBytes(32).toString('hex');
+      tok.accessToken = newAccess; tok.refreshToken = newRefresh;
+      tok.expiresAt = new Date(Date.now() + 7*24*60*60*1000);
+      await tok.save();
+      res.json({ access_token: newAccess, refresh_token: newRefresh, token_type: 'Bearer', expires_in: 604800, scope: tok.scopes.join(' ') });
+    } else {
+      res.status(400).json({ error: 'unsupported_grant_type' });
+    }
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// OAuth middleware for API routes
+async function oauthMiddleware(req, res, next) {
+  const token = (req.headers.authorization||'').replace('Bearer ','');
+  // Check if it's a bot token
+  if (token.startsWith('Bot.')) {
+    const oapp = await OAuthApp.findOne({ botToken: token, isBot: true }).lean();
+    if (!oapp) return res.status(401).json({ error: 'Invalid bot token' });
+    req.oauthApp = oapp;
+    req.user = { username: oapp.botUsername, isBot: true };
+    return next();
+  }
+  // Check OAuth access token
+  const tok = await OAuthToken.findOne({ accessToken: token }).lean();
+  if (!tok || tok.expiresAt < new Date()) return res.status(401).json({ error: 'Invalid or expired token' });
+  req.oauthUser = tok;
+  req.user = { username: tok.userId };
+  next();
+}
+
+/* ── OAuth API Endpoints (for apps to call after auth) ── */
+
+// GET /api/users/@me — get the authorized user
+app.get('/api/users/@me', oauthMiddleware, async (req, res) => {
+  try {
+    const u = await User.findOne({ username: req.user.username }, '-password -secretAnswer -totpSecret -resetToken -resetExpires -customCss -injectHtml').lean();
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    const scopes = req.oauthUser?.scopes || ['identify'];
+    const resp = { id: u._id, username: u.username, avatarUrl: u.avatarUrl, bannerColor: u.bannerColor, bio: u.bio, pronouns: u.pronouns, createdAt: u.createdAt };
+    if (scopes.includes('guilds')) resp.servers = (await VyntraServer.find({ $or:[{owner:u.username},{members:u.username}] },'name icon color isOfficial').lean()).map(s=>({id:s._id,name:s.name,icon:s.icon,color:s.color,isOfficial:s.isOfficial}));
+    res.json(resp);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/users/@me/guilds — authorized user's servers
+app.get('/api/users/@me/guilds', oauthMiddleware, async (req, res) => {
+  try {
+    const servers = await VyntraServer.find({ $or:[{owner:req.user.username},{members:req.user.username}] }, 'name icon color isOfficial description').lean();
+    res.json(servers);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/channels/:id/messages — bot can send messages
+app.post('/api/channels/:id/messages', oauthMiddleware, async (req, res) => {
+  try {
+    if (!req.oauthApp?.isBot && !req.user.isBot) return res.status(403).json({ error: 'Bots only' });
+    const { content, embeds } = req.body;
+    if (!content && !embeds) return res.status(400).json({ error: 'content required' });
+    const ch = await Channel.findById(req.params.id).lean();
+    if (!ch) return res.status(404).json({ error: 'Channel not found' });
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const botName = req.user.username;
+    const doc = { channelId: new mongoose.Types.ObjectId(req.params.id), user: botName, text: content||'', id, reactions: {}, createdAt: new Date() };
+    bufferMessage(doc);
+    const out = { type:'chat', channelId:req.params.id, room:req.params.id, user:botName, text:content||'', id, reactions:{}, seenBy:[] };
+    if (activeChannels[req.params.id]) activeChannels[req.params.id].forEach(u => sendTo(u, out));
+    res.status(201).json({ id, channelId: req.params.id, content, author: botName, timestamp: new Date() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/channels/:id/messages — read messages (requires messages.read scope)
+app.get('/api/channels/:id/messages', oauthMiddleware, async (req, res) => {
+  try {
+    const scopes = req.oauthUser?.scopes||[];
+    if (!req.user.isBot && !scopes.includes('messages.read')) return res.status(403).json({ error: 'Missing messages.read scope' });
+    const limit = Math.min(parseInt(req.query.limit)||50, 100);
+    const msgs = await Message.find({ channelId: req.params.id }).sort({ createdAt: -1 }).limit(limit).lean();
+    res.json(msgs.reverse());
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/guilds/:id — get server info
+app.get('/api/guilds/:id', oauthMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id).lean();
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    res.json({ id: srv._id, name: srv.name, icon: srv.icon, color: srv.color, description: srv.description, owner: srv.owner, memberCount: (srv.members||[]).length });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/guilds/:id/channels
+app.get('/api/guilds/:id/channels', oauthMiddleware, async (req, res) => {
+  try {
+    const channels = await Channel.find({ serverId: req.params.id }).lean();
+    res.json(channels);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Add bot to server
+app.post('/api/guilds/:id/bots', authMiddleware, async (req, res) => {
+  try {
+    const { clientId } = req.body;
+    const oapp = await OAuthApp.findOne({ clientId, isBot: true });
+    if (!oapp) return res.status(404).json({ error: 'Bot not found' });
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Server not found' });
+    if (srv.owner !== req.user.username && !srv.admins?.includes(req.user.username))
+      return res.status(403).json({ error: 'Forbidden' });
+    await VyntraServer.updateOne({ _id: srv._id }, { $addToSet: { members: oapp.botUsername } });
+    res.json({ ok: true, bot: oapp.botUsername });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ── Developer portal page ── */
+app.get('/developers', (req, res) => res.sendFile(require('path').join(__dirname, 'index.html')));
+
+/* ══════════════════════════════════════════════
    WEBSOCKET
 ══════════════════════════════════════════════ */
 const activeChannels = {};
