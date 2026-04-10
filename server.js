@@ -1,2201 +1,863 @@
-/**
- * Vyntra — server.js
- * Requires env vars: MONGO_URI, JWT_SECRET, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
- */
+// ==================== CONFIGURAÇÃO ====================
+const API_BASE = '';
+let currentUser = null;
+let isOnline = navigator.onLine;
+let syncQueue = [];
 
-const express    = require('express');
-const http       = require('http');
-const WebSocket  = require('ws');
-const mongoose   = require('mongoose');
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
-const crypto     = require('crypto');
-const path       = require('path');
-const multer     = require('multer');
-const { AccessToken } = require('livekit-server-sdk');
-const webpush    = require('web-push');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
-// TOTP 2FA
-let totp = null;
-try { const otplib = require('otplib'); totp = otplib.totp; } catch(e) {}
-
-// QR code for 2FA setup
-let QRCode = null;
-try { QRCode = require('qrcode'); } catch(e) {}
-
-// Resend email (optional — set RESEND_API_KEY env var)
-const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const RESEND_FROM    = process.env.RESEND_FROM    || 'Vyntra <noreply@vyntra.app>';
-async function sendEmail(to, subject, html) {
-  if (!RESEND_API_KEY) return false;
-  try {
-    const r = await _fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: RESEND_FROM, to, subject, html }),
-    });
-    return r.ok;
-  } catch(e) { return false; }
-}
-
-// node-fetch fallback for environments without native fetch
-let _fetch = typeof fetch !== 'undefined' ? fetch : null;
-(async () => {
-  if (!_fetch) {
-    try { const nf = await import('node-fetch'); _fetch = nf.default; } catch(e) {}
-  }
-})();
-
-const app    = express();
-const server = http.createServer(app);
-const wss    = new WebSocket.Server({ server });
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname)));
-
-/* ── CLOUDINARY UPLOAD ── */
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-const cloudStorage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const isVideo = file.mimetype.startsWith('video/');
-    const isAudio = file.mimetype.startsWith('audio/');
-    const isRaw   = file.mimetype === 'application/pdf' || file.mimetype === 'text/plain';
-    return {
-      folder:        'vyntra',
-      resource_type: isVideo ? 'video' : isAudio ? 'video' : isRaw ? 'raw' : 'image',
-      // Cloudinary uses 'video' resource_type for audio too
-      public_id:     `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      allowed_formats: ['jpg','jpeg','png','gif','webp','mp4','webm','mov','mp3','ogg','wav','aac','flac','m4a','pdf','txt'],
+// Compatibilidade Safari
+if (!window.fetch) {
+    window.fetch = function() {
+        throw new Error('Fetch not supported');
     };
-  },
-});
-const upload = multer({
-  storage: cloudStorage,
-  limits: { fileSize: 32 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = /image\/(jpeg|png|gif|webp)|video\/(mp4|webm|quicktime)|audio\/(mpeg|mp4|ogg|wav|webm|aac|flac|x-m4a)|application\/pdf|text\/plain/.test(file.mimetype);
-    cb(null, ok);
-  },
-});
-
-/* ── ENV ── */
-const MONGO_URI          = process.env.MONGO_URI          || 'mongodb://localhost/vyntra';
-const JWT_SECRET         = process.env.JWT_SECRET         || 'changeme';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
-const LIVEKIT_URL        = process.env.LIVEKIT_URL        || 'wss://your-livekit-instance.livekit.cloud';
-const PORT               = process.env.PORT               || 3000;
-const ADMIN_USER         = process.env.ADMIN_USER         || 'benrrava';
-const ADMIN_EMAIL        = process.env.ADMIN_EMAIL        || 'beilian.alvarenga@gmail.com';
-const VAPID_PUBLIC_KEY   = process.env.VAPID_PUBLIC_KEY   || '';
-const VAPID_PRIVATE_KEY  = process.env.VAPID_PRIVATE_KEY  || '';
-const VAPID_EMAIL        = process.env.VAPID_EMAIL        || 'mailto:admin@vyntra.app';
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
 
-/* ══════════════════════════════════════════════
-   SCHEMAS
-══════════════════════════════════════════════ */
-const userSchema = new mongoose.Schema({
-  username:        { type: String, unique: true, required: true },
-  email:           { type: String, unique: true, sparse: true },
-  password:        { type: String, required: true },
-  friends:         [String],
-  blockedUsers:    [String],
-  pendingFriends:  [String],
-  secretQuestion:  String,
-  secretAnswer:    String,
-  // Profile
-  bio:             { type: String, default: '' },
-  pronouns:        { type: String, default: '' },
-  statusEmoji:     { type: String, default: '' },
-  statusText:      { type: String, default: '' },
-  nowPlaying:      { type: Object, default: null }, // { game, detail, type, since }
-  bannerColor:     { type: String, default: '#6c7cff' },
-  avatarUrl:       { type: String, default: '' },
-  // Customization (saved server-side so it roams across devices)
-  customCss:       { type: String, default: '' },
-  injectHtml:      { type: String, default: '' },
-  // 2FA
-  totpSecret:      { type: String, default: null },
-  totpEnabled:     { type: Boolean, default: false },
-  // Password reset
-  resetToken:      { type: String, default: null },
-  resetExpires:    { type: Date,   default: null },
-  createdAt:       { type: Date, default: Date.now },
+// ==================== OFFLINE MODE ====================
+window.addEventListener('online', () => {
+    isOnline = true;
+    document.getElementById('offline-indicator').classList.remove('show');
+    processSyncQueue();
 });
-const User = mongoose.model('User', userSchema);
 
-const roleSchema = new mongoose.Schema({
-  name:        { type: String, required: true },
-  color:       { type: String, default: '#6c7cff' },
-  permissions: { type: [String], default: [] }, // 'send_messages','manage_channels','manage_roles','kick_members','ban_members','manage_server'
-}, { _id: true });
-
-const serverSchema = new mongoose.Schema({
-  name:        { type: String, required: true },
-  description: { type: String, default: '' },
-  icon:        { type: String, default: '' },
-  color:       { type: String, default: '#6c7cff' },
-  owner:       { type: String, required: true },
-  admins:      [String],
-  members:     [String],
-  roles:       { type: [roleSchema], default: [] },
-  memberRoles: { type: Map, of: [String], default: {} }, // username → [roleId]
-  isPublic:    { type: Boolean, default: true },
-  isOfficial:  { type: Boolean, default: false },
-  createdAt:   { type: Date, default: Date.now },
+window.addEventListener('offline', () => {
+    isOnline = false;
+    document.getElementById('offline-indicator').classList.add('show');
 });
-const VyntraServer = mongoose.model('VyntraServer', serverSchema);
 
-const channelSchema = new mongoose.Schema({
-  name:      { type: String, required: true },
-  type:      { type: String, default: 'text' }, // 'text' | 'announcement'
-  category:  { type: String, default: 'Text Channels' },
-  position:  { type: Number, default: 0 },
-  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
-  createdAt: { type: Date, default: Date.now },
-});
-const Channel = mongoose.model('Channel', channelSchema);
-
-const msgSchema = new mongoose.Schema({
-  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel' },
-  room:      String,
-  user:      String,
-  text:      String,
-  fileUrl:   String,
-  fileName:  String,
-  fileType:  String,
-  reactions: { type: Map, of: [String], default: {} },
-  replyTo:   { type: Object, default: null }, // {id, user, text}
-  id:        String,
-  editedAt:  { type: Date, default: null },
-  seenBy:    { type: [String], default: [] },
-  createdAt: { type: Date, default: Date.now },
-});
-const Message = mongoose.model('Message', msgSchema);
-
-
-const inviteSchema = new mongoose.Schema({
-  token:     { type: String, unique: true, required: true },
-  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
-  createdBy: String,
-  used:      { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
-});
-const Invite = mongoose.model('Invite', inviteSchema);
-
-/* ══════════════════════════════════════════════
-   DB MODEL — PushSubscription
-══════════════════════════════════════════════ */
-const pushSubSchema = new mongoose.Schema({
-  username:     { type: String, required: true },
-  subscription: { type: Object, required: true },
-  createdAt:    { type: Date, default: Date.now },
-});
-pushSubSchema.index({ username: 1 });
-const PushSub = mongoose.model('PushSub', pushSubSchema);
-
-const reportSchema = new mongoose.Schema({
-  reporter:  { type: String, required: true },
-  reported:  { type: String, required: true },
-  reason:    { type: String, default: '' },
-  messageId: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now },
-  reviewed:  { type: Boolean, default: false },
-});
-const Report = mongoose.model('Report', reportSchema);
-
-const stickerSchema = new mongoose.Schema({
-  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
-  name:      { type: String, required: true },
-  url:       { type: String, required: true },
-  uploadedBy:{ type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
-const Sticker = mongoose.model('Sticker', stickerSchema);
-
-const customEmojiSchema = new mongoose.Schema({
-  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
-  name:      { type: String, required: true },   // :name: shortcode
-  url:       { type: String, required: true },
-  uploadedBy:{ type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
-const CustomEmoji = mongoose.model('CustomEmoji', customEmojiSchema);
-
-/* ── Pinned Messages ── */
-const pinnedMsgSchema = new mongoose.Schema({
-  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
-  messageId: { type: String, required: true },
-  messageText: String,
-  messageUser: String,
-  messageFileUrl: String,
-  messageFileName: String,
-  pinnedBy: String,
-  createdAt: { type: Date, default: Date.now },
-});
-pinnedMsgSchema.index({ channelId: 1 });
-const PinnedMsg = mongoose.model('PinnedMsg', pinnedMsgSchema);
-
-/* ── Server Events ── */
-const serverEventSchema = new mongoose.Schema({
-  serverId:    { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
-  id:          { type: String, required: true, unique: true },
-  title:       String,
-  description: String,
-  channelId:   String,
-  startTime:   Date,
-  endTime:     Date,
-  createdBy:   String,
-  rsvp:        { type: [String], default: [] },
-  createdAt:   { type: Date, default: Date.now },
-});
-serverEventSchema.index({ serverId: 1, startTime: 1 });
-const ServerEvent = mongoose.model('ServerEvent', serverEventSchema);
-
-/* ── Bookmarks ── */
-const bookmarkSchema = new mongoose.Schema({
-  username:    { type: String, required: true },
-  messageId:   String,
-  messageText: String,
-  messageUser: String,
-  channelId:   String,
-  channelName: String,
-  serverName:  String,
-  fileUrl:     String,
-  fileName:    String,
-  note:        String,
-  createdAt:   { type: Date, default: Date.now },
-});
-bookmarkSchema.index({ username: 1, createdAt: -1 });
-const Bookmark = mongoose.model('Bookmark', bookmarkSchema);
-
-/* ── Activity Feed ── */
-const activitySchema = new mongoose.Schema({
-  username:  { type: String, required: true, index: true },
-  type:      String, // 'joined_server' | 'playing' | 'posted_thread' | 'sent_message'
-  text:      String, // human-readable
-  meta:      Object, // extra data (serverId, game name, etc)
-  createdAt: { type: Date, default: Date.now },
-});
-activitySchema.index({ username: 1, createdAt: -1 });
-const Activity = mongoose.model('Activity', activitySchema);
-
-async function logActivity(username, type, text, meta={}) {
-  try {
-    await Activity.create({ username, type, text, meta });
-    // Keep only last 100 per user
-    const docs = await Activity.find({ username }).sort({ createdAt: -1 }).skip(100).select('_id').lean();
-    if (docs.length) await Activity.deleteMany({ _id: { $in: docs.map(d => d._id) } });
-  } catch(e) {}
-}
-
-async function pushToUser(username, payload) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
-  const subs = await PushSub.find({ username }).lean();
-  for (const sub of subs) {
+function addToSyncQueue(request) {
+    syncQueue.push(request);
     try {
-      await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
-    } catch (e) {
-      if (e.statusCode === 410 || e.statusCode === 404) {
-        await PushSub.deleteOne({ _id: sub._id });
-      }
+        localStorage.setItem('v-sync-queue', JSON.stringify(syncQueue));
+    } catch(e) {
+        console.error('LocalStorage error:', e);
     }
-  }
 }
 
-/* ══════════════════════════════════════════════
-   SEED
-══════════════════════════════════════════════ */
-const DEFAULT_CHANNELS = [
-  'general','off-topic','introductions','announcements',
-  'fun','memes','random','daily-chat','hot-takes','rants',
-  'tv-shows','movies','anime','books','podcasts','documentaries',
-  'music','music-recommendations','rap','lofi','rock','edm',
-  'gaming','minecraft','valorant','fortnite','roblox','retro-gaming',
-  'dev','web-dev','ai-ml','cybersecurity','linux','gadgets',
-  'art','photography','writing','design','video-editing',
-  'food','fitness','travel','fashion','pets',
-  'news','science','history','philosophy','finance',
-  'mental-health','study-together','job-hunting',
-];
-
-let officialServerId = null;
-
-async function seedOfficialServer() {
-  let official = await VyntraServer.findOne({ isOfficial: true });
-  if (!official) {
-    official = await VyntraServer.create({
-      name: 'Vyntra Official', description: 'The official Vyntra community server',
-      icon: 'V', color: '#6c7cff', owner: '__system__',
-      isPublic: true, isOfficial: true,
-    });
-    for (const name of DEFAULT_CHANNELS) {
-      await Channel.create({ name, serverId: official._id });
-    }
-    console.log('Seeded official server');
-  }
-  officialServerId = official._id;
-}
-
-mongoose.connect(MONGO_URI).then(async () => {
-  try { await mongoose.connection.collection('messages').dropIndex('msgId_1'); } catch(e) {}
-  try {
-    await mongoose.connection.collection('messages').createIndex({ channelId: 1, createdAt: -1 });
-    await mongoose.connection.collection('messages').createIndex({ room: 1, createdAt: -1 });
-  } catch(e) {}
-  // Seed announcement channel cache
-  const annChans = await Channel.find({ type: 'announcement' }).lean();
-  annChans.forEach(c => announcementChannels.add(c._id.toString()));
-  await seedOfficialServer();
-}).catch(console.error);
-
-/* ── MESSAGE WRITE BUFFER ──
-   Batches rapid message writes to reduce Mongo round-trips.
-   Flushes every 200ms or when buffer hits 20 messages.          */
-const msgBuffer = [];
-let msgFlushTimer = null;
-function bufferMessage(doc) {
-  msgBuffer.push(doc);
-  if (msgBuffer.length >= 20) flushMessages();
-  else if (!msgFlushTimer) msgFlushTimer = setTimeout(flushMessages, 200);
-}
-async function flushMessages() {
-  clearTimeout(msgFlushTimer); msgFlushTimer = null;
-  if (!msgBuffer.length) return;
-  const batch = msgBuffer.splice(0, msgBuffer.length);
-  try { await mongoose.connection.collection('messages').insertMany(batch, { ordered: false }); }
-  catch(e) { console.error('Message flush error:', e.message); }
-}
-
-/* ══════════════════════════════════════════════
-   AUTH MIDDLEWARE
-══════════════════════════════════════════════ */
-function adminMiddleware(req, res, next) {
-  authMiddleware(req, res, async function() {
+async function processSyncQueue() {
     try {
-      if (req.user.username !== ADMIN_USER) return res.status(403).json({ error: 'Forbidden' });
-      // Double-check: verify email matches in DB — prevents impersonation via username alone
-      const u = await User.findOne({ username: ADMIN_USER }).lean();
-      if (!u || (u.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase())
-        return res.status(403).json({ error: 'Forbidden' });
-      next();
-    } catch(e) { res.status(500).json({ error: 'Server error' }); }
-  });
-}
-
-function authMiddleware(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch(e) { res.status(401).json({ error: 'Unauthorized' }); }
-}
-
-/* ── STATIC / PWA ── */
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-// Inline SVG favicon — stops 404 in browser console
-app.get('/favicon.ico', (req, res) => {
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>');
-});
-app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
-app.get('/companion', (req, res) => res.download(path.join(__dirname, 'vyntra_presence.py'), 'vyntra_presence.py'));
-
-/* ── ADMIN ROUTES (benrrava only) ── */
-
-// List all users
-app.get('/admin/users', adminMiddleware, async (req, res) => {
-  try {
-    const users = await User.find({}, 'username email createdAt friends').sort({ createdAt: -1 }).lean();
-    const online = Object.keys(clients);
-    res.json(users.map(u => ({ ...u, online: online.includes(u.username) })));
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Delete a user account + clean up all their data
-app.delete('/admin/users/:username', adminMiddleware, async (req, res) => {
-  try {
-    const target = req.params.username;
-    // Protect the real admin account (must match both username AND email)
-    const targetUser = await User.findOne({ username: target }).lean();
-    if (target === ADMIN_USER && targetUser && (targetUser.email||'').toLowerCase() === ADMIN_EMAIL.toLowerCase())
-      return res.status(400).json({ error: 'Cannot delete the admin account' });
-    // Force disconnect WS
-    if (clients[target]) {
-      try { clients[target].close(); } catch(e) {}
-    }
-    // Remove from all friends lists
-    await User.updateMany({ friends: target }, { $pull: { friends: target } });
-    // Transfer owned servers to nobody (delete them) or just remove member
-    const ownedServers = await VyntraServer.find({ owner: target }).lean();
-    for (const srv of ownedServers) {
-      await Channel.deleteMany({ serverId: srv._id });
-      await Message.deleteMany({ channelId: { $in: (await Channel.find({ serverId: srv._id }).lean()).map(c => c._id) } });
-      await VyntraServer.deleteOne({ _id: srv._id });
-    }
-    // Remove from member/admin lists on other servers
-    await VyntraServer.updateMany({}, { $pull: { members: target, admins: target } });
-    // Delete their messages (optional — keeps chat history by default, just deletes account)
-    // await Message.deleteMany({ user: target });
-    // Delete their push subs
-    await PushSub.deleteMany({ username: target });
-    // Delete user
-    await User.deleteOne({ username: target });
-    res.json({ ok: true });
-  } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
-});
-
-// Force-kick (disconnect WS session without deleting account)
-app.post('/admin/users/:username/kick', adminMiddleware, async (req, res) => {
-  try {
-    const target = req.params.username;
-    if (clients[target]) {
-      sendTo(target, { type: 'system', text: '🚫 You have been disconnected by an admin.' });
-      setTimeout(() => { try { clients[target].close(); } catch(e) {} }, 300);
-    }
-    res.json({ ok: true, wasOnline: target in clients });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Reset a user's password
-app.post('/admin/users/:username/reset-password', adminMiddleware, async (req, res) => {
-  try {
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'Password too short' });
-    const hash = await bcrypt.hash(newPassword, 10);
-    await User.updateOne({ username: req.params.username }, { password: hash, secretAnswer: null });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Get user details
-app.get('/admin/users/:username', adminMiddleware, async (req, res) => {
-  try {
-    const u = await User.findOne({ username: req.params.username }, '-password').lean();
-    if (!u) return res.status(404).json({ error: 'Not found' });
-    const servers = await VyntraServer.find({ $or: [{ owner: u.username }, { members: u.username }] }, 'name owner isOfficial').lean();
-    const msgCount = await Message.countDocuments({ user: u.username });
-    res.json({ ...u, servers, msgCount, online: u.username in clients });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── BLOCK / REPORT ── */
-app.post('/users/:username/block', authMiddleware, async (req, res) => {
-  try {
-    const target = req.params.username;
-    if (target === req.user.username) return res.status(400).json({ error: 'Cannot block yourself' });
-    await User.updateOne({ username: req.user.username }, { $addToSet: { blockedUsers: target }, $pull: { friends: target, pendingFriends: target } });
-    await User.updateOne({ username: target }, { $pull: { friends: req.user.username } });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/users/:username/unblock', authMiddleware, async (req, res) => {
-  try {
-    await User.updateOne({ username: req.user.username }, { $pull: { blockedUsers: req.params.username } });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/users/:username/report', authMiddleware, async (req, res) => {
-  try {
-    const { reason, messageId } = req.body;
-    await Report.create({ reporter: req.user.username, reported: req.params.username, reason: reason||'', messageId: messageId||null });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-// Admin: list reports
-app.get('/admin/reports', adminMiddleware, async (req, res) => {
-  try {
-    const reports = await Report.find().sort({ createdAt: -1 }).limit(100).lean();
-    res.json(reports);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/admin/reports/:id/review', adminMiddleware, async (req, res) => {
-  try {
-    await Report.updateOne({ _id: req.params.id }, { reviewed: true });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-
-/* ── USER PROFILE ── */
-app.get('/profile/:username', async (req, res) => {
-  try {
-    const u = await User.findOne({ username: req.params.username }, '-password -secretAnswer -blockedUsers -pendingFriends -customCss -injectHtml -totpSecret -resetToken -resetExpires').lean();
-    if (!u) return res.status(404).json({ error: 'Not found' });
-    res.json(u);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.patch('/profile', authMiddleware, async (req, res) => {
-  try {
-    const { bio, pronouns, statusEmoji, statusText, bannerColor, avatarUrl, nowPlaying } = req.body;
-    const update = {};
-    if (bio         !== undefined) update.bio         = bio.slice(0, 300);
-    if (pronouns    !== undefined) update.pronouns    = pronouns.slice(0, 40);
-    if (statusEmoji !== undefined) update.statusEmoji = statusEmoji.slice(0, 8);
-    if (statusText  !== undefined) update.statusText  = statusText.slice(0, 80);
-    if (bannerColor !== undefined) update.bannerColor = bannerColor;
-    if (avatarUrl   !== undefined) update.avatarUrl   = avatarUrl;
-    if (nowPlaying  !== undefined) update.nowPlaying  = nowPlaying; // null to clear
-    await User.updateOne({ username: req.user.username }, update);
-    const updated = await User.findOne({ username: req.user.username }, '-password -secretAnswer').lean();
-    // Broadcast status change to online users
-    broadcastAll({ type: 'status_update', username: req.user.username, statusEmoji: updated.statusEmoji, statusText: updated.statusText, avatarUrl: updated.avatarUrl, nowPlaying: updated.nowPlaying });
-    // Log activity if now playing changed
-    if (nowPlaying !== undefined && nowPlaying) {
-      logActivity(req.user.username, 'playing', `Playing ${nowPlaying.game}`, { game: nowPlaying.game, detail: nowPlaying.detail });
-    }
-    res.json({ ok: true, profile: updated });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-// Save custom CSS/HTML (private — only returned to the owner)
-app.patch('/profile/customization', authMiddleware, async (req, res) => {
-  try {
-    const { customCss, injectHtml } = req.body;
-    const update = {};
-    if (customCss   !== undefined) update.customCss   = customCss.slice(0, 50000);
-    if (injectHtml  !== undefined) update.injectHtml  = injectHtml.slice(0, 50000);
-    await User.updateOne({ username: req.user.username }, update);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.get('/profile/customization/me', authMiddleware, async (req, res) => {
-  try {
-    const u = await User.findOne({ username: req.user.username }, 'customCss injectHtml').lean();
-    res.json({ customCss: u?.customCss||'', injectHtml: u?.injectHtml||'' });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── STICKERS ── */
-// List stickers for a server
-app.get('/servers/:id/stickers', authMiddleware, async (req, res) => {
-  try {
-    const stickers = await Sticker.find({ serverId: req.params.id }).lean();
-    res.json(stickers);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-// Upload sticker (image only, stored on Cloudinary)
-app.post('/servers/:id/stickers', authMiddleware, upload.single('file'), async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
-      return res.status(403).json({ error: 'Forbidden' });
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    const sticker = await Sticker.create({ serverId: srv._id, name: name.slice(0,32), url: req.file.path, uploadedBy: req.user.username });
-    broadcastToServer(srv, { type: 'sticker_added', serverId: srv._id.toString(), sticker });
-    res.json(sticker);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.delete('/servers/:id/stickers/:sid', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv || (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)))
-      return res.status(403).json({ error: 'Forbidden' });
-    await Sticker.deleteOne({ _id: req.params.sid, serverId: srv._id });
-    broadcastToServer(srv, { type: 'sticker_removed', serverId: srv._id.toString(), stickerId: req.params.sid });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── CUSTOM EMOJI ── */
-app.get('/servers/:id/emoji', authMiddleware, async (req, res) => {
-  try {
-    const emoji = await CustomEmoji.find({ serverId: req.params.id }).lean();
-    res.json(emoji);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/servers/:id/emoji', authMiddleware, upload.single('file'), async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
-      return res.status(403).json({ error: 'Forbidden' });
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    let { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    name = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32);
-    // Check for duplicates within this server
-    const exists = await CustomEmoji.findOne({ serverId: srv._id, name });
-    if (exists) return res.status(400).json({ error: 'Emoji name already exists on this server' });
-    const emoji = await CustomEmoji.create({ serverId: srv._id, name, url: req.file.path, uploadedBy: req.user.username });
-    broadcastToServer(srv, { type: 'emoji_added', serverId: srv._id.toString(), emoji });
-    res.json(emoji);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.delete('/servers/:id/emoji/:eid', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv || (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)))
-      return res.status(403).json({ error: 'Forbidden' });
-    await CustomEmoji.deleteOne({ _id: req.params.eid, serverId: srv._id });
-    broadcastToServer(srv, { type: 'emoji_removed', serverId: srv._id.toString(), emojiId: req.params.eid });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── SERVER ROLES ── */
-app.get('/servers/:id/roles', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id).lean();
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    res.json({ roles: srv.roles||[], memberRoles: Object.fromEntries(srv.memberRoles||new Map()) });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/servers/:id/roles', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
-    const { name, color, permissions } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    srv.roles.push({ name, color: color||'#6c7cff', permissions: permissions||[] });
-    await srv.save();
-    const role = srv.roles[srv.roles.length-1];
-    broadcastToServer(srv, { type: 'roles_updated', serverId: srv._id.toString(), roles: srv.roles });
-    res.json(role);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.delete('/servers/:id/roles/:roleId', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv || srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
-    srv.roles = srv.roles.filter(r => r._id.toString() !== req.params.roleId);
-    await srv.save();
-    broadcastToServer(srv, { type: 'roles_updated', serverId: srv._id.toString(), roles: srv.roles });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/servers/:id/members/:username/roles', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)) return res.status(403).json({ error: 'Forbidden' });
-    const { roleIds } = req.body; // array of role IDs
-    srv.memberRoles.set(req.params.username, roleIds||[]);
-    await srv.save();
-    broadcastToServer(srv, { type: 'member_roles_updated', serverId: srv._id.toString(), username: req.params.username, roleIds: roleIds||[] });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── CHANNEL CATEGORY ── */
-app.patch('/servers/:id/channels/:cid/category', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)) return res.status(403).json({ error: 'Forbidden' });
-    const { category } = req.body;
-    await Channel.updateOne({ _id: req.params.cid, serverId: srv._id }, { category: category||'Text Channels' });
-    const allChannels = await Channel.find({ serverId: srv._id }).lean();
-    broadcastToServer(srv, { type: 'channels_updated', serverId: srv._id.toString(), channels: allChannels });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── AI PROXY ── */
-app.post('/ai/chat', authMiddleware, async (req, res) => {
-  try {
-    if (!OPENROUTER_API_KEY) return res.status(503).json({ error: 'AI not configured — set OPENROUTER_API_KEY in Render env vars' });
-    if (!_fetch) return res.status(503).json({ error: 'fetch not available on this server' });
-    const { messages, system } = req.body;
-    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Invalid messages array' });
-
-    const makeRequest = async (model) => {
-      return _fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer':  'https://vyntra-zlfn.onrender.com',
-          'X-Title':       'Vyntra',
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1000,
-          messages: [
-            { role: 'system', content: system || 'You are Vyntra AI, a helpful assistant embedded in a chat app. Be concise and friendly.' },
-            ...messages.slice(-10),
-          ],
-        }),
-      });
-    };
-
-    let response = await makeRequest('deepseek/deepseek-chat-v3-0324:free');
-    let data = await response.json();
-
-    // If primary model fails, fall back to openrouter/free auto-router
-    if (!response.ok || data?.error) {
-      console.warn('Primary AI model failed, trying fallback:', data?.error?.message);
-      response = await makeRequest('openrouter/auto');
-      data = await response.json();
-    }
-
-    if (!response.ok) {
-      console.error('OpenRouter API error:', response.status, JSON.stringify(data));
-      return res.status(500).json({ error: data?.error?.message || `OpenRouter returned ${response.status}` });
-    }
-    const text = data.choices?.[0]?.message?.content || '(no response)';
-    res.json({ text });
-  } catch (e) {
-    console.error('AI proxy exception:', e);
-    res.status(500).json({ error: e.message || 'AI request failed' });
-  }
-});
-
-/* ── PUSH NOTIFICATIONS ── */
-app.get('/push/vapid-public-key', (req, res) => {
-  res.json({ key: VAPID_PUBLIC_KEY || null });
-});
-app.post('/push/subscribe', authMiddleware, async (req, res) => {
-  try {
-    const { subscription } = req.body;
-    if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid' });
-    await PushSub.findOneAndUpdate(
-      { username: req.user.username, 'subscription.endpoint': subscription.endpoint },
-      { username: req.user.username, subscription, createdAt: new Date() },
-      { upsert: true }
-    );
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-app.post('/push/unsubscribe', authMiddleware, async (req, res) => {
-  try {
-    const { endpoint } = req.body;
-    if (endpoint) await PushSub.deleteMany({ username: req.user.username, 'subscription.endpoint': endpoint });
-    else await PushSub.deleteMany({ username: req.user.username });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── FILE UPLOAD ── */
-app.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  res.json({
-    url:      req.file.path,          // Cloudinary CDN URL (permanent)
-    fileName: req.file.originalname,
-    fileType: req.file.mimetype,
-  });
-});
-app.get('/sw.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Service-Worker-Allowed', '/');
-  res.sendFile(path.join(__dirname, 'sw.js'));
-});
-
-/* ══════════════════════════════════════════════
-   AUTH ROUTES
-══════════════════════════════════════════════ */
-app.post('/auth/register', async (req, res) => {
-  try {
-    const { username, email, password, secretQuestion, secretAnswer } = req.body;
-    if (!username || !password || !secretQuestion || !secretAnswer)
-      return res.status(400).json({ error: 'All fields required' });
-    if (await User.findOne({ username })) return res.status(400).json({ error: 'Username already taken' });
-    if (email && await User.findOne({ email })) return res.status(400).json({ error: 'Email already taken' });
-    const hash = await bcrypt.hash(password, 10);
-    const answerHash = await bcrypt.hash(secretAnswer.trim().toLowerCase(), 10);
-    const user = await User.create({ username, email: email||undefined, password: hash, secretQuestion, secretAnswer: answerHash });
-    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username, friends: [] });
-  } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/auth/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'All fields required' });
-    const user = await User.findOne({ username });
-    if (!user || !await bcrypt.compare(password, user.password))
-      return res.status(401).json({ error: 'Invalid credentials' });
-    // Signal what next step is needed
-    res.json({
-      username: user.username,
-      secretQuestion: user.secretQuestion || null,
-      requires2FA: user.totpEnabled || false,
-    });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/auth/verify', async (req, res) => {
-  try {
-    const { username, secretAnswer } = req.body;
-    if (!username || !secretAnswer) return res.status(400).json({ error: 'Missing fields' });
-    const user = await User.findOne({ username });
-    if (!user) return res.status(401).json({ error: 'Wrong answer' });
-    if (!user.secretAnswer) {
-      const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-      return res.json({ token, username: user.username, friends: user.friends, requires2FA: user.totpEnabled||false });
-    }
-    if (!await bcrypt.compare(secretAnswer.trim().toLowerCase(), user.secretAnswer))
-      return res.status(401).json({ error: 'Wrong answer' });
-    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username, friends: user.friends, requires2FA: user.totpEnabled||false });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── 2FA verify TOTP code (final login step) ── */
-app.post('/auth/verify-2fa', async (req, res) => {
-  try {
-    const { username, code } = req.body;
-    if (!username || !code) return res.status(400).json({ error: 'Missing fields' });
-    if (!totp) return res.status(503).json({ error: '2FA not available (otplib not installed)' });
-    const user = await User.findOne({ username });
-    if (!user || !user.totpEnabled || !user.totpSecret)
-      return res.status(400).json({ error: '2FA not enabled for this account' });
-    const valid = totp.verify({ token: code.replace(/\s/g,''), secret: user.totpSecret });
-    if (!valid) return res.status(401).json({ error: 'Invalid 2FA code' });
-    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, username: user.username, friends: user.friends });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── 2FA setup: generate secret + QR ── */
-app.post('/auth/2fa/setup', authMiddleware, async (req, res) => {
-  try {
-    if (!totp || !QRCode) return res.status(503).json({ error: '2FA libraries not available' });
-    const secret = totp.generateSecret(20);
-    const otpauth = `otpauth://totp/Vyntra:${req.user.username}?secret=${secret}&issuer=Vyntra&algorithm=SHA1&digits=6&period=30`;
-    const qr = await QRCode.toDataURL(otpauth);
-    // Store secret temporarily — confirmed on /auth/2fa/enable
-    await User.updateOne({ username: req.user.username }, { totpSecret: secret });
-    res.json({ secret, qr });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── 2FA enable: confirm with first code ── */
-app.post('/auth/2fa/enable', authMiddleware, async (req, res) => {
-  try {
-    if (!totp) return res.status(503).json({ error: '2FA not available' });
-    const { code } = req.body;
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || !user.totpSecret) return res.status(400).json({ error: 'Run /auth/2fa/setup first' });
-    const valid = totp.verify({ token: (code||'').replace(/\s/g,''), secret: user.totpSecret });
-    if (!valid) return res.status(401).json({ error: 'Invalid code — try again' });
-    await User.updateOne({ username: req.user.username }, { totpEnabled: true });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── 2FA disable ── */
-app.post('/auth/2fa/disable', authMiddleware, async (req, res) => {
-  try {
-    if (!totp) return res.status(503).json({ error: '2FA not available' });
-    const { code } = req.body;
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || !user.totpEnabled) return res.status(400).json({ error: '2FA is not enabled' });
-    const valid = totp.verify({ token: (code||'').replace(/\s/g,''), secret: user.totpSecret });
-    if (!valid) return res.status(401).json({ error: 'Invalid code' });
-    await User.updateOne({ username: req.user.username }, { totpEnabled: false, totpSecret: null });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── Forgot password — send reset email ── */
-app.post('/auth/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email required' });
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
-    // Always return success to prevent user enumeration
-    if (!user) return res.json({ ok: true });
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await User.updateOne({ _id: user._id }, { resetToken: token, resetExpires: expires });
-    const resetUrl = `${process.env.APP_URL || 'https://vyntra-zlfn.onrender.com'}/?reset=${token}`;
-    await sendEmail(user.email, 'Reset your Vyntra password', `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0f1220;color:#f0f2ff;border-radius:12px">
-        <h2 style="margin:0 0 16px;font-size:22px">⚡ Reset your password</h2>
-        <p style="color:#8892b0;line-height:1.6">Someone requested a password reset for your Vyntra account <b style="color:#f0f2ff">@${user.username}</b>. If this wasn't you, ignore this email.</p>
-        <a href="${resetUrl}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:linear-gradient(135deg,#6c7cff,#9b6cff);color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">Reset Password</a>
-        <p style="color:#8892b0;font-size:12px">This link expires in 1 hour.</p>
-      </div>
-    `);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── Reset password with token ── */
-app.post('/auth/reset-password', async (req, res) => {
-  try {
-    const { token, password } = req.body;
-    if (!token || !password) return res.status(400).json({ error: 'Missing fields' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password too short (min 6 chars)' });
-    const user = await User.findOne({ resetToken: token, resetExpires: { $gt: new Date() } });
-    if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
-    const hash = await bcrypt.hash(password, 10);
-    await User.updateOne({ _id: user._id }, { password: hash, resetToken: null, resetExpires: null });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-
-/* ══════════════════════════════════════════════
-   SERVER ROUTES
-══════════════════════════════════════════════ */
-app.get('/servers', async (req, res) => {
-  try {
-    const servers = await VyntraServer.find({ isPublic: true }).lean();
-    res.json(servers.map(s => ({ ...s, memberCount: (s.members||[]).length })));
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/servers/mine', authMiddleware, async (req, res) => {
-  try {
-    const servers = await VyntraServer.find({
-      $or: [{ members: req.user.username }, { owner: req.user.username }, { isOfficial: true }]
-    }).lean();
-    res.json(servers);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/servers', authMiddleware, async (req, res) => {
-  try {
-    const { name, description, icon, color, isPublic } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    const srv = await VyntraServer.create({
-      name, description: description||'', icon: icon||name[0].toUpperCase(),
-      color: color||'#6c7cff', owner: req.user.username,
-      members: [req.user.username], isPublic: isPublic !== false,
-    });
-    await Channel.create({ name: 'general', serverId: srv._id });
-    const channels = await Channel.find({ serverId: srv._id }).lean();
-    res.json({ server: srv, channels });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/servers/:id/channels', async (req, res) => {
-  try {
-    const channels = await Channel.find({ serverId: req.params.id }).lean();
-    res.json(channels);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/servers/:id/channels', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
-      return res.status(403).json({ error: 'Forbidden' });
-    const { name, type, category } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    const chType = ['text','announcement'].includes(type) ? type : 'text';
-    const chCategory = category || 'Text Channels';
-    const ch = await Channel.create({ name: name.toLowerCase().replace(/\s+/g,'-'), type: chType, category: chCategory, serverId: srv._id });
-    if (chType === 'announcement') announcementChannels.add(ch._id.toString());
-    // Notify all members online
-    (srv.members||[]).forEach(m => sendTo(m, { type: 'channel_added', serverId: srv._id.toString(), channel: ch }));
-    res.json(ch);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.delete('/servers/:id/channels/:cid', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
-    await Channel.deleteOne({ _id: req.params.cid, serverId: srv._id });
-    (srv.members||[]).forEach(m => sendTo(m, { type: 'channel_removed', serverId: srv._id.toString(), channelId: req.params.cid }));
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/servers/:id/join', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (!srv.isPublic) return res.status(403).json({ error: 'Private — use invite link' });
-    await VyntraServer.updateOne({ _id: srv._id }, { $addToSet: { members: req.user.username } });
-    const channels = await Channel.find({ serverId: srv._id }).lean();
-    res.json({ ok: true, server: srv, channels });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/servers/:id/leave', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.isOfficial) return res.status(400).json({ error: 'Cannot leave official server' });
-    if (srv.owner === req.user.username) return res.status(400).json({ error: 'Owner cannot leave' });
-    await VyntraServer.updateOne({ _id: srv._id }, { $pull: { members: req.user.username } });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.delete('/servers/:id', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.isOfficial) return res.status(400).json({ error: 'Cannot delete official server' });
-    if (srv.owner !== req.user.username) return res.status(403).json({ error: 'Forbidden' });
-    await Channel.deleteMany({ serverId: srv._id });
-    await VyntraServer.deleteOne({ _id: srv._id });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ══════════════════════════════════════════════
-   INVITE ROUTES
-══════════════════════════════════════════════ */
-app.post('/servers/:id/invite', authMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
-      return res.status(403).json({ error: 'Forbidden' });
-    const token = crypto.randomBytes(8).toString('hex');
-    await Invite.create({ token, serverId: srv._id, createdBy: req.user.username });
-    res.json({ token, url: `/invite/${token}` });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/api/invite/:token', async (req, res) => {
-  try {
-    const invite = await Invite.findOne({ token: req.params.token, used: false });
-    if (!invite) return res.status(404).json({ error: 'Invite not found or already used' });
-    const srv = await VyntraServer.findById(invite.serverId).lean();
-    if (!srv) return res.status(404).json({ error: 'Server not found' });
-    res.json({ valid: true, server: { ...srv, memberCount: (srv.members||[]).length } });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/api/invite/:token/accept', authMiddleware, async (req, res) => {
-  try {
-    const invite = await Invite.findOne({ token: req.params.token, used: false });
-    if (!invite) return res.status(404).json({ error: 'Invite not found or already used' });
-    invite.used = true;
-    await invite.save();
-    await VyntraServer.updateOne({ _id: invite.serverId }, { $addToSet: { members: req.user.username } });
-    const srv = await VyntraServer.findById(invite.serverId).lean();
-    const channels = await Channel.find({ serverId: invite.serverId }).lean();
-    res.json({ ok: true, server: srv, channels });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Serve invite page (SPA handles it)
-app.get('/invite/:token', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-/* ══════════════════════════════════════════════
-   MESSAGES REST
-══════════════════════════════════════════════ */
-app.get('/channels/:id/messages', async (req, res) => {
-  try {
-    const msgs = await Message.find({ channelId: req.params.id }).sort({ createdAt: -1 }).limit(50).lean();
-    msgs.reverse();
-    res.json(msgs.map(m => {
-      const reactions = {};
-      if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-      return { ...m, reactions };
-    }));
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── MESSAGE SEARCH ── */
-app.get('/channels/:id/search', authMiddleware, async (req, res) => {
-  try {
-    const q = (req.query.q || '').trim();
-    if (!q) return res.json([]);
-    const msgs = await Message.find({
-      channelId: req.params.id,
-      text: { $regex: q, $options: 'i' }
-    }).sort({ createdAt: -1 }).limit(40).lean();
-    res.json(msgs.map(m => {
-      const reactions = {};
-      if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-      return { ...m, reactions };
-    }));
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ══════════════════════════════════════════════
-   THREADS  (Reddit-style: standalone posts per channel)
-══════════════════════════════════════════════ */
-const threadSchema = new mongoose.Schema({
-  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true, index: true },
-  id:        { type: String, required: true, unique: true },
-  author:    String,
-  title:     String,
-  body:      String,
-  fileUrl:   String,
-  fileName:  String,
-  fileType:  String,
-  upvotes:   { type: [String], default: [] },
-  downvotes: { type: [String], default: [] },
-  commentCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-});
-const channelThread = mongoose.model('ChannelThread', threadSchema);
-
-const threadCommentSchema = new mongoose.Schema({
-  threadId:  { type: String, required: true, index: true },
-  id:        String,
-  author:    String,
-  text:      String,
-  upvotes:   { type: [String], default: [] },
-  editedAt:  { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now },
-});
-threadCommentSchema.index({ threadId: 1, createdAt: 1 });
-const ThreadComment = mongoose.model('ThreadComment', threadCommentSchema);
-
-/* GET all threads for a channel */
-app.get('/channels/:id/threads', authMiddleware, async (req, res) => {
-  try {
-    const threads = await channelThread.find({ channelId: req.params.id })
-      .sort({ createdAt: -1 }).limit(100).lean();
-    res.json(threads);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* POST create a thread */
-app.post('/channels/:id/threads', authMiddleware, async (req, res) => {
-  try {
-    const { title, body, fileUrl, fileName, fileType } = req.body;
-    if (!title) return res.status(400).json({ error: 'Title required' });
-    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const thread = await channelThread.create({
-      channelId: req.params.id, id,
-      author: req.user.username, title, body, fileUrl, fileName, fileType,
-    });
-    // Broadcast to channel members
-    const members = activeChannels[req.params.id] || new Set();
-    members.forEach(u => sendTo(u, { type: 'thread_new', channelId: req.params.id, thread: thread.toObject() }));
-    res.json({ ok: true, thread: thread.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* DELETE a thread */
-app.delete('/channels/:cid/threads/:tid', authMiddleware, async (req, res) => {
-  try {
-    const t = await channelThread.findOne({ id: req.params.tid });
-    if (!t) return res.status(404).json({ error: 'Not found' });
-    if (t.author !== req.user.username) return res.status(403).json({ error: 'Not yours' });
-    await channelThread.deleteOne({ id: req.params.tid });
-    await ThreadComment.deleteMany({ threadId: req.params.tid });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* POST vote on a thread */
-app.post('/threads/:tid/vote', authMiddleware, async (req, res) => {
-  try {
-    const { dir } = req.body; // 'up' | 'down' | null
-    const t = await channelThread.findOne({ id: req.params.tid });
-    if (!t) return res.status(404).json({ error: 'Not found' });
-    const u = req.user.username;
-    t.upvotes   = t.upvotes.filter(x => x !== u);
-    t.downvotes = t.downvotes.filter(x => x !== u);
-    if (dir === 'up')   t.upvotes.push(u);
-    if (dir === 'down') t.downvotes.push(u);
-    await t.save();
-    res.json({ ok: true, upvotes: t.upvotes, downvotes: t.downvotes });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* GET comments for a thread */
-app.get('/threads/:tid/comments', authMiddleware, async (req, res) => {
-  try {
-    const comments = await ThreadComment.find({ threadId: req.params.tid })
-      .sort({ createdAt: 1 }).limit(200).lean();
-    res.json(comments);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* POST add a comment */
-app.post('/threads/:tid/comments', authMiddleware, async (req, res) => {
-  try {
-    const { text, channelId } = req.body;
-    if (!text) return res.status(400).json({ error: 'Empty comment' });
-    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const comment = await ThreadComment.create({
-      threadId: req.params.tid, id,
-      author: req.user.username, text,
-    });
-    await channelThread.updateOne({ id: req.params.tid }, { $inc: { commentCount: 1 } });
-    if (channelId) {
-      const members = activeChannels[channelId] || new Set();
-      members.forEach(u => sendTo(u, { type: 'thread_comment', threadId: req.params.tid, comment: comment.toObject() }));
-    }
-    res.json({ ok: true, comment: comment.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* DELETE a comment */
-app.delete('/threads/comment/:cid', authMiddleware, async (req, res) => {
-  try {
-    const c = await ThreadComment.findOne({ id: req.params.cid });
-    if (!c) return res.status(404).json({ error: 'Not found' });
-    if (c.author !== req.user.username) return res.status(403).json({ error: 'Not yours' });
-    await ThreadComment.deleteOne({ id: req.params.cid });
-    await channelThread.updateOne({ id: c.threadId }, { $inc: { commentCount: -1 } });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* POST vote on a comment */
-app.post('/threads/comment/:cid/vote', authMiddleware, async (req, res) => {
-  try {
-    const { dir } = req.body;
-    const c = await ThreadComment.findOne({ id: req.params.cid });
-    if (!c) return res.status(404).json({ error: 'Not found' });
-    const u = req.user.username;
-    c.upvotes = c.upvotes.filter(x => x !== u);
-    if (dir === 'up') c.upvotes.push(u);
-    await c.save();
-    res.json({ ok: true, upvotes: c.upvotes });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ══════════════════════════════════════════════
-   PINNED MESSAGES
-══════════════════════════════════════════════ */
-app.get('/channels/:id/pins', authMiddleware, async (req, res) => {
-  try {
-    const pins = await PinnedMsg.find({ channelId: req.params.id }).sort({ createdAt: -1 }).lean();
-    res.json(pins);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/channels/:id/pins', authMiddleware, async (req, res) => {
-  try {
-    const { messageId, messageText, messageUser, messageFileUrl, messageFileName } = req.body;
-    if (!messageId) return res.status(400).json({ error: 'messageId required' });
-    const existing = await PinnedMsg.findOne({ channelId: req.params.id, messageId });
-    if (existing) return res.status(409).json({ error: 'Already pinned' });
-    const pin = await PinnedMsg.create({ channelId: req.params.id, messageId, messageText, messageUser, messageFileUrl, messageFileName, pinnedBy: req.user.username });
-    // Broadcast to channel
-    const members = activeChannels[req.params.id] || new Set();
-    members.forEach(u => sendTo(u, { type: 'pin_added', channelId: req.params.id, pin: pin.toObject() }));
-    res.json({ ok: true, pin: pin.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/channels/:id/pins/:messageId', authMiddleware, async (req, res) => {
-  try {
-    await PinnedMsg.deleteOne({ channelId: req.params.id, messageId: req.params.messageId });
-    const members = activeChannels[req.params.id] || new Set();
-    members.forEach(u => sendTo(u, { type: 'pin_removed', channelId: req.params.id, messageId: req.params.messageId }));
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ══════════════════════════════════════════════
-   SERVER EVENTS
-══════════════════════════════════════════════ */
-app.get('/servers/:id/events', authMiddleware, async (req, res) => {
-  try {
-    const events = await ServerEvent.find({ serverId: req.params.id }).sort({ startTime: 1 }).lean();
-    res.json(events);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/servers/:id/events', authMiddleware, async (req, res) => {
-  try {
-    const { title, description, channelId, startTime, endTime } = req.body;
-    if (!title || !startTime) return res.status(400).json({ error: 'title and startTime required' });
-    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const event = await ServerEvent.create({ serverId: req.params.id, id, title, description, channelId, startTime: new Date(startTime), endTime: endTime ? new Date(endTime) : null, createdBy: req.user.username });
-    const srv = await VyntraServer.findById(req.params.id).lean();
-    if (srv) broadcastToServer(srv, { type: 'event_new', serverId: req.params.id, event: event.toObject() });
-    res.json({ ok: true, event: event.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/servers/:id/events/:eid/rsvp', authMiddleware, async (req, res) => {
-  try {
-    const event = await ServerEvent.findOne({ id: req.params.eid });
-    if (!event) return res.status(404).json({ error: 'Not found' });
-    const u = req.user.username;
-    const idx = event.rsvp.indexOf(u);
-    if (idx >= 0) event.rsvp.splice(idx, 1); else event.rsvp.push(u);
-    await event.save();
-    const srv = await VyntraServer.findById(req.params.id).lean();
-    if (srv) broadcastToServer(srv, { type: 'event_rsvp', eventId: req.params.eid, rsvp: event.rsvp });
-    res.json({ ok: true, rsvp: event.rsvp });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/servers/:id/events/:eid', authMiddleware, async (req, res) => {
-  try {
-    const event = await ServerEvent.findOne({ id: req.params.eid });
-    if (!event) return res.status(404).json({ error: 'Not found' });
-    if (event.createdBy !== req.user.username) return res.status(403).json({ error: 'Not yours' });
-    await ServerEvent.deleteOne({ id: req.params.eid });
-    const srv = await VyntraServer.findById(req.params.id).lean();
-    if (srv) broadcastToServer(srv, { type: 'event_deleted', eventId: req.params.eid });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ══════════════════════════════════════════════
-   BOOKMARKS
-══════════════════════════════════════════════ */
-app.get('/bookmarks', authMiddleware, async (req, res) => {
-  try {
-    const bm = await Bookmark.find({ username: req.user.username }).sort({ createdAt: -1 }).limit(200).lean();
-    res.json(bm);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/bookmarks', authMiddleware, async (req, res) => {
-  try {
-    const { messageId, messageText, messageUser, channelId, channelName, serverName, fileUrl, fileName, note } = req.body;
-    const existing = await Bookmark.findOne({ username: req.user.username, messageId });
-    if (existing) { await Bookmark.deleteOne({ _id: existing._id }); return res.json({ ok: true, removed: true }); }
-    const bm = await Bookmark.create({ username: req.user.username, messageId, messageText, messageUser, channelId, channelName, serverName, fileUrl, fileName, note });
-    res.json({ ok: true, removed: false, bookmark: bm.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/bookmarks/:id', authMiddleware, async (req, res) => {
-  try {
-    await Bookmark.deleteOne({ _id: req.params.id, username: req.user.username });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ══════════════════════════════════════════════
-   RICH PRESENCE — companion script endpoint
-══════════════════════════════════════════════ */
-// Called by the Python companion script running on user's machine
-app.post('/presence', authMiddleware, async (req, res) => {
-  try {
-    const { game, detail, type } = req.body; // type: 'roblox'|'sober'|'custom'|null
-    const nowPlaying = game ? { game, detail: detail||'', type: type||'custom', since: new Date() } : null;
-    await User.updateOne({ username: req.user.username }, { nowPlaying });
-    broadcastAll({ type: 'status_update', username: req.user.username, nowPlaying });
-    if (game) logActivity(req.user.username, 'playing', `Playing ${game}`, { game, detail, type });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ══════════════════════════════════════════════
-   ACTIVITY FEED
-══════════════════════════════════════════════ */
-app.get('/activity/friends', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findOne({ username: req.user.username }, 'friends').lean();
-    const friends = user?.friends || [];
-    const usernames = [req.user.username, ...friends];
-    const activities = await Activity.find({ username: { $in: usernames } })
-      .sort({ createdAt: -1 }).limit(60).lean();
-    res.json(activities);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Log join-server activity (called from WS join handler)
-// Also expose a route for client to log manual activities
-app.post('/activity', authMiddleware, async (req, res) => {
-  try {
-    const { type, text, meta } = req.body;
-    if (!type || !text) return res.status(400).json({ error: 'type and text required' });
-    await logActivity(req.user.username, type, text, meta||{});
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/livekit/token', authMiddleware, async (req, res) => {
-  try {
-    const { room } = req.body;
-    if (!room) return res.status(400).json({ error: 'room required' });
-    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET)
-      return res.status(503).json({ error: 'Livekit not configured' });
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity: req.user.username, ttl: '2h' });
-    at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true, canPublishData: true });
-    res.json({ token: await at.toJwt(), url: LIVEKIT_URL });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ══════════════════════════════════════════════
-   DEVELOPER PLATFORM — OAuth Apps & Bots
-══════════════════════════════════════════════ */
-
-/* ── Schemas ── */
-const oauthAppSchema = new mongoose.Schema({
-  owner:        { type: String, required: true },
-  name:         { type: String, required: true },
-  description:  { type: String, default: '' },
-  iconUrl:      { type: String, default: '' },
-  clientId:     { type: String, unique: true, required: true },
-  clientSecret: { type: String, required: true },
-  redirectUris: { type: [String], default: [] },
-  scopes:       { type: [String], default: ['identify'] }, // identify, guilds, messages.read
-  isBot:        { type: Boolean, default: false },
-  botToken:     { type: String, default: null },
-  botUsername:  { type: String, default: null },
-  verified:     { type: Boolean, default: false },
-  createdAt:    { type: Date, default: Date.now },
-});
-const OAuthApp = mongoose.model('OAuthApp', oauthAppSchema);
-
-const oauthCodeSchema = new mongoose.Schema({
-  code:      { type: String, unique: true, required: true },
-  clientId:  { type: String, required: true },
-  userId:    { type: String, required: true },
-  scopes:    [String],
-  redirectUri: String,
-  expiresAt: { type: Date, default: () => new Date(Date.now() + 10*60*1000) }, // 10 min
-});
-const OAuthCode = mongoose.model('OAuthCode', oauthCodeSchema);
-
-const oauthTokenSchema = new mongoose.Schema({
-  accessToken:  { type: String, unique: true, required: true },
-  refreshToken: { type: String, unique: true },
-  clientId:     String,
-  userId:       String,
-  scopes:       [String],
-  expiresAt:    { type: Date, default: () => new Date(Date.now() + 7*24*60*60*1000) }, // 7 days
-  createdAt:    { type: Date, default: Date.now },
-});
-const OAuthToken = mongoose.model('OAuthToken', oauthTokenSchema);
-
-/* ── Developer Portal Routes ── */
-
-// List my apps
-app.get('/api/developers/apps', authMiddleware, async (req, res) => {
-  try {
-    const apps = await OAuthApp.find({ owner: req.user.username }).lean();
-    res.json(apps.map(a => ({ ...a, clientSecret: undefined, botToken: undefined })));
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Create app
-app.post('/api/developers/apps', authMiddleware, async (req, res) => {
-  try {
-    const { name, description, redirectUris, scopes, isBot } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name required' });
-    const clientId     = crypto.randomBytes(16).toString('hex');
-    const clientSecret = crypto.randomBytes(32).toString('hex');
-    let botToken = null, botUsername = null;
-    if (isBot) {
-      botToken    = 'Bot.' + crypto.randomBytes(32).toString('base64url');
-      botUsername = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '_bot';
-    }
-    const app = await OAuthApp.create({
-      owner: req.user.username, name, description: description||'',
-      clientId, clientSecret,
-      redirectUris: redirectUris||[],
-      scopes: scopes||['identify'],
-      isBot: !!isBot, botToken, botUsername,
-    });
-    res.json({ ...app.toObject() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Get app (owner only, shows secrets)
-app.get('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
-  try {
-    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username }).lean();
-    if (!app) return res.status(404).json({ error: 'Not found' });
-    res.json(app);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Update app
-app.patch('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
-  try {
-    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
-    if (!app) return res.status(404).json({ error: 'Not found' });
-    const { name, description, redirectUris, scopes, iconUrl } = req.body;
-    if (name)         app.name         = name;
-    if (description !== undefined) app.description = description;
-    if (redirectUris) app.redirectUris = redirectUris;
-    if (scopes)       app.scopes       = scopes;
-    if (iconUrl !== undefined) app.iconUrl = iconUrl;
-    await app.save();
-    res.json(app.toObject());
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Delete app
-app.delete('/api/developers/apps/:clientId', authMiddleware, async (req, res) => {
-  try {
-    await OAuthApp.deleteOne({ clientId: req.params.clientId, owner: req.user.username });
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Regenerate client secret
-app.post('/api/developers/apps/:clientId/reset-secret', authMiddleware, async (req, res) => {
-  try {
-    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
-    if (!app) return res.status(404).json({ error: 'Not found' });
-    app.clientSecret = crypto.randomBytes(32).toString('hex');
-    await app.save();
-    res.json({ clientSecret: app.clientSecret });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Regenerate bot token
-app.post('/api/developers/apps/:clientId/reset-bot-token', authMiddleware, async (req, res) => {
-  try {
-    const app = await OAuthApp.findOne({ clientId: req.params.clientId, owner: req.user.username });
-    if (!app || !app.isBot) return res.status(404).json({ error: 'Not found' });
-    app.botToken = 'Bot.' + crypto.randomBytes(32).toString('base64url');
-    await app.save();
-    res.json({ botToken: app.botToken });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-/* ── OAuth 2.0 Authorization Flow ── */
-
-// Authorization page — redirect user here to request permissions
-// GET /oauth2/authorize?client_id=X&redirect_uri=Y&scope=identify+guilds&state=Z
-app.get('/oauth2/authorize', async (req, res) => {
-  const { client_id, redirect_uri, scope, state, response_type } = req.query;
-  if (!client_id || !redirect_uri) return res.status(400).send('Missing client_id or redirect_uri');
-  const oapp = await OAuthApp.findOne({ clientId: client_id }).lean();
-  if (!oapp) return res.status(404).send('App not found');
-  if (!oapp.redirectUris.includes(redirect_uri)) return res.status(400).send('Invalid redirect_uri');
-  const scopes = (scope||'identify').split(/[\s+,]/);
-  const SCOPE_LABELS = { identify:'Know who you are', guilds:'See your servers', 'messages.read':'Read your messages' };
-  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Authorize ${oapp.name} — Vyntra</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;background:#0f1220;color:#f0f2ff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
-.card{background:#1a1d2e;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:32px;width:min(400px,100%);text-align:center}
-.app-icon{width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#6c7cff,#9b6cff);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;margin:0 auto 16px;color:#fff;object-fit:cover}
-h2{font-size:20px;font-weight:700;margin-bottom:6px}
-.sub{color:#8892b0;font-size:14px;margin-bottom:24px}
-.scopes{text-align:left;background:#111427;border-radius:10px;padding:14px 16px;margin-bottom:24px}
-.scope-item{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:14px;border-bottom:1px solid rgba(255,255,255,.04)}
-.scope-item:last-child{border-bottom:none}
-.scope-icon{font-size:16px;flex-shrink:0}
-.btns{display:flex;gap:10px}
-.btn{flex:1;padding:12px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer}
-.allow{background:linear-gradient(135deg,#6c7cff,#9b6cff);color:#fff}
-.deny{background:rgba(255,255,255,.06);color:#8892b0}
-.login-note{font-size:12px;color:#8892b0;margin-top:16px}
-</style></head><body>
-<div class="card">
-  ${oapp.iconUrl ? `<img class="app-icon" src="${oapp.iconUrl}" alt="${oapp.name}">` : `<div class="app-icon">${oapp.name[0].toUpperCase()}</div>`}
-  <h2>${oapp.name} wants access</h2>
-  <div class="sub">${oapp.description||'This app will be able to:'}</div>
-  <div class="scopes">
-    ${scopes.map(s => `<div class="scope-item"><span class="scope-icon">✓</span><span>${SCOPE_LABELS[s]||s}</span></div>`).join('')}
-  </div>
-  <form method="POST" action="/oauth2/authorize">
-    <input type="hidden" name="client_id" value="${client_id}">
-    <input type="hidden" name="redirect_uri" value="${redirect_uri}">
-    <input type="hidden" name="scope" value="${scope||'identify'}">
-    <input type="hidden" name="state" value="${state||''}">
-    <div class="btns">
-      <button type="submit" name="action" value="deny" class="btn deny">Cancel</button>
-      <button type="submit" name="action" value="allow" class="btn allow">Authorize</button>
-    </div>
-  </form>
-  <div class="login-note">You must be logged in to Vyntra to authorize this app.</div>
-</div></body></html>`);
-});
-
-// POST authorize — requires Vyntra session token in header or cookie
-app.post('/oauth2/authorize', async (req, res) => {
-  const { client_id, redirect_uri, scope, state, action } = req.body;
-  if (action === 'deny') return res.redirect(`${redirect_uri}?error=access_denied&state=${state||''}`);
-  // Require auth token from Authorization header or vt_token body param
-  const token = req.headers.authorization?.replace('Bearer ','') || req.body.vt_token;
-  if (!token) return res.redirect(`${redirect_uri}?error=login_required&state=${state||''}`);
-  let user;
-  try { user = jwt.verify(token, JWT_SECRET); } catch(e) { return res.redirect(`${redirect_uri}?error=invalid_token`); }
-  const oapp = await OAuthApp.findOne({ clientId: client_id });
-  if (!oapp || !oapp.redirectUris.includes(redirect_uri)) return res.redirect(`${redirect_uri}?error=invalid_client`);
-  const code = crypto.randomBytes(16).toString('hex');
-  await OAuthCode.create({ code, clientId: client_id, userId: user.username, scopes: (scope||'identify').split(/[\s+,]/), redirectUri: redirect_uri });
-  res.redirect(`${redirect_uri}?code=${code}&state=${state||''}`);
-});
-
-// Token exchange
-app.post('/oauth2/token', async (req, res) => {
-  const { grant_type, code, redirect_uri, client_id, client_secret, refresh_token } = req.body;
-  try {
-    if (grant_type === 'authorization_code') {
-      const oapp = await OAuthApp.findOne({ clientId: client_id, clientSecret: client_secret });
-      if (!oapp) return res.status(401).json({ error: 'invalid_client' });
-      const authCode = await OAuthCode.findOne({ code, clientId: client_id });
-      if (!authCode || authCode.expiresAt < new Date()) return res.status(400).json({ error: 'invalid_grant' });
-      if (authCode.redirectUri !== redirect_uri) return res.status(400).json({ error: 'redirect_uri_mismatch' });
-      await OAuthCode.deleteOne({ _id: authCode._id });
-      const accessToken  = crypto.randomBytes(32).toString('hex');
-      const refreshTok   = crypto.randomBytes(32).toString('hex');
-      await OAuthToken.create({ accessToken, refreshToken: refreshTok, clientId: client_id, userId: authCode.userId, scopes: authCode.scopes });
-      res.json({ access_token: accessToken, refresh_token: refreshTok, token_type: 'Bearer', expires_in: 604800, scope: authCode.scopes.join(' ') });
-    } else if (grant_type === 'refresh_token') {
-      const tok = await OAuthToken.findOne({ refreshToken: refresh_token });
-      if (!tok) return res.status(400).json({ error: 'invalid_grant' });
-      const oapp = await OAuthApp.findOne({ clientId: tok.clientId, clientSecret: client_secret });
-      if (!oapp) return res.status(401).json({ error: 'invalid_client' });
-      const newAccess  = crypto.randomBytes(32).toString('hex');
-      const newRefresh = crypto.randomBytes(32).toString('hex');
-      tok.accessToken = newAccess; tok.refreshToken = newRefresh;
-      tok.expiresAt = new Date(Date.now() + 7*24*60*60*1000);
-      await tok.save();
-      res.json({ access_token: newAccess, refresh_token: newRefresh, token_type: 'Bearer', expires_in: 604800, scope: tok.scopes.join(' ') });
-    } else {
-      res.status(400).json({ error: 'unsupported_grant_type' });
-    }
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// OAuth middleware for API routes
-async function oauthMiddleware(req, res, next) {
-  const token = (req.headers.authorization||'').replace('Bearer ','');
-  // Check if it's a bot token
-  if (token.startsWith('Bot.')) {
-    const oapp = await OAuthApp.findOne({ botToken: token, isBot: true }).lean();
-    if (!oapp) return res.status(401).json({ error: 'Invalid bot token' });
-    req.oauthApp = oapp;
-    req.user = { username: oapp.botUsername, isBot: true };
-    return next();
-  }
-  // Check OAuth access token
-  const tok = await OAuthToken.findOne({ accessToken: token }).lean();
-  if (!tok || tok.expiresAt < new Date()) return res.status(401).json({ error: 'Invalid or expired token' });
-  req.oauthUser = tok;
-  req.user = { username: tok.userId };
-  next();
-}
-
-/* ── OAuth API Endpoints (for apps to call after auth) ── */
-
-// GET /api/users/@me — get the authorized user
-app.get('/api/users/@me', oauthMiddleware, async (req, res) => {
-  try {
-    const u = await User.findOne({ username: req.user.username }, '-password -secretAnswer -totpSecret -resetToken -resetExpires -customCss -injectHtml').lean();
-    if (!u) return res.status(404).json({ error: 'User not found' });
-    const scopes = req.oauthUser?.scopes || ['identify'];
-    const resp = { id: u._id, username: u.username, avatarUrl: u.avatarUrl, bannerColor: u.bannerColor, bio: u.bio, pronouns: u.pronouns, createdAt: u.createdAt };
-    if (scopes.includes('guilds')) resp.servers = (await VyntraServer.find({ $or:[{owner:u.username},{members:u.username}] },'name icon color isOfficial').lean()).map(s=>({id:s._id,name:s.name,icon:s.icon,color:s.color,isOfficial:s.isOfficial}));
-    res.json(resp);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// GET /api/users/@me/guilds — authorized user's servers
-app.get('/api/users/@me/guilds', oauthMiddleware, async (req, res) => {
-  try {
-    const servers = await VyntraServer.find({ $or:[{owner:req.user.username},{members:req.user.username}] }, 'name icon color isOfficial description').lean();
-    res.json(servers);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// POST /api/channels/:id/messages — bot can send messages
-app.post('/api/channels/:id/messages', oauthMiddleware, async (req, res) => {
-  try {
-    if (!req.oauthApp?.isBot && !req.user.isBot) return res.status(403).json({ error: 'Bots only' });
-    const { content, embeds } = req.body;
-    if (!content && !embeds) return res.status(400).json({ error: 'content required' });
-    const ch = await Channel.findById(req.params.id).lean();
-    if (!ch) return res.status(404).json({ error: 'Channel not found' });
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const botName = req.user.username;
-    const doc = { channelId: new mongoose.Types.ObjectId(req.params.id), user: botName, text: content||'', id, reactions: {}, createdAt: new Date() };
-    bufferMessage(doc);
-    const out = { type:'chat', channelId:req.params.id, room:req.params.id, user:botName, text:content||'', id, reactions:{}, seenBy:[] };
-    if (activeChannels[req.params.id]) activeChannels[req.params.id].forEach(u => sendTo(u, out));
-    res.status(201).json({ id, channelId: req.params.id, content, author: botName, timestamp: new Date() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /api/channels/:id/messages — read messages (requires messages.read scope)
-app.get('/api/channels/:id/messages', oauthMiddleware, async (req, res) => {
-  try {
-    const scopes = req.oauthUser?.scopes||[];
-    if (!req.user.isBot && !scopes.includes('messages.read')) return res.status(403).json({ error: 'Missing messages.read scope' });
-    const limit = Math.min(parseInt(req.query.limit)||50, 100);
-    const msgs = await Message.find({ channelId: req.params.id }).sort({ createdAt: -1 }).limit(limit).lean();
-    res.json(msgs.reverse());
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// GET /api/guilds/:id — get server info
-app.get('/api/guilds/:id', oauthMiddleware, async (req, res) => {
-  try {
-    const srv = await VyntraServer.findById(req.params.id).lean();
-    if (!srv) return res.status(404).json({ error: 'Not found' });
-    res.json({ id: srv._id, name: srv.name, icon: srv.icon, color: srv.color, description: srv.description, owner: srv.owner, memberCount: (srv.members||[]).length });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// GET /api/guilds/:id/channels
-app.get('/api/guilds/:id/channels', oauthMiddleware, async (req, res) => {
-  try {
-    const channels = await Channel.find({ serverId: req.params.id }).lean();
-    res.json(channels);
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// Add bot to server
-app.post('/api/guilds/:id/bots', authMiddleware, async (req, res) => {
-  try {
-    const { clientId } = req.body;
-    const oapp = await OAuthApp.findOne({ clientId, isBot: true });
-    if (!oapp) return res.status(404).json({ error: 'Bot not found' });
-    const srv = await VyntraServer.findById(req.params.id);
-    if (!srv) return res.status(404).json({ error: 'Server not found' });
-    if (srv.owner !== req.user.username && !srv.admins?.includes(req.user.username))
-      return res.status(403).json({ error: 'Forbidden' });
-    await VyntraServer.updateOne({ _id: srv._id }, { $addToSet: { members: oapp.botUsername } });
-    res.json({ ok: true, bot: oapp.botUsername });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ── Developer portal page ── */
-app.get('/developers', (req, res) => res.sendFile(require('path').join(__dirname, 'index.html')));
-
-/* ══════════════════════════════════════════════
-   WEBSOCKET
-══════════════════════════════════════════════ */
-const activeChannels = {};
-const clients = {};
-const typingTimers = {};
-const announcementChannels = new Set();
-// In-memory call rooms: lvRoom → { members: Set, polls: Map<pollId, poll> }
-const callRooms = {};
-function ensureCallRoom(room) {
-  if (!callRooms[room]) callRooms[room] = { members: new Set(), polls: new Map() };
-  return callRooms[room];
-}
-
-function broadcastToServer(srv, data) {
-  const members = [...new Set([srv.owner, ...(srv.admins||[]), ...(srv.members||[])])];
-  members.forEach(m => sendTo(m, data));
-}
-
-function broadcastAll(data) {
-  const msg = JSON.stringify(data);
-  Object.values(clients).forEach(ws => { if (ws.readyState === WebSocket.OPEN) ws.send(msg); });
-}
-
-function sendTo(username, data) {
-  const ws = clients[username];
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
-}
-function broadcastChannel(chanId, data, excludeUser) {
-  const members = activeChannels[chanId];
-  if (!members) return;
-  const msg = JSON.stringify(data);
-  members.forEach(u => {
-    if (u === excludeUser) return;
-    const ws = clients[u];
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
-  });
-}
-function broadcastChannelUsers(chanId) {
-  const members = activeChannels[chanId];
-  if (!members) return;
-  const users = [...members];
-  members.forEach(u => sendTo(u, { type: 'users', channelId: chanId, users }));
-}
-
-wss.on('connection', ws => {
-  let username    = null;
-  let currentChan = null;
-
-  ws.on('message', async raw => {
-    let data;
-    try { data = JSON.parse(raw); } catch(e) { return; }
-
-    /* AUTH */
-    if (data.type === 'auth') {
-      try {
-        const payload = jwt.verify(data.token, JWT_SECRET);
-        username = payload.username;
-        clients[username] = ws;
-        const user = await User.findOne({ username });
-        const blockedUsers = user ? (user.blockedUsers||[]) : [];
-        const pendingFriends = user ? (user.pendingFriends||[]) : [];
-        const myServers = await VyntraServer.find({
-          $or: [{ members: username }, { owner: username }, { isOfficial: true }]
-        }).lean();
-        const allChannels = await Channel.find({ serverId: { $in: myServers.map(s=>s._id) } }).lean();
-        const isAdmin = (
-          username === ADMIN_USER &&
-          user && (user.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase()
-        );
-        ws.send(JSON.stringify({
-          type: 'auth_ok',
-          friends: user ? user.friends : [],
-          blockedUsers,
-          pendingFriends,
-          profile: user ? { bio: user.bio, pronouns: user.pronouns, statusEmoji: user.statusEmoji, statusText: user.statusText, bannerColor: user.bannerColor, avatarUrl: user.avatarUrl } : {},
-          servers: myServers,
-          channels: allChannels,
-          onlineUsers: Object.keys(clients),
-          isAdmin,
-        }));
-        broadcastAll({ type: 'online_users', users: Object.keys(clients) });
-      } catch(e) {
-        ws.send(JSON.stringify({ type: 'auth_err' }));
-      }
-      return;
-    }
-
-    if (!username) return;
-
-    /* JOIN CHANNEL */
-    if (data.type === 'join') {
-      if (currentChan && activeChannels[currentChan]) {
-        activeChannels[currentChan].delete(username);
-        broadcastChannelUsers(currentChan);
-        broadcastChannel(currentChan, { type: 'system', text: `${username} left` }, username);
-      }
-      const chanId = data.channelId || data.room;
-      if (!activeChannels[chanId]) activeChannels[chanId] = new Set();
-      activeChannels[chanId].add(username);
-      currentChan = chanId;
-      broadcastChannelUsers(chanId);
-      broadcastChannel(chanId, { type: 'system', text: `${username} joined` }, username);
-      const query = mongoose.Types.ObjectId.isValid(chanId) ? { channelId: chanId } : { room: chanId };
-      const recent = await Message.find(query).sort({ createdAt: -1 }).limit(50).lean();
-      recent.reverse().forEach(m => {
-        const reactions = {};
-        if (m.reactions) Object.entries(m.reactions).forEach(([k,v]) => { reactions[k] = v; });
-        ws.send(JSON.stringify({ type: 'chat', channelId: chanId, room: chanId, user: m.user, text: m.text, fileUrl: m.fileUrl, fileName: m.fileName, fileType: m.fileType, replyTo: m.replyTo||null, id: m.id, reactions, seenBy: m.seenBy||[] }));
-      });
-      return;
-    }
-
-    /* MESSAGE */
-    if (data.type === 'message' && currentChan) {
-      if (announcementChannels.has(currentChan)) {
-        const ch = await Channel.findById(currentChan).lean();
-        if (ch) {
-          const s = await VyntraServer.findById(ch.serverId).lean();
-          if (s && s.owner !== username && !(s.admins||[]).includes(username)) {
-            sendTo(username, { type: 'system', text: '❌ Only admins can post in announcement channels' });
-            return;
-          }
-        }
-      }
-      const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const isChannel = mongoose.Types.ObjectId.isValid(currentChan);
-      const doc = isChannel
-        ? { channelId: new mongoose.Types.ObjectId(currentChan), user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() }
-        : { room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, createdAt: new Date() };
-      bufferMessage(doc);
-      const out = { type: 'chat', channelId: currentChan, room: currentChan, user: username, text: data.text, fileUrl: data.fileUrl, fileName: data.fileName, fileType: data.fileType, replyTo: data.replyTo||null, id, reactions: {}, seenBy: [] };
-      if (activeChannels[currentChan]) {
-        const recipientUsers = await User.find({ username: { $in: [...activeChannels[currentChan]] } }, 'username blockedUsers').lean();
-        activeChannels[currentChan].forEach(u => {
-          const recip = recipientUsers.find(r => r.username === u);
-          if (recip && (recip.blockedUsers||[]).includes(username)) return; // blocked
-          sendTo(u, out);
-        });
-      }
-      // Push-notify offline channel members
-      if (mongoose.Types.ObjectId.isValid(currentChan)) {
-        (async () => {
-          try {
-            const ch = await Channel.findById(currentChan).lean();
-            if (!ch) return;
-            const srv = await VyntraServer.findById(ch.serverId).lean();
-            if (!srv) return;
-            const allMembers = [...new Set([srv.owner, ...(srv.admins||[]), ...(srv.members||[])])];
-            const online = new Set(activeChannels[currentChan] || []);
-            const snippet = data.text ? data.text.slice(0,100) : (data.fileName || '📎 attachment');
-            for (const member of allMembers) {
-              if (member !== username && !online.has(member)) {
-                pushToUser(member, {
-                  type: 'message', title: `${username} · #${ch.name}`,
-                  body: snippet, channelId: currentChan, url: '/',
-                }).catch(()=>{});
-              }
+        const queue = JSON.parse(localStorage.getItem('v-sync-queue') || '[]');
+        for (const req of queue) {
+            try {
+                await fetch(req.url, {
+                    method: req.method,
+                    headers: req.headers,
+                    body: req.body
+                });
+            } catch (e) {
+                console.error('Sync failed:', e);
             }
-          } catch(e) {}
-        })();
-      }
-      return;
-    }
-
-    /* TYPING */
-    if (data.type === 'typing' && currentChan) {
-      broadcastChannel(currentChan, { type: 'typing', user: username, channelId: currentChan }, username);
-      // Auto-stop after 3s server-side (client also sends stop)
-      if (!typingTimers[currentChan]) typingTimers[currentChan] = {};
-      clearTimeout(typingTimers[currentChan][username]);
-      typingTimers[currentChan][username] = setTimeout(() => {
-        broadcastChannel(currentChan, { type: 'typing_stop', user: username, channelId: currentChan }, username);
-      }, 3000);
-      return;
-    }
-    if (data.type === 'typing_stop' && currentChan) {
-      broadcastChannel(currentChan, { type: 'typing_stop', user: username, channelId: currentChan }, username);
-      if (typingTimers[currentChan]) clearTimeout(typingTimers[currentChan][username]);
-      return;
-    }
-
-    /* REACTION */
-    if (data.type === 'reaction') {
-      const msg = await Message.findOne({ id: data.messageId });
-      if (!msg) return;
-      const r = msg.reactions || new Map();
-      const arr = r.get(data.emoji) || [];
-      const idx = arr.indexOf(username);
-      if (idx >= 0) arr.splice(idx, 1); else arr.push(username);
-      r.set(data.emoji, arr);
-      msg.reactions = r;
-      await msg.save();
-      const reactions = {};
-      r.forEach((v,k) => { reactions[k] = v; });
-      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
-      if (activeChannels[chanId]) activeChannels[chanId].forEach(u => sendTo(u, { type: 'chat', channelId: chanId, room: chanId, user: msg.user, text: msg.text, fileUrl: msg.fileUrl, fileName: msg.fileName, fileType: msg.fileType, id: msg.id, reactions }));
-      return;
-    }
-
-    /* EDIT MESSAGE */
-    if (data.type === 'msg_edit') {
-      const msg = await Message.findOne({ id: data.messageId });
-      if (!msg || msg.user !== username) return;
-      const newText = (data.text || '').trim();
-      if (!newText) return;
-      msg.text = newText;
-      msg.editedAt = new Date();
-      await msg.save();
-      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
-      if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
-        sendTo(u, { type: 'msg_edited', id: msg.id, text: newText, chanId })
-      );
-      return;
-    }
-
-    /* DELETE MESSAGE */
-    if (data.type === 'msg_delete') {
-      const msg = await Message.findOne({ id: data.messageId });
-      if (!msg) return;
-      // Allow: own message, or server owner/admin
-      let allowed = msg.user === username;
-      if (!allowed && msg.channelId) {
-        const ch = await Channel.findById(msg.channelId).lean();
-        if (ch) {
-          const srv = await VyntraServer.findById(ch.serverId).lean();
-          if (srv && (srv.owner === username || (srv.admins||[]).includes(username))) allowed = true;
         }
-      }
-      if (!allowed) return;
-      await Message.deleteOne({ id: data.messageId });
-      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
-      if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
-        sendTo(u, { type: 'msg_deleted', id: data.messageId, chanId })
-      );
-      return;
+        localStorage.removeItem('v-sync-queue');
+        syncQueue = [];
+    } catch(e) {
+        console.error('Process queue error:', e);
     }
+}
 
-    /* SEEN RECEIPT */
-    if (data.type === 'msg_seen') {
-      // Mark a message as seen by this user
-      const msg = await Message.findOne({ id: data.messageId });
-      if (!msg || msg.user === username) return; // don't mark your own
-      if (msg.seenBy && msg.seenBy.includes(username)) return; // already marked
-      msg.seenBy = [...(msg.seenBy || []), username];
-      await msg.save();
-      // Notify the sender
-      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
-      sendTo(msg.user, { type: 'msg_seen_ack', id: msg.id, seenBy: msg.seenBy, chanId });
-      return;
+// ==================== API WRAPPER ====================
+const api = async (url, method, body) => {
+    method = method || 'GET';
+    const headers = { 
+        'Content-Type': 'application/json'
+    };
+    
+    const token = localStorage.getItem('v-token');
+    if (token) {
+        headers['Authorization'] = token;
     }
+    
+    if (!isOnline && method !== 'GET') {
+        addToSyncQueue({ 
+            url: API_BASE + url, 
+            method, 
+            headers, 
+            body: body ? JSON.stringify(body) : null 
+        });
+        return { offline: true, success: true };
+    }
+    
+    try {
+        const response = await fetch(API_BASE + url, { 
+            method, 
+            headers, 
+            body: body ? JSON.stringify(body) : null 
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error:', response.status, errorText);
+            return null;
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Fetch error:', error);
+        if (method !== 'GET') {
+            addToSyncQueue({ 
+                url: API_BASE + url, 
+                method, 
+                headers, 
+                body: body ? JSON.stringify(body) : null 
+            });
+        }
+        return null;
+    }
+};
 
-    /* FRIENDS */
-    if (data.type === 'friend_request') {
-      const target = await User.findOne({ username: data.to });
-      if (!target) return;
-      if ((target.blockedUsers||[]).includes(username)) return; // blocked
-      await User.updateOne({ username: data.to }, { $addToSet: { pendingFriends: username } });
-      sendTo(data.to, { type: 'friend_request', from: username });
-      sendTo(username, { type: 'friend_request_sent', to: data.to });
-      if (!(data.to in clients)) {
-        pushToUser(data.to, { type:'friend_request', title:`👋 Friend request from ${username}`, body:'Tap to open Vyntra', url:'/' }).catch(()=>{});
-      }
-      return;
-    }
-    if (data.type === 'friend_accept') {
-      const [u1,u2] = [username,data.from];
-      await User.updateOne({ username: u1 }, { $addToSet: { friends: u2 }, $pull: { pendingFriends: u2 } });
-      await User.updateOne({ username: u2 }, { $addToSet: { friends: u1 } });
-      sendTo(u1, { type: 'friends_update', friends: (await User.findOne({username:u1})).friends });
-      sendTo(u2, { type: 'friends_update', friends: (await User.findOne({username:u2})).friends });
-      sendTo(u2, { type: 'friend_accepted', by: u1 });
-      return;
-    }
-    if (data.type === 'friend_decline') {
-      await User.updateOne({ username }, { $pull: { pendingFriends: data.from } });
-      sendTo(data.from, { type: 'friend_declined', by: username });
-      return;
-    }
-    if (data.type === 'unfriend') {
-      await User.updateOne({ username }, { $pull: { friends: data.username } });
-      await User.updateOne({ username: data.username }, { $pull: { friends: username } });
-      sendTo(username, { type: 'friends_update', friends: (await User.findOne({username})).friends });
-      sendTo(data.username, { type: 'unfriended', by: username });
-      return;
-    }
+// ==================== SKELETON ====================
+function showSkeleton(containerId, count) {
+    count = count || 3;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = Array(count).fill(0).map(() => 
+        '<div class="card"><div class="skeleton" style="width:60%; height: 24px; margin-bottom: 12px;"></div>' +
+        '<div class="skeleton" style="width:40%; height:16px; margin-bottom: 8px;"></div>' +
+        '<div class="skeleton" style="width:80%; height:16px;"></div></div>'
+    ).join('');
+}
 
-    /* CALL SIGNALING */
-    if (data.type === 'call_request') {
-      sendTo(data.to, { type: 'call_incoming', from: username, lvRoom: data.lvRoom, chatRoom: data.chatRoom });
-      if (!(data.to in clients)) {
-        pushToUser(data.to, { type:'call', title:`📞 ${username} is calling`, body:'Tap to answer on Vyntra', url:'/' }).catch(()=>{});
-      }
-      return;
-    }
-    if (data.type === 'call_accept')  { sendTo(data.to, { type: 'call_accepted', from: username }); return; }
-    if (data.type === 'call_decline') { sendTo(data.to, { type: 'call_declined', from: username }); return; }
-    if (data.type === 'call_cancel')  { sendTo(data.to, { type: 'call_ended',    from: username }); return; }
+// ==================== COLLAPSIBLE ====================
+function toggleCollapsible(id) {
+    const content = document.getElementById(id);
+    const button = content.previousElementSibling;
+    const chevron = button.querySelector('.chevron');
+    
+    content.classList.toggle('active');
+    button.classList.toggle('active');
+    chevron.classList.toggle('rotate');
+}
 
-    /* CALL ROOM TRACKING */
-    if (data.type === 'call_join_room') {
-      const cr = ensureCallRoom(data.lvRoom);
-      cr.members.add(username);
-      // Broadcast updated member list to call room
-      cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
-      return;
-    }
-    if (data.type === 'call_leave_room') {
-      const cr = callRooms[data.lvRoom];
-      if (cr) {
-        cr.members.delete(username);
-        if (cr.members.size === 0) { delete callRooms[data.lvRoom]; }
-        else cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
-      }
-      return;
-    }
+// ==================== AUTH ====================
+let isLogin = true;
 
-    /* EPHEMERAL CALL CHAT */
-    if (data.type === 'call_chat') {
-      const cr = callRooms[data.lvRoom];
-      if (!cr || !cr.members.has(username)) return;
-      const msg = { type: 'call_chat', lvRoom: data.lvRoom, user: username, text: data.text, ts: Date.now(), replyTo: data.replyTo||null };
-      cr.members.forEach(m => sendTo(m, msg));
-      return;
+function toggleAuthMode() {
+    isLogin = !isLogin;
+    const regNome = document.getElementById('reg-nome');
+    const btn = document.querySelector('#auth-page .btn');
+    
+    if (isLogin) {
+        regNome.style.display = 'none';
+        btn.textContent = 'ENTRAR';
+    } else {
+        regNome.style.display = 'block';
+        btn.textContent = 'CRIAR CONTA';
     }
-    if (data.type === 'call_chat_typing') {
-      const cr = callRooms[data.lvRoom];
-      if (!cr || !cr.members.has(username)) return;
-      cr.members.forEach(m => { if(m !== username) sendTo(m, { type:'call_chat_typing', lvRoom:data.lvRoom, user:username, typing:data.typing }); });
-      return;
-    }
-    if (data.type === 'call_chat_react') {
-      const cr = callRooms[data.lvRoom];
-      if (!cr || !cr.members.has(username)) return;
-      cr.members.forEach(m => { if(m !== username) sendTo(m, { type:'call_chat_react', lvRoom:data.lvRoom, user:username, msgId:data.msgId, emoji:data.emoji }); });
-      return;
-    }
+}
 
-    /* CALL POLLS */
-    if (data.type === 'call_poll_create') {
-      const cr = ensureCallRoom(data.lvRoom);
-      if (!cr.members.has(username)) return;
-      const pollId = crypto.randomBytes(6).toString('hex');
-      const poll = {
-        id: pollId, creator: username, question: data.question,
-        options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
-        multiSelect: !!data.multiSelect,
-        createdAt: Date.now(), open: true,
-      };
-      cr.polls.set(pollId, poll);
-      cr.members.forEach(m => sendTo(m, { type: 'call_poll_new', lvRoom: data.lvRoom, poll }));
-      return;
+async function handleAuth() {
+    const email = document.getElementById('email').value;
+    const senha = document.getElementById('senha').value;
+    const nome = document.getElementById('reg-nome').value;
+    
+    if (!email || !senha) {
+        alert('Preencha todos os campos!');
+        return;
     }
-    if (data.type === 'call_poll_vote') {
-      const cr = callRooms[data.lvRoom];
-      if (!cr) return;
-      const poll = cr.polls.get(data.pollId);
-      if (!poll || !poll.open) return;
-      const opt = poll.options.find(o => o.id === data.optionId);
-      if (!opt) return;
-      if (poll.multiSelect) {
-        // Toggle: add if not voted, remove if already voted
-        const idx = opt.votes.indexOf(username);
-        if (idx >= 0) opt.votes.splice(idx, 1); else opt.votes.push(username);
-      } else {
-        // Single select: remove from all, add to chosen
-        poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
-        opt.votes.push(username);
-      }
-      cr.members.forEach(m => sendTo(m, { type: 'call_poll_update', lvRoom: data.lvRoom, poll }));
-      return;
+    
+    if (!isLogin && !nome) {
+        alert('Preencha seu nome!');
+        return;
     }
-    if (data.type === 'call_poll_end') {
-      const cr = callRooms[data.lvRoom];
-      if (!cr) return;
-      const poll = cr.polls.get(data.pollId);
-      if (!poll || poll.creator !== username) return;
-      poll.open = false;
-      cr.members.forEach(m => sendTo(m, { type: 'call_poll_update', lvRoom: data.lvRoom, poll }));
-      return;
+    
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    const payload = { email: email, senha: senha };
+    if (!isLogin) payload.nome = nome;
+    
+    const result = await api(endpoint, 'POST', payload);
+    
+    if (result && isLogin && result.token) {
+        localStorage.setItem('v-token', result.token);
+        localStorage.setItem('v-user', JSON.stringify(result));
+        location.reload();
+    } else if (!isLogin && result) {
+        alert('Conta criada! Faça login.');
+        toggleAuthMode();
+    } else {
+        alert('Erro. Verifique suas credenciais.');
     }
+}
 
-    /* CHAT POLLS (channel) */
-    if (data.type === 'chat_poll_create' && currentChan) {
-      const pollId = crypto.randomBytes(6).toString('hex');
-      const poll = {
-        id: pollId, creator: username, question: data.question,
-        options: data.options.map((o, i) => ({ id: i, text: o, votes: [] })),
-        multiSelect: !!data.multiSelect,
-        createdAt: Date.now(), open: true, chanId: currentChan,
-      };
-      if (!activeChannels._polls) activeChannels._polls = {};
-      activeChannels._polls[pollId] = poll;
-      if (activeChannels[currentChan]) activeChannels[currentChan].forEach(u =>
-        sendTo(u, { type: 'chat_poll_new', poll })
-      );
-      return;
+// ==================== INIT APP ====================
+function initApp(user) {
+    currentUser = user;
+    
+    document.getElementById('auth-page').style.display = 'none';
+    document.getElementById('app-shell').style.display = 'block';
+    document.getElementById('user-avatar').src = user.avatar;
+    document.getElementById('user-name-label').textContent = user.nome;
+    document.getElementById('user-role-label').textContent = user.role;
+    
+    // Criar navegação dinâmica
+    const navItems = [
+        { id: 'home', label: 'Início', roles: ['Aluno', 'Professor', 'Direcao', 'Admin'] },
+        { id: 'biblioteca', label: 'Biblioteca', roles: ['Aluno', 'Professor', 'Direcao', 'Admin'] },
+        { id: 'atividades', label: 'Tarefas', roles: ['Aluno', 'Professor', 'Direcao', 'Admin'] },
+        { id: 'forum', label: 'Fórum', roles: ['Aluno', 'Professor', 'Direcao', 'Admin'] },
+        { id: 'notas', label: 'Notas', roles: ['Aluno', 'Professor', 'Direcao', 'Admin'] },
+        { id: 'presenca', label: 'Chamada', roles: ['Professor', 'Admin'] },
+        { id: 'gestao', label: 'Gestão', roles: ['Professor', 'Direcao', 'Admin'] },
+        { id: 'admin', label: 'Admin', roles: ['Admin'] }
+    ];
+    
+    const nav = document.getElementById('main-nav');
+    nav.innerHTML = navItems
+        .filter(item => item.roles.includes(user.role))
+        .map((item, idx) => 
+            '<div class="nav-item' + (idx === 0 ? ' active' : '') + '" onclick="switchView(\'' + item.id + '\')">' + item.label + '</div>'
+        ).join('') + '<div class="nav-item" onclick="logout()" style="color:var(--danger)">Sair</div>';
+    
+    // Mostrar campos de professor
+    if (['Professor', 'Admin'].includes(user.role)) {
+        const testesProf = document.getElementById('testes-prof');
+        if (testesProf) testesProf.style.display = 'block';
     }
-    if (data.type === 'chat_poll_vote') {
-      const poll = activeChannels._polls && activeChannels._polls[data.pollId];
-      if (!poll || !poll.open) return;
-      const opt = poll.options.find(o => o.id === data.optionId);
-      if (!opt) return;
-      if (poll.multiSelect) {
-        const idx = opt.votes.indexOf(username);
-        if (idx >= 0) opt.votes.splice(idx, 1); else opt.votes.push(username);
-      } else {
-        poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
-        opt.votes.push(username);
-      }
-      if (activeChannels[poll.chanId]) activeChannels[poll.chanId].forEach(u =>
-        sendTo(u, { type: 'chat_poll_update', poll })
-      );
-      return;
-    }
-    if (data.type === 'chat_poll_end') {
-      const poll = activeChannels._polls && activeChannels._polls[data.pollId];
-      if (!poll || poll.creator !== username) return;
-      poll.open = false;
-      if (activeChannels[poll.chanId]) activeChannels[poll.chanId].forEach(u =>
-        sendTo(u, { type: 'chat_poll_update', poll })
-      );
-      return;
-    }
-  });
+    
+    loadMaterias();
+    switchView('home');
+}
 
-  ws.on('close', () => {
-    if (!username) return;
-    delete clients[username];
-    if (currentChan && activeChannels[currentChan]) {
-      activeChannels[currentChan].delete(username);
-      broadcastChannelUsers(currentChan);
+// ==================== MATÉRIAS ====================
+let materiasCache = [];
+
+async function loadMaterias() {
+    const materias = await api('/api/materias');
+    if (materias) {
+        materiasCache = materias;
+        const options = materias.map(m => '<option value="' + m._id + '">' + m.nome + '</option>').join('');
+        
+        const selects = ['nota-materia', 'presenca-materia', 'teste-materia', 't-mat'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = '<option value="">Selecione a Matéria</option>' + options;
+            }
+        });
     }
-    // Remove from any call rooms
-    Object.entries(callRooms).forEach(([lvRoom, cr]) => {
-      if (cr.members.has(username)) {
-        cr.members.delete(username);
-        if (cr.members.size === 0) delete callRooms[lvRoom];
-        else cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom, members: [...cr.members] }));
-      }
-    });
-    broadcastAll({ type: 'online_users', users: Object.keys(clients) });
-  });
+}
+
+// ==================== HOME (GRID/LIST) ====================
+async function loadHome() {
+    showSkeleton('home-grid', 4);
+    const noticias = await api('/api/noticias');
+    const atividades = await api('/api/atividades');
+    
+    const container = document.getElementById('home-grid');
+    if (!container) return;
+    
+    let html = '';
+    
+    if (noticias && noticias.length > 0) {
+        html += '<div class="card"><h4>📢 Últimas Notícias</h4>';
+        noticias.slice(0, 3).forEach(n => {
+            html += '<div style="padding: 8px 0; border-bottom: 1px solid var(--border);"><strong>' + n.titulo + '</strong><br>';
+            html += '<small style="color: var(--text-dim);">' + n.autor + '</small></div>';
+        });
+        html += '</div>';
+    }
+    
+    if (atividades && atividades.length > 0) {
+        html += '<div class="card"><h4>📚 Próximas Tarefas</h4>';
+        atividades.slice(0, 3).forEach(a => {
+            html += '<div style="padding: 8px 0; border-bottom: 1px solid var(--border);"><strong>' + a.titulo + '</strong><br>';
+            html += '<small style="color: var(--text-dim);">' + a.materia + ' - ' + new Date(a.dataEntrega).toLocaleDateString('pt-BR') + '</small></div>';
+        });
+        html += '</div>';
+    }
+    
+    if (currentUser && currentUser.role === 'Aluno') {
+        html += '<div class="card"><h4>📊 Minhas Estatísticas</h4><p>Em breve...</p></div>';
+    }
+    
+    html += '<div class="card"><h4>💬 Atividade Recente</h4><p>Fórum ativo!</p></div>';
+    
+    container.innerHTML = html || '<div class="empty-state"><div class="empty-state-icon">🏠</div><p>Bem-vindo ao Vertex!</p></div>';
+}
+
+// ==================== BIBLIOTECA ====================
+async function loadBiblioteca() {
+    showSkeleton('artigos-list', 3);
+    const artigos = await api('/api/artigos');
+    
+    const container = document.getElementById('artigos-list');
+    if (!container) return;
+    
+    if (!artigos || artigos.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><p>Nenhum artigo publicado ainda.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = artigos.map(a => {
+        let html = '<div class="card"><h4>' + a.titulo + '</h4>';
+        html += '<p style="white-space: pre-wrap; margin: 12px 0;">' + a.conteudo + '</p>';
+        html += '<small style="color: var(--text-dim);">por <strong>' + a.autor + '</strong></small>';
+        
+        if (a.videoUrl) {
+            const videoId = a.videoUrl.includes('youtube.com') ? a.videoUrl.split('v=')[1] : a.videoUrl.split('/').pop();
+            html += '<iframe class="video-embed" src="https://www.youtube.com/embed/' + videoId + '" frameborder="0" allowfullscreen></iframe>';
+        }
+        
+        if (a.exercicio) {
+            html += '<div style="margin-top: 20px; padding: 16px; background: rgba(59, 130, 246, 0.05); border-radius: 12px;">';
+            html += '<strong>❓ Exercício: ' + a.exercicio.pergunta + '</strong>';
+            a.exercicio.opcoes.forEach((o, idx) => {
+                html += '<div class="quiz-option" onclick="responderExercicio(\'' + a._id + '\', ' + idx + ')">' + o + '</div>';
+            });
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }).join('');
+}
+
+async function publicarArtigo() {
+    const titulo = document.getElementById('art-tit').value;
+    const conteudo = document.getElementById('art-con').value;
+    const videoUrl = document.getElementById('art-video').value;
+    const exPergunta = document.getElementById('art-ex-p').value;
+    const exOpcoes = document.getElementById('art-ex-o').value;
+    const exCorreta = document.getElementById('art-ex-c').value;
+    
+    if (!titulo || !conteudo) {
+        alert('Preencha título e conteúdo!');
+        return;
+    }
+    
+    const payload = { titulo: titulo, conteudo: conteudo };
+    if (videoUrl) payload.videoUrl = videoUrl;
+    
+    if (exPergunta && exOpcoes && exCorreta) {
+        payload.exercicio = {
+            pergunta: exPergunta,
+            opcoes: exOpcoes.split(',').map(s => s.trim()),
+            respostaCorreta: parseInt(exCorreta)
+        };
+    }
+    
+    await api('/api/artigos', 'POST', payload);
+    
+    document.getElementById('art-tit').value = '';
+    document.getElementById('art-con').value = '';
+    document.getElementById('art-video').value = '';
+    document.getElementById('art-ex-p').value = '';
+    document.getElementById('art-ex-o').value = '';
+    document.getElementById('art-ex-c').value = '';
+    
+    loadBiblioteca();
+}
+
+async function responderExercicio(artigoId, opcaoIdx) {
+    const result = await api('/api/artigos/exercicio/' + artigoId, 'POST', { opcaoIndex: opcaoIdx });
+    
+    if (result) {
+        const options = document.querySelectorAll('[onclick*="' + artigoId + '"]');
+        options.forEach((opt, idx) => {
+            opt.style.pointerEvents = 'none';
+            if (idx === result.respostaCorreta) {
+                opt.classList.add('correct');
+            } else if (idx === opcaoIdx) {
+                opt.classList.add('incorrect');
+            }
+        });
+        
+        alert(result.correto ? '✅ Correto!' : '❌ Incorreto!');
+    }
+}
+
+// ==================== FORUM ====================
+async function loadForum() {
+    showSkeleton('forum-list', 3);
+    const threads = await api('/api/forum');
+    
+    const container = document.getElementById('forum-list');
+    if (!container) return;
+    
+    if (!threads || threads.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💬</div><p>Nenhum tópico ainda.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = threads.map(t => {
+        let html = '<div class="card"><h4>' + t.titulo + '</h4>';
+        html += '<p style="margin: 12px 0;">' + t.conteudo + '</p>';
+        html += '<small style="color: var(--text-dim);">por <strong>' + t.autor + '</strong></small>';
+        
+        if (t.temEnquete && t.enquete) {
+            html += '<div style="margin-top: 20px; padding: 16px; background: rgba(59, 130, 246, 0.05); border-radius: 12px;">';
+            html += '<strong>' + t.enquete.pergunta + '</strong>';
+            const total = t.enquete.opcoes.reduce((sum, o) => sum + (o.votos || 0), 0);
+            t.enquete.opcoes.forEach((o, idx) => {
+                const pct = total > 0 ? Math.round((o.votos / total) * 100) : 0;
+                html += '<div class="poll-option" onclick="votar(\'' + t._id + '\', ' + idx + ')" style="--percentage: ' + pct + '%">';
+                html += '<div style="position: relative; z-index: 1; display: flex; justify-content: space-between;">';
+                html += '<span>' + o.texto + '</span>';
+                html += '<span style="color: var(--primary); font-weight: 700;">' + (o.votos || 0) + ' (' + pct + '%)</span>';
+                html += '</div></div>';
+            });
+            html += '</div>';
+        }
+        
+        html += '<div style="margin-top: 20px;">';
+        if (t.comentarios) {
+            t.comentarios.forEach(c => {
+                html += '<div class="comment"><strong>' + c.autor + ':</strong> ' + c.texto + '</div>';
+            });
+        }
+        html += '<input id="in-' + t._id + '" placeholder="Comentar..." style="margin-top: 12px;">';
+        html += '<button class="btn" onclick="comentar(\'' + t._id + '\')" style="margin-top: 8px;">COMENTAR</button>';
+        html += '</div></div>';
+        
+        return html;
+    }).join('');
+}
+
+async function postarThread() {
+    const titulo = document.getElementById('f-tit').value;
+    const conteudo = document.getElementById('f-con').value;
+    const enquetaPergunta = document.getElementById('f-enq-p').value;
+    const enqueteOpcoes = document.getElementById('f-enq-o').value;
+    
+    if (!titulo || !conteudo) {
+        alert('Preencha título e conteúdo!');
+        return;
+    }
+    
+    const payload = { titulo: titulo, conteudo: conteudo };
+    
+    if (enquetaPergunta && enqueteOpcoes) {
+        payload.enquete = {
+            pergunta: enquetaPergunta,
+            opcoes: enqueteOpcoes.split(',').map(s => s.trim())
+        };
+    }
+    
+    await api('/api/forum', 'POST', payload);
+    
+    document.getElementById('f-tit').value = '';
+    document.getElementById('f-con').value = '';
+    document.getElementById('f-enq-p').value = '';
+    document.getElementById('f-enq-o').value = '';
+    
+    loadForum();
+}
+
+async function comentar(threadId) {
+    const input = document.getElementById('in-' + threadId);
+    const texto = input.value;
+    
+    if (!texto) {
+        alert('Digite um comentário!');
+        return;
+    }
+    
+    await api('/api/forum/comentar/' + threadId, 'POST', { texto: texto });
+    input.value = '';
+    loadForum();
+}
+
+async function votar(threadId, opcaoIndex) {
+    await api('/api/forum/votar/' + threadId, 'POST', { opcaoIndex: opcaoIndex });
+    loadForum();
+}
+
+// ==================== ATIVIDADES ====================
+async function loadAtividades() {
+    showSkeleton('atividades-list', 3);
+    const atividades = await api('/api/atividades');
+    
+    const container = document.getElementById('atividades-list');
+    if (!container) return;
+    
+    if (!atividades || atividades.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><p>Nenhuma tarefa cadastrada.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = atividades.map(a => 
+        '<div class="card"><div style="display: flex; justify-content: space-between; margin-bottom: 8px;">' +
+        '<span class="badge primary">' + a.materia + '</span>' +
+        '<small style="color: var(--text-dim);">📅 ' + new Date(a.dataEntrega).toLocaleDateString('pt-BR') + '</small></div>' +
+        '<h4>' + a.titulo + '</h4>' +
+        (a.descricao ? '<p style="font-size: 13px; color: var(--text-dim); margin-top: 8px;">' + a.descricao + '</p>' : '') +
+        '</div>'
+    ).join('');
+}
+
+async function criarTarefa() {
+    const materia = document.getElementById('t-mat').value;
+    const titulo = document.getElementById('t-tit').value;
+    const descricao = document.getElementById('t-desc').value;
+    const dataEntrega = document.getElementById('t-data').value;
+    
+    if (!materia || !titulo || !dataEntrega) {
+        alert('Preencha os campos obrigatórios!');
+        return;
+    }
+    
+    await api('/api/atividades', 'POST', { materia: materia, titulo: titulo, descricao: descricao, dataEntrega: dataEntrega });
+    
+    document.getElementById('t-mat').value = '';
+    document.getElementById('t-tit').value = '';
+    document.getElementById('t-desc').value = '';
+    document.getElementById('t-data').value = '';
+    
+    loadAtividades();
+}
+
+// ==================== NOTAS ====================
+let gradeInputs = [];
+let currentGradeIndex = 0;
+let ctrlPressed = false;
+let numberBuffer = '';
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Control' || e.key === 'Meta') {
+        ctrlPressed = true;
+    }
+    
+    if (ctrlPressed && /^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        numberBuffer += e.key;
+    }
 });
 
-server.listen(PORT, () => console.log(`Vyntra running on port ${PORT}`));
+document.addEventListener('keyup', async function(e) {
+    if ((e.key === 'Control' || e.key === 'Meta') && numberBuffer && gradeInputs.length > 0) {
+        const value = parseFloat(numberBuffer) / 10;
+        
+        if (gradeInputs[currentGradeIndex] && value >= 0 && value <= 10) {
+            const input = gradeInputs[currentGradeIndex];
+            input.value = value.toFixed(1);
+            input.classList.add('filled');
+            
+            await api('/api/notas', 'POST', {
+                alunoId: input.dataset.aluno,
+                materia: document.getElementById('nota-materia').value,
+                bimestre: parseInt(document.getElementById('nota-bimestre').value),
+                tipo: input.dataset.tipo,
+                nota: value
+            });
+            
+            currentGradeIndex++;
+            if (gradeInputs[currentGradeIndex]) {
+                gradeInputs[currentGradeIndex].focus();
+            }
+        }
+        
+        numberBuffer = '';
+        ctrlPressed = false;
+    }
+});
+
+async function loadNotas() {
+    const materiaId = document.getElementById('nota-materia').value;
+    const bimestre = document.getElementById('nota-bimestre').value;
+    
+    if (!materiaId) return;
+    
+    showSkeleton('notas-table', 1);
+    
+    const alunos = await api('/api/alunos');
+    const notas = await api('/api/notas?materia=' + materiaId + '&bimestre=' + bimestre);
+    
+    if (!alunos) return;
+    
+    const notasMap = {};
+    if (notas) {
+        notas.forEach(function(n) {
+            if (!notasMap[n.alunoId]) notasMap[n.alunoId] = {};
+            notasMap[n.alunoId][n.tipo] = n.nota;
+        });
+    }
+    
+    const isTeacher = currentUser && ['Professor', 'Admin', 'Direcao'].includes(currentUser.role);
+    
+    gradeInputs = [];
+    currentGradeIndex = 0;
+    
+    let html = '<div class="card" style="overflow-x: auto;"><table><thead><tr>';
+    html += '<th>Aluno</th><th>AV1</th><th>AV2</th><th>P1</th><th>Média</th></tr></thead><tbody>';
+    
+    alunos.forEach(function(aluno) {
+        const av1 = notasMap[aluno._id] ? notasMap[aluno._id].AV1 || '' : '';
+        const av2 = notasMap[aluno._id] ? notasMap[aluno._id].AV2 || '' : '';
+        const p1 = notasMap[aluno._id] ? notasMap[aluno._id].P1 || '' : '';
+        
+        let media = '-';
+        let mediaColor = 'var(--text-dim)';
+        
+        if (av1 && av2 && p1) {
+            const m = ((av1 + av2 + p1) / 3).toFixed(1);
+            media = m;
+            mediaColor = m >= 6 ? 'var(--success)' : 'var(--danger)';
+        }
+        
+        html += '<tr><td><strong>' + aluno.nome + '</strong></td>';
+        
+        if (isTeacher) {
+            html += '<td><input type="number" class="grade-input' + (av1 ? ' filled' : '') + '" value="' + av1 + '" data-aluno="' + aluno._id + '" data-tipo="AV1" step="0.1" min="0" max="10"></td>';
+            html += '<td><input type="number" class="grade-input' + (av2 ? ' filled' : '') + '" value="' + av2 + '" data-aluno="' + aluno._id + '" data-tipo="AV2" step="0.1" min="0" max="10"></td>';
+            html += '<td><input type="number" class="grade-input' + (p1 ? ' filled' : '') + '" value="' + p1 + '" data-aluno="' + aluno._id + '" data-tipo="P1" step="0.1" min="0" max="10"></td>';
+        } else {
+            html += '<td>' + (av1 || '-') + '</td>';
+            html += '<td>' + (av2 || '-') + '</td>';
+            html += '<td>' + (p1 || '-') + '</td>';
+        }
+        
+        html += '<td style="color: ' + mediaColor + '; font-weight: 700; font-size: 16px;">' + media + '</td></tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    document.getElementById('notas-table').innerHTML = html;
+    
+    if (isTeacher) {
+        gradeInputs = Array.from(document.querySelectorAll('.grade-input'));
+        gradeInputs.forEach(function(input, idx) {
+            input.addEventListener('focus', function() {
+                currentGradeIndex = idx;
+            });
+            
+            input.addEventListener('blur', async function() {
+                if (input.value && input.value >= 0 && input.value <= 10) {
+                    input.classList.add('filled');
+                    await api('/api/notas', 'POST', {
+                        alunoId: input.dataset.aluno,
+                        materia: document.getElementById('nota-materia').value,
+                        bimestre: parseInt(document.getElementById('nota-bimestre').value),
+                        tipo: input.dataset.tipo,
+                        nota: parseFloat(input.value)
+                    });
+                }
+            });
+        });
+        
+        if (gradeInputs[0]) {
+            gradeInputs[0].focus();
+        }
+    }
+}
+
+// ==================== TESTES ONLINE ====================
+async function criarTeste() {
+    const titulo = document.getElementById('teste-titulo').value;
+    const materia = document.getElementById('teste-materia').value;
+    const bimestre = document.getElementById('teste-bimestre').value;
+    
+    if (!titulo || !materia) {
+        alert('Preencha todos os campos!');
+        return;
+    }
+    
+    await api('/api/testes', 'POST', { titulo: titulo, materia: materia, bimestre: parseInt(bimestre) });
+    
+    document.getElementById('teste-titulo').value = '';
+    alert('Teste criado! Adicione questões.');
+}
+
+// ==================== PRESENÇA ====================
+let presencaState = {};
+
+async function loadPresenca() {
+    const materiaId = document.getElementById('presenca-materia').value;
+    const data = document.getElementById('presenca-data').value;
+    
+    if (!materiaId || !data) return;
+    
+    showSkeleton('presenca-list', 3);
+    
+    const alunos = await api('/api/alunos');
+    const presencas = await api('/api/presencas?materia=' + materiaId + '&data=' + data);
+    
+    if (!alunos) return;
+    
+    presencaState = {};
+    if (presencas) {
+        presencas.forEach(function(p) {
+            presencaState[p.alunoId] = p.status;
+        });
+    }
+    
+    document.getElementById('presenca-list').innerHTML = alunos.map(function(aluno) {
+        return '<div class="card" style="display: flex; justify-content: space-between; align-items: center;">' +
+            '<strong>' + aluno.nome + '</strong>' +
+            '<div>' +
+            '<button class="attendance-btn' + (presencaState[aluno._id] === 'P' ? ' present' : '') + '" onclick="togglePresenca(\'' + aluno._id + '\', \'P\')">✓ Presente</button>' +
+            '<button class="attendance-btn' + (presencaState[aluno._id] === 'F' ? ' absent' : '') + '" onclick="togglePresenca(\'' + aluno._id + '\', \'F\')">✗ Falta</button>' +
+            '</div></div>';
+    }).join('');
+    
+    document.getElementById('salvar-presenca-btn').style.display = 'block';
+}
+
+function togglePresenca(alunoId, status) {
+    presencaState[alunoId] = presencaState[alunoId] === status ? null : status;
+    loadPresenca();
+}
+
+async function salvarPresenca() {
+    const materiaId = document.getElementById('presenca-materia').value;
+    const data = document.getElementById('presenca-data').value;
+    
+    const registros = Object.keys(presencaState)
+        .filter(function(alunoId) { return presencaState[alunoId]; })
+        .map(function(alunoId) {
+            return {
+                alunoId: alunoId,
+                materia: materiaId,
+                data: data,
+                status: presencaState[alunoId]
+            };
+        });
+    
+    await api('/api/presencas/batch', 'POST', { registros: registros });
+    alert('✅ Presença salva!');
+}
+
+// ==================== GESTÃO ====================
+async function criarNoticia() {
+    const titulo = document.getElementById('n-tit').value;
+    const conteudo = document.getElementById('n-con').value;
+    
+    if (!titulo || !conteudo) {
+        alert('Preencha os campos!');
+        return;
+    }
+    
+    await api('/api/noticias', 'POST', { titulo: titulo, conteudo: conteudo });
+    
+    document.getElementById('n-tit').value = '';
+    document.getElementById('n-con').value = '';
+    
+    alert('Notícia publicada!');
+}
+
+async function criarOcorrencia() {
+    const alunoNome = document.getElementById('o-aluno').value;
+    const tipo = document.getElementById('o-tipo').value;
+    const descricao = document.getElementById('o-desc').value;
+    
+    if (!alunoNome || !descricao) {
+        alert('Preencha os campos!');
+        return;
+    }
+    
+    await api('/api/ocorrencias', 'POST', { alunoNome: alunoNome, tipo: tipo, descricao: descricao });
+    
+    document.getElementById('o-aluno').value = '';
+    document.getElementById('o-desc').value = '';
+    
+    alert('Ocorrência registrada!');
+}
+
+// ==================== ADMIN ====================
+async function loadAdminUsers() {
+    showSkeleton('admin-users-list', 3);
+    const users = await api('/api/admin/users');
+    
+    if (!users) return;
+    
+    document.getElementById('admin-users-list').innerHTML = users.map(function(user) {
+        return '<div class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">' +
+            '<div style="flex: 1;"><strong>' + user.nome + '</strong><br>' +
+            '<small style="color: var(--text-dim);">' + user.email + '</small><br>' +
+            '<span class="badge primary">' + user.role + '</span></div>' +
+            '<div style="display: flex; gap: 8px;">' +
+            '<select id="role-' + user._id + '" style="padding: 10px; border-radius: 8px;">' +
+            '<option' + (user.role === 'Aluno' ? ' selected' : '') + '>Aluno</option>' +
+            '<option' + (user.role === 'Professor' ? ' selected' : '') + '>Professor</option>' +
+            '<option' + (user.role === 'Direcao' ? ' selected' : '') + '>Direcao</option>' +
+            '<option' + (user.role === 'Admin' ? ' selected' : '') + '>Admin</option>' +
+            '</select>' +
+            '<button class="btn" style="padding: 10px 16px;" onclick="updateRole(\'' + user._id + '\')">SALVAR</button>' +
+            '</div></div>';
+    }).join('');
+}
+
+async function updateRole(userId) {
+    const newRole = document.getElementById('role-' + userId).value;
+    await api('/api/admin/update-role', 'POST', { userId: userId, role: newRole });
+    loadAdminUsers();
+}
+
+// ==================== PERFIL ====================
+function loadProfile() {
+    if (!currentUser) return;
+    
+    document.getElementById('profile-name').textContent = currentUser.nome;
+    document.getElementById('profile-role').textContent = currentUser.role;
+    document.getElementById('profile-avatar').src = currentUser.avatar;
+    
+    const savedBanner = localStorage.getItem('v-banner-color');
+    if (savedBanner) {
+        document.getElementById('profile-banner').style.background = savedBanner;
+        document.getElementById('profile-banner-color').value = savedBanner;
+    }
+    
+    const savedBio = localStorage.getItem('v-bio');
+    if (savedBio) {
+        document.getElementById('profile-bio').value = savedBio;
+    }
+}
+
+function salvarPerfil() {
+    const bio = document.getElementById('profile-bio').value;
+    const bannerColor = document.getElementById('profile-banner-color').value;
+    
+    localStorage.setItem('v-bio', bio);
+    localStorage.setItem('v-banner-color', bannerColor);
+    
+    document.getElementById('profile-banner').style.background = bannerColor;
+    
+    alert('✅ Perfil atualizado!');
+}
+
+// ==================== NAVIGATION ====================
+function switchView(viewName) {
+    document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+    
+    const view = document.getElementById('view-' + viewName);
+    if (view) view.classList.add('active');
+    
+    document.querySelectorAll('.nav-item').forEach(function(item) {
+        if (item.onclick && item.onclick.toString().indexOf(viewName) > -1) {
+            item.classList.add('active');
+        }
+    });
+    
+    if (viewName === 'home') loadHome();
+    if (viewName === 'biblioteca') loadBiblioteca();
+    if (viewName === 'atividades') loadAtividades();
+    if (viewName === 'forum') loadForum();
+    if (viewName === 'admin') loadAdminUsers();
+    if (viewName === 'profile') loadProfile();
+}
+
+function logout() {
+    if (confirm('Deseja sair?')) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+// ==================== INIT ====================
+window.addEventListener('DOMContentLoaded', function() {
+    const userJson = localStorage.getItem('v-user');
+    
+    if (userJson) {
+        try {
+            const user = JSON.parse(userJson);
+            initApp(user);
+        } catch (e) {
+            console.error('User data error:', e);
+            localStorage.clear();
+        }
+    }
+    
+    const presencaDataInput = document.getElementById('presenca-data');
+    if (presencaDataInput) {
+        const today = new Date();
+        presencaDataInput.value = today.toISOString().split('T')[0];
+    }
+});
