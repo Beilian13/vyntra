@@ -1770,9 +1770,9 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
     <div class="call-timer" id="callTimer">0:00</div>
   </div>
   <div id="vadStrip">
-    <span class="vad-label">🎙️ Sensitivity</span>
-    <input type="range" id="vadSlider" min="1" max="100" value="15"/>
-    <span id="vadVal">15</span>
+    <span class="vad-label">🎙️ Gate</span>
+    <input type="range" id="vadSlider" min="-80" max="-10" value="-40" step="1"/>
+    <span id="vadVal" style="font-size:11px;color:var(--muted);width:44px;text-align:center">-40dB</span>
     <div class="vad-bar-wrap" style="margin-left:8px"><div class="vad-bar" id="vadBar"></div></div>
     <span id="vadStatus" style="font-size:11px;width:36px;text-align:right">🔇</span>
   </div>
@@ -2820,9 +2820,13 @@ function initListeners(){
   document.getElementById('ctrlHangup').onclick=leaveCall;
   /* VAD slider */
   var sl=document.getElementById('vadSlider');
-  sl.value=lk.vadThreshold;
-  document.getElementById('vadVal').textContent=lk.vadThreshold;
-  sl.oninput=function(){lk.vadThreshold=parseInt(sl.value);document.getElementById('vadVal').textContent=lk.vadThreshold;localStorage.setItem('vyntra_vad',lk.vadThreshold);};
+  sl.value=lk.vadThreshold||'-40';
+  document.getElementById('vadVal').textContent=(lk.vadThreshold||'-40')+'dB';
+  sl.oninput=function(){
+    lk.vadThreshold=parseInt(sl.value);
+    document.getElementById('vadVal').textContent=sl.value+'dB';
+    localStorage.setItem('vyntra_vad',lk.vadThreshold);
+  };
   /* Mic modal */
   document.getElementById('micPrimary').onclick=onMicPrimary;
   document.getElementById('micCancel').onclick=onMicCancel;
@@ -3873,16 +3877,36 @@ function onMicCancel(){
   cleanupCall();
 }
 function getMic(cb){
+  var constraints = {
+    audio: {
+      echoCancellation:  true,
+      noiseSuppression:  true,
+      autoGainControl:   false,
+      sampleRate:        48000,
+      sampleSize:        16,
+      channelCount:      1,
+      latency:           0,
+      // Suppress background noise / music, focus on voice
+      googEchoCancellation:     true,
+      googAutoGainControl:      false,
+      googNoiseSuppression:     true,
+      googHighpassFilter:       true,     // cuts sub-80Hz rumble
+      googTypingNoiseDetection: true,
+      googAudioMirroring:       false,
+    },
+    video: false
+  };
   if(navigator.permissions&&navigator.permissions.query){
     navigator.permissions.query({name:'microphone'}).then(function(r){
-      if(r.state==='granted') navigator.mediaDevices.getUserMedia({audio:true,video:false}).then(cb).catch(function(){showMicModal(cb);});
+      if(r.state==='granted') navigator.mediaDevices.getUserMedia(constraints).then(cb).catch(function(){showMicModal(cb);});
       else if(r.state==='denied'){showMicDenied();lk._micCb=cb;}
       else showMicModal(cb);
-    }).catch(function(){directMic(cb);});
-  } else directMic(cb);
+    }).catch(function(){directMic(cb, constraints);});
+  } else directMic(cb, constraints);
 }
-function directMic(cb){
-  navigator.mediaDevices.getUserMedia({audio:true,video:false})
+function directMic(cb, constraints){
+  constraints = constraints || {audio:true, video:false};
+  navigator.mediaDevices.getUserMedia(constraints)
     .then(cb)
     .catch(function(e){
       if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError'){showMicDenied();lk._micCb=cb;}
@@ -4018,26 +4042,27 @@ async function joinLivekitRoom(lvRoomName, chatRoom){
   var data=await resp.json();
 
   var room=new LivekitClient.Room({
-    adaptiveStream: true,
-    dynacast:       true,
+    adaptiveStream: false,   // keep quality constant, don't reduce on congestion
+    dynacast:       false,   // don't downgrade simulcast layers
     stopLocalTrackOnUnpublish: true,
-    reconnectPolicy: { maxRetries: 6, retryDelayMs: 2000 },
+    reconnectPolicy: { maxRetries: 8, retryDelayMs: 1500 },
     publishDefaults:{
-      dtx:           true,
-      red:           true,
-      simulcast:     false,
-      audioPreset:   LivekitClient.AudioPresets.speech,
-      forceStereo:   false,
+      dtx:           false,  // disable discontinuous transmission — keeps audio consistent
+      red:            true,  // redundant encoding for packet loss resilience
+      simulcast:      false,
+      audioPreset:   LivekitClient.AudioPresets.musicHighQuality, // 320kbps stereo
+      forceStereo:   true,   // stereo mic output
     },
     audioCaptureDefaults:{
       echoCancellation:  true,
-      noiseSuppression:  true,
-      autoGainControl:   true,
+      noiseSuppression:  true,   // WebRTC handles background noise
+      autoGainControl:   false,  // we control gain manually via VAD
       sampleRate:        48000,
-      channelCount:      1,
+      channelCount:      1,      // mono capture, stereo output via forceStereo
+      latency:           0,      // minimize latency
     },
     videoCaptureDefaults:{
-      resolution: LivekitClient.VideoPresets.h360.resolution,
+      resolution: LivekitClient.VideoPresets.h720.resolution,
     },
   });
   lk.room=room;lk.lvRoomName=lvRoomName;lk.active=true;lk.remoteGainNodes={};
@@ -4267,8 +4292,15 @@ async function toggleScreen(){
   } else {
     try{
       await lk.room.localParticipant.setScreenShareEnabled(true,{
-        audio:true,      // capture system audio if available
-        selfBrowserSurface:'exclude',
+        audio: true,
+        selfBrowserSurface: 'exclude',
+        video: {
+          frameRate:    { ideal: 60, max: 60 },
+          width:        { ideal: 1920, max: 2560 },
+          height:       { ideal: 1080, max: 1440 },
+          displaySurface: 'monitor',
+        },
+        contentHint: 'detail',  // crisp text/UI, not motion-blur
       });
       lk.screenEnabled=true;
       updateCtrl('ctrlScreen',true);
@@ -4309,47 +4341,76 @@ function leaveCall(){
    VAD — Web Audio pipeline for volume gating
 ══════════════════════════════════════════════ */
 function setupVAD(rawStream){
-  // Single shared AudioContext — only for the meter visual.
-  // Livekit owns the actual mic track; we just tap the raw stream for RMS.
   var AC=window.AudioContext||window.webkitAudioContext;
-  try{ var ctx=new AC({sampleRate:16000,latencyHint:'playback'}); lk.audioCtx=ctx; } catch(e){ return; }
+  try{ var ctx=new AC({sampleRate:48000,latencyHint:'interactive'}); lk.audioCtx=ctx; } catch(e){ return; }
 
   var src=ctx.createMediaStreamSource(rawStream);
+
+  // High-pass filter — cut everything below 80Hz (claps, thumps, A/C hum)
+  var hpf=ctx.createBiquadFilter();
+  hpf.type='highpass'; hpf.frequency.value=80; hpf.Q.value=0.7;
+
+  // Low-pass filter — cut everything above 8kHz (hiss, keyboard clicks)
+  var lpf=ctx.createBiquadFilter();
+  lpf.type='lowpass'; lpf.frequency.value=8000; lpf.Q.value=0.7;
+
+  // Analyser for level metering
   var analyser=ctx.createAnalyser();
-  analyser.fftSize=512;          // larger = smoother but still cheap
-  analyser.smoothingTimeConstant=0.75;
-  analyser.minDecibels=-80;
-  src.connect(analyser);
+  analyser.fftSize=2048;
+  analyser.smoothingTimeConstant=0.5;
+  analyser.minDecibels=-100;
+  analyser.maxDecibels=0;
+
+  src.connect(hpf); hpf.connect(lpf); lpf.connect(analyser);
   lk.analyser=analyser;
 
   var buf=new Float32Array(analyser.fftSize);
-  var SPEAK_THRESH=0.015, HOLD_MS=400, lastSpeak=0;
-  var lastPct=-1, lastSpeaking=null;
-  var FRAME_MS=80; // poll at ~12fps — plenty for a meter visual
+  var HOLD_MS=500; // hold gate open this long after last voice detected
+  var lastSpeak=0;
+  var lastDb=-100, lastSpeaking=null;
+  var FRAME_MS=40; // ~25fps meter
   var lastFrame=0;
+
+  // dB threshold from slider (default -40 dB)
+  function getDbThreshold(){
+    var sl=document.getElementById('vadSlider');
+    return sl ? parseInt(sl.value) : -40;
+  }
 
   function tick(ts){
     if(!lk.active){ lk.vadInterval=null; return; }
     lk.vadInterval=requestAnimationFrame(tick);
-    if(ts-lastFrame < FRAME_MS) return; // throttle to ~12fps
+    if(ts-lastFrame<FRAME_MS) return;
     lastFrame=ts;
 
     analyser.getFloatTimeDomainData(buf);
-    var sum=0, len=buf.length;
-    for(var i=0;i<len;i++) sum+=buf[i]*buf[i];
-    var rms=Math.sqrt(sum/len);
+    // Compute RMS → dB
+    var sum=0;
+    for(var i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
+    var rms=Math.sqrt(sum/buf.length);
+    var db = rms > 0 ? 20*Math.log10(rms) : -100;
+    db = Math.max(-100, Math.min(0, db));
 
+    var threshold=getDbThreshold();
     var now=Date.now();
-    if(rms>SPEAK_THRESH) lastSpeak=now;
+    if(db>threshold) lastSpeak=now;
     var speaking=(now-lastSpeak)<HOLD_MS;
-    var pct=Math.min(100,(rms/0.06)*100)|0;
 
-    // Only write DOM when values change
-    if(pct!==lastPct){
-      lastPct=pct;
+    // Meter: map db range [-80, -10] to 0-100%
+    var pct=Math.round(Math.max(0,Math.min(100,((db+80)/70)*100)));
+
+    if(Math.abs(db-lastDb)>1){
+      lastDb=db;
       var vb=document.getElementById('vadBar');
-      if(vb) vb.style.width=pct+'%';
+      if(vb){
+        vb.style.width=pct+'%';
+        // Color: green=safe, yellow=loud, red=clipping
+        vb.style.background=db>-10?'#ff5050':db>-20?'#ffa500':'linear-gradient(90deg,var(--green),var(--accent))';
+      }
+      var dbLabel=document.getElementById('vadVal');
+      if(dbLabel) dbLabel.textContent=Math.round(db)+'dB';
     }
+
     if(speaking!==lastSpeaking){
       lastSpeaking=speaking;
       var vs=document.getElementById('vadStatus');
