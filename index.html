@@ -8573,6 +8573,194 @@ function renderDevBots(c){
     _log.apply(console,args);
   };
 })();
+
+/* ══════════════════════════════════════════════
+   MIC SENSITIVITY PANEL
+══════════════════════════════════════════════ */
+var _micSensitivityOpen = false;
+
+function toggleMicSensitivity(){
+  _micSensitivityOpen = !_micSensitivityOpen;
+  var panel = document.getElementById('micSensitivityPanel');
+  if(panel) panel.classList.toggle('active', _micSensitivityOpen);
+  if(_micSensitivityOpen){
+    // Initialize slider from current VAD threshold
+    var slider = document.getElementById('micDbSlider');
+    var val = document.getElementById('vadSlider') ? parseInt(document.getElementById('vadSlider').value) : -40;
+    slider.value = val;
+    document.getElementById('micDbValue').textContent = val + 'dB';
+    // Start volume meter animation
+    startMicVolumeMeter();
+  }
+}
+
+function startMicVolumeMeter(){
+  if(!lk.analyser) return;
+  if(lk._micMeterInterval) clearInterval(lk._micMeterInterval);
+  lk._micMeterInterval = setInterval(function(){
+    if(!_micSensitivityOpen) return;
+    var buf = new Float32Array(lk.analyser.fftSize);
+    lk.analyser.getFloatTimeDomainData(buf);
+    var sum = 0;
+    for(var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    var rms = Math.sqrt(sum / buf.length);
+    var db = rms > 0 ? 20 * Math.log10(rms) : -100;
+    db = Math.max(-80, Math.min(0, db));
+    var pct = Math.round(Math.max(0, Math.min(100, ((db + 80) / 80) * 100)));
+    var fill = document.getElementById('micVolumeMeterFill');
+    if(fill) fill.style.width = pct + '%';
+  }, 100);
+}
+
+// Wire up mic sensitivity slider
+document.addEventListener('DOMContentLoaded', function(){
+  var slider = document.getElementById('micDbSlider');
+  if(slider){
+    slider.addEventListener('input', function(){
+      var val = slider.value;
+      document.getElementById('micDbValue').textContent = val + 'dB';
+      // Sync with main VAD slider
+      var vadSlider = document.getElementById('vadSlider');
+      if(vadSlider) vadSlider.value = val;
+      // Update VAD threshold
+      lk.vadThreshold = parseInt(val);
+      localStorage.setItem('vyntra_vad', lk.vadThreshold);
+    });
+  }
+});
+
+/* ══════════════════════════════════════════════
+   STICKER OVERLAY (Always-on-Top)
+══════════════════════════════════════════════ */
+var _stickerOverlayOpen = false;
+var _stickerOverlayMinimized = false;
+var _stickerOverlayDrag = {active: false, offsetX: 0, offsetY: 0};
+var _stickerOverlaySounds = {
+  'airhorn': function(){ sbPlayBuiltin('airhorn', null); },
+  'bruh': function(){ sbPlayBuiltin('bruh', null); },
+  'boom': function(){ sbPlayBuiltin('boom', null); },
+  'tada': function(){ sbPlayBuiltin('tada', null); },
+  'fail': function(){ sbPlayBuiltin('fail', null); },
+  'clap': function(){ sbPlayBuiltin('clap', null); },
+};
+var _stickerOverlayStickers = [
+  {emoji:'😂',name:'lol'},{emoji:'❤️',name:'love'},{emoji:'🔥',name:'fire'},
+  {emoji:'👍',name:'thumbsup'},{emoji:'😭',name:'cry'},{emoji:'😍',name:'heart'},
+  {emoji:'🙏',name:'pray'},{emoji:'💀',name:'dead'},{emoji:'😎',name:'cool'},
+  {emoji:'🤣',name:'rofl'},{emoji:'😊',name:'blush'},{emoji:'🎉',name:'party'},
+  {emoji:'💯',name:'hundo'},{emoji:'🤔',name:'think'},{emoji:'👀',name:'eyes'},
+  {emoji:'😢',name:'sad'},{emoji:'😡',name:'angry'},{emoji:'🥶',name:'cold'},
+  {emoji:'🤯',name:'mindblown'},{emoji:'👋',name:'wave'},{emoji:'🎵',name:'music'},
+  {emoji:'💤',name:'sleep'},{emoji:'🍕',name:'pizza'},{emoji:'☕',name:'coffee'},
+];
+
+function toggleStickerOverlay(){
+  _stickerOverlayOpen = !_stickerOverlayOpen;
+  var overlay = document.getElementById('stickerOverlay');
+  if(overlay) overlay.classList.toggle('active', _stickerOverlayOpen);
+  if(_stickerOverlayOpen){
+    renderStickerOverlayGrid();
+    setupStickerOverlayDrag();
+  }
+}
+
+function closeStickerOverlay(){
+  _stickerOverlayOpen = false;
+  _stickerOverlayMinimized = false;
+  var overlay = document.getElementById('stickerOverlay');
+  if(overlay) overlay.classList.remove('active');
+}
+
+function minimizeStickerOverlay(){
+  _stickerOverlayMinimized = !_stickerOverlayMinimized;
+  var body = document.getElementById('stickerOverlayBody');
+  var footer = document.querySelector('.sticker-overlay-footer');
+  if(body) body.style.display = _stickerOverlayMinimized ? 'none' : '';
+  if(footer) footer.style.display = _stickerOverlayMinimized ? 'none' : '';
+}
+
+function renderStickerOverlayGrid(){
+  var grid = document.getElementById('stickerOverlayGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  _stickerOverlayStickers.forEach(function(st){
+    var item = document.createElement('div');
+    item.className = 'sticker-overlay-item';
+    item.textContent = st.emoji;
+    item.title = st.name;
+    item.onclick = function(){
+      // Send sticker to chat
+      if(currentChannelId || currentRoom){
+        wsSend({type:'message', text: st.emoji + ' *'+st.name+'*'});
+      }
+      // Play sound if enabled
+      var soundEnabled = document.getElementById('stickerSoundEnabled');
+      var soundSelect = document.getElementById('stickerSoundSelect');
+      if(soundEnabled && soundEnabled.checked && soundSelect){
+        var soundId = soundSelect.value;
+        if(soundId !== 'none' && _stickerOverlaySounds[soundId]){
+          _stickerOverlaySounds[soundId]();
+        }
+      }
+    };
+    grid.appendChild(item);
+  });
+}
+
+function setupStickerOverlayDrag(){
+  var header = document.getElementById('stickerOverlayHeader');
+  var overlay = document.getElementById('stickerOverlay');
+  if(!header || !overlay) return;
+
+  header.addEventListener('mousedown', function(e){
+    _stickerOverlayDrag.active = true;
+    _stickerOverlayDrag.offsetX = e.clientX - overlay.getBoundingClientRect().left;
+    _stickerOverlayDrag.offsetY = e.clientY - overlay.getBoundingClientRect().top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if(!_stickerOverlayDrag.active) return;
+    var x = e.clientX - _stickerOverlayDrag.offsetX;
+    var y = e.clientY - _stickerOverlayDrag.offsetY;
+    // Keep within viewport
+    x = Math.max(0, Math.min(window.innerWidth - overlay.offsetWidth, x));
+    y = Math.max(0, Math.min(window.innerHeight - overlay.offsetHeight, y));
+    overlay.style.left = x + 'px';
+    overlay.style.top = y + 'px';
+    overlay.style.bottom = 'auto';
+    overlay.style.right = 'auto';
+  });
+
+  document.addEventListener('mouseup', function(){
+    _stickerOverlayDrag.active = false;
+  });
+}
+
+// Add mic sensitivity button to call controls
+document.addEventListener('DOMContentLoaded', function(){
+  // Add mic sensitivity button next to ctrlMic
+  var ctrlMic = document.getElementById('ctrlMic');
+  if(ctrlMic){
+    var micSensBtn = document.createElement('button');
+    micSensBtn.className = 'ctrl-btn';
+    micSensBtn.innerHTML = '<span class="ctrl-icon">📊</span><span>Sens</span>';
+    micSensBtn.title = 'Mic Sensitivity';
+    micSensBtn.onclick = toggleMicSensitivity;
+    ctrlMic.parentNode.insertBefore(micSensBtn, ctrlMic.nextSibling);
+  }
+
+  // Add sticker overlay toggle button
+  var ctrlSoundboard = document.getElementById('ctrlSoundboard');
+  if(ctrlSoundboard){
+    var stickerBtn = document.createElement('button');
+    stickerBtn.className = 'ctrl-btn';
+    stickerBtn.innerHTML = '<span class="ctrl-icon">🎭</span><span>Stickers</span>';
+    stickerBtn.title = 'Sticker Overlay';
+    stickerBtn.onclick = toggleStickerOverlay;
+    ctrlSoundboard.parentNode.insertBefore(stickerBtn, ctrlSoundboard.nextSibling);
+  }
+});
 </script>
 
 <!-- DEVELOPER PORTAL -->
