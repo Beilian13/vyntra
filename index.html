@@ -2025,6 +2025,54 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   </div>
   <!-- Call Poll Panel -->
   <div id="callPollPanel"></div>
+  <!-- Mic Sensitivity Panel -->
+  <div class="mic-sensitivity-panel" id="micSensitivityPanel">
+    <h4>🎙️ Mic Sensitivity</h4>
+    <div class="mic-db-slider-container">
+      <input type="range" id="micDbSlider" min="-60" max="0" value="-40" step="1"/>
+      <span class="mic-db-value" id="micDbValue">-40dB</span>
+    </div>
+    <div class="mic-volume-meter">
+      <div class="mic-volume-meter-fill" id="micVolumeMeterFill"></div>
+    </div>
+    <div class="mic-db-labels">
+      <span>-60dB</span>
+      <span>-40dB</span>
+      <span>-20dB</span>
+      <span>0dB</span>
+    </div>
+  </div>
+
+  <!-- Sticker Overlay (Always-on-Top) -->
+  <div class="sticker-overlay" id="stickerOverlay">
+    <div class="sticker-overlay-header" id="stickerOverlayHeader">
+      <h4>🎭 Stickers</h4>
+      <div class="sticker-overlay-controls">
+        <button onclick="minimizeStickerOverlay()" title="Minimize">−</button>
+        <button class="close-btn" onclick="closeStickerOverlay()" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="sticker-overlay-body" id="stickerOverlayBody">
+      <div class="sticker-grid" id="stickerOverlayGrid"></div>
+    </div>
+    <div class="sticker-overlay-footer">
+      <label>Sound:</label>
+      <select id="stickerSoundSelect" style="flex:1">
+        <option value="none">No sound</option>
+        <option value="airhorn">Air Horn</option>
+        <option value="bruh">Bruh</option>
+        <option value="boom">Boom</option>
+        <option value="tada">Ta-da!</option>
+        <option value="fail">Fail</option>
+        <option value="clap">Clap</option>
+      </select>
+      <label class="sticker-sound-toggle">
+        <input type="checkbox" id="stickerSoundEnabled" checked/>
+        On click
+      </label>
+    </div>
+  </div>
+
   <div id="callControls">
     <button class="ctrl-btn" id="ctrlMic">
       <span class="ctrl-icon">🎙️</span><span>Mic</span>
