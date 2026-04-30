@@ -1,0 +1,8 @@
+Select-Object : Cannot bind parameter 'Index'. Cannot convert value "8620..8700" to type "System.Int32". Error: "Input 
+string was not in a correct format."
+At line:1 char:73
++ ... index.html) | ForEach-Object { $_ } | Select-Object -Index 8620..8700
++                                                                ~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Select-Object], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.SelectObjectCommand
+ 

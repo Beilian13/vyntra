@@ -4942,6 +4942,8 @@ function stopSWHeartbeat(){
 var _wakeLock = null;
 async function acquireWakeLock(){
   if(!('wakeLock' in navigator)) return;
+  // Wake Lock API requires the page to be visible
+  if(document.visibilityState !== 'visible') return;
   try{
     _wakeLock = await navigator.wakeLock.request('screen');
     _wakeLock.addEventListener('release', function(){
