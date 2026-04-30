@@ -6494,7 +6494,25 @@ function renderSlibFavCount(){}  // placeholder
 
 // ── Sending stickers ──
 function sendSticker(url,name){
-  wsSend({type:'message',text:'',fileUrl:url,fileName:name,fileType:'sticker/vyntra'});
+  createStickerPopup(url, name);
+}
+
+function createStickerPopup(imageUrl, name){
+  // Create a new browser popup window
+  var popup = window.open('', '_blank', 'width=300,height=300,left=' + (window.screenX + Math.random() * 200) + ',top=' + (window.screenY + Math.random() * 200));
+  
+  if(!popup){
+    toast('❌ Please allow popups to send stickers!');
+    return;
+  }
+  
+  // Style the popup
+  popup.document.write('<!DOCTYPE html><html><head><title>Sticker - ' + name + '</title><style>body{margin:0;padding:0;display:flex;align-items:center;justify-content:center;height:100vh;background:transparent;overflow:hidden;}</style></head><body><img src="' + imageUrl + '" style="max-width:280px;max-height:280px;object-fit:contain;border-radius:12px;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));" alt="' + name + '"></body></html>');
+  
+  popup.document.close();
+  
+  // Auto-close after 5 seconds
+  setTimeout(function(){ try{ popup.close(); }catch(e){} }, 5000);
 }
 
 // ── Upload sticker ──
