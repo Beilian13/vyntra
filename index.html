@@ -1244,6 +1244,43 @@ textarea.settings-input{resize:vertical;min-height:120px;font-family:'Fira Code'
   white-space:nowrap;
 }
 .sticker-sound-toggle input{accent-color:var(--accent);}
+
+/* ══════════════════════════════════════════════
+   FLOATING STICKER POPUPS (Transparent, Always-on-Top)
+   ══════════════════════════════════════════════════ */
+.sticker-popup{
+  position:fixed;
+  z-index:100000;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
+  font-size:80px;
+  line-height:1;
+  filter:drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+  animation:stickerPopIn 0.5s ease-out forwards;
+  opacity:0;
+  transform:scale(0) rotate(-15deg);
+}
+.sticker-popup img{
+  width:100px;
+  height:100px;
+  object-fit:contain;
+  display:block;
+}
+.sticker-popup.sticker-popup-exit{
+  animation:stickerPopOut 0.4s ease-in forwards!
+  important;
+}
+@keyframes stickerPopIn{
+  0%{opacity:0;transform:scale(0) rotate(-15deg);}
+  50%{opacity:1;transform:scale(1.15) rotate(5deg);}
+  100%{opacity:1;transform:scale(1) rotate(0deg);}
+}
+@keyframes stickerPopOut{
+  0%{opacity:1;transform:scale(1) rotate(0deg);}
+  50%{opacity:0.5;transform:scale(1.1) rotate(-5deg);}
+  100%{opacity:0;transform:scale(0.3) rotate(15deg);}
+}
 </style>
 </head>
 <body>
