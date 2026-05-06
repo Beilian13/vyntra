@@ -241,6 +241,17 @@ const customEmojiSchema = new mongoose.Schema({
 });
 const CustomEmoji = mongoose.model('CustomEmoji', customEmojiSchema);
 
+/* ── Call Stickers (soundboard) ── */
+const callStickerSchema = new mongoose.Schema({
+  serverId:  { type: mongoose.Schema.Types.ObjectId, ref: 'VyntraServer', required: true },
+  name:      { type: String, required: true },
+  imageUrl:  { type: String, required: true },
+  soundUrl:  { type: String, default: null }, // Optional sound file
+  uploadedBy:{ type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const CallSticker = mongoose.model('CallSticker', callStickerSchema);
+
 /* ── Pinned Messages ── */
 const pinnedMsgSchema = new mongoose.Schema({
   channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
@@ -648,6 +659,59 @@ app.delete('/servers/:id/emoji/:eid', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     await CustomEmoji.deleteOne({ _id: req.params.eid, serverId: srv._id });
     broadcastToServer(srv, { type: 'emoji_removed', serverId: srv._id.toString(), emojiId: req.params.eid });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+/* ── CALL STICKERS (Soundboard) ── */
+// List call stickers for a server
+app.get('/servers/:id/call-stickers', authMiddleware, async (req, res) => {
+  try {
+    const stickers = await CallSticker.find({ serverId: req.params.id }).lean();
+    res.json(stickers);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Upload call sticker (image + optional sound)
+app.post('/servers/:id/call-stickers', authMiddleware, upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'sound', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv) return res.status(404).json({ error: 'Not found' });
+    if (srv.owner !== req.user.username && !srv.admins.includes(req.user.username))
+      return res.status(403).json({ error: 'Forbidden' });
+    
+    if (!req.files || !req.files.image) return res.status(400).json({ error: 'Image required' });
+    
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    
+    const imageUrl = req.files.image[0].path;
+    const soundUrl = req.files.sound ? req.files.sound[0].path : null;
+    
+    const sticker = await CallSticker.create({
+      serverId: srv._id,
+      name: name.slice(0, 32),
+      imageUrl,
+      soundUrl,
+      uploadedBy: req.user.username
+    });
+    
+    broadcastToServer(srv, { type: 'call_sticker_added', serverId: srv._id.toString(), sticker });
+    res.json(sticker);
+  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete call sticker
+app.delete('/servers/:id/call-stickers/:sid', authMiddleware, async (req, res) => {
+  try {
+    const srv = await VyntraServer.findById(req.params.id);
+    if (!srv || (srv.owner !== req.user.username && !srv.admins.includes(req.user.username)))
+      return res.status(403).json({ error: 'Forbidden' });
+    await CallSticker.deleteOne({ _id: req.params.sid, serverId: srv._id });
+    broadcastToServer(srv, { type: 'call_sticker_removed', serverId: srv._id.toString(), stickerId: req.params.sid });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1970,7 +2034,8 @@ wss.on('connection', ws => {
       msg.text = newText;
       msg.editedAt = new Date();
       await msg.save();
-      const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
+      const chanId = msg.channel
+      Id ? msg.channelId.toString() : msg.room;
       if (activeChannels[chanId]) activeChannels[chanId].forEach(u =>
         sendTo(u, { type: 'msg_edited', id: msg.id, text: newText, chanId })
       );
@@ -2001,13 +2066,11 @@ wss.on('connection', ws => {
 
     /* SEEN RECEIPT */
     if (data.type === 'msg_seen') {
-      // Mark a message as seen by this user
       const msg = await Message.findOne({ id: data.messageId });
-      if (!msg || msg.user === username) return; // don't mark your own
-      if (msg.seenBy && msg.seenBy.includes(username)) return; // already marked
+      if (!msg || msg.user === username) return;
+      if (msg.seenBy && msg.seenBy.includes(username)) return;
       msg.seenBy = [...(msg.seenBy || []), username];
       await msg.save();
-      // Notify the sender
       const chanId = msg.channelId ? msg.channelId.toString() : msg.room;
       sendTo(msg.user, { type: 'msg_seen_ack', id: msg.id, seenBy: msg.seenBy, chanId });
       return;
@@ -2017,7 +2080,7 @@ wss.on('connection', ws => {
     if (data.type === 'friend_request') {
       const target = await User.findOne({ username: data.to });
       if (!target) return;
-      if ((target.blockedUsers||[]).includes(username)) return; // blocked
+      if ((target.blockedUsers||[]).includes(username)) return;
       await User.updateOne({ username: data.to }, { $addToSet: { pendingFriends: username } });
       sendTo(data.to, { type: 'friend_request', from: username });
       sendTo(username, { type: 'friend_request_sent', to: data.to });
@@ -2064,7 +2127,6 @@ wss.on('connection', ws => {
     if (data.type === 'call_join_room') {
       const cr = ensureCallRoom(data.lvRoom);
       cr.members.add(username);
-      // Broadcast updated member list to call room
       cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
       return;
     }
@@ -2075,6 +2137,23 @@ wss.on('connection', ws => {
         if (cr.members.size === 0) { delete callRooms[data.lvRoom]; }
         else cr.members.forEach(m => sendTo(m, { type: 'call_room_members', lvRoom: data.lvRoom, members: [...cr.members] }));
       }
+      return;
+    }
+
+    /* CALL STICKER PLAY */
+    if (data.type === 'call_sticker_play') {
+      const cr = callRooms[data.lvRoom];
+      if (!cr || !cr.members.has(username)) return;
+      // Broadcast to all call members (including sender for confirmation)
+      cr.members.forEach(m => sendTo(m, { 
+        type: 'call_sticker_play', 
+        lvRoom: data.lvRoom, 
+        user: username,
+        stickerId: data.stickerId,
+        imageUrl: data.imageUrl,
+        soundUrl: data.soundUrl,
+        name: data.name
+      }));
       return;
     }
 
@@ -2122,11 +2201,9 @@ wss.on('connection', ws => {
       const opt = poll.options.find(o => o.id === data.optionId);
       if (!opt) return;
       if (poll.multiSelect) {
-        // Toggle: add if not voted, remove if already voted
         const idx = opt.votes.indexOf(username);
         if (idx >= 0) opt.votes.splice(idx, 1); else opt.votes.push(username);
       } else {
-        // Single select: remove from all, add to chosen
         poll.options.forEach(o => { o.votes = o.votes.filter(v => v !== username); });
         opt.votes.push(username);
       }
